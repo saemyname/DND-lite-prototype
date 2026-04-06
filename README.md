@@ -38,3 +38,9 @@ npx serve .
 - Face tracking: MediaPipe FaceLandmarker (facial transformation matrix → yaw/pitch)
 - 3D Scene: Three.js GLTFLoader, PCFSoft shadow mapping, ACES tonemapping
 - GitHub Pages: [`coi-serviceworker`](https://github.com/gzuidhof/coi-serviceworker) for SharedArrayBuffer support
+
+---
+
+## Credits
+
+- 3D model: [The Tavern Under the Falling Pigeon](https://skfb.ly/pD7uU) — licensed under [CC Attribution](http://creativecommons.org/licenses/by/4.0/)
