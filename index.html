@@ -903,6 +903,7 @@ window.initSplat = initSplat;
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
 const GLB_PATH = 'Assets/the_tavern_under_the_falling_pigeon.glb';
 const STEP = Math.PI / 2;   // 90°
@@ -960,13 +961,10 @@ async function initThreeJS() {
   sun2.position.set(-4, 6, -4);
   scene.add(sun2);
 
-  // Warm fill (torch-like)
-  const fill = new THREE.PointLight(0xff8c30, 3.0, 20);
-  fill.position.set(-2, 2, 0);
-  scene.add(fill);
 
   // Load GLB
   const loader = new GLTFLoader();
+  loader.setMeshoptDecoder(MeshoptDecoder);
   loader.load(
     GLB_PATH,
     (gltf) => {
@@ -1015,10 +1013,20 @@ async function initThreeJS() {
   }
   window.addEventListener('resize', onResize);
 
-  // ── Arrow rotation ──
+  // ── Arrow rotation + mouse sway ──
   const CAM_POS = new THREE.Vector3(9, -3, 37);
   let targetAngleY  = Math.PI / 4;
   let currentAngleY = Math.PI / 4;
+
+  const MOUSE_STRENGTH_X = 0.08;  // yaw   ±~4.5°
+  const MOUSE_STRENGTH_Y = 0.05;  // pitch ±~2.9°
+  let rawMouseX = 0, smMouseX = 0;
+  let rawMouseY = 0, smMouseY = 0;
+
+  window.addEventListener('mousemove', e => {
+    rawMouseX = -((e.clientX / window.innerWidth  - 0.5) * 2);  // -1 to 1, inverted
+    rawMouseY = -((e.clientY / window.innerHeight - 0.5) * 2);  // -1 to 1, inverted
+  });
 
   window.rotateCam = (dir) => { targetAngleY += dir * STEP; };
 
@@ -1027,9 +1035,15 @@ async function initThreeJS() {
     requestAnimationFrame(tick);
 
     currentAngleY += (targetAngleY - currentAngleY) * LERP_SPEED;
+    smMouseX += (rawMouseX - smMouseX) * 0.04;
+    smMouseY += (rawMouseY - smMouseY) * 0.04;
 
     camera.position.copy(CAM_POS);
-    camera.rotation.set(0, currentAngleY, 0, 'YXZ');
+    camera.rotation.set(
+      smMouseY * MOUSE_STRENGTH_Y,
+      currentAngleY + smMouseX * MOUSE_STRENGTH_X,
+      0, 'YXZ'
+    );
 
     renderer.render(scene, camera);
   }
