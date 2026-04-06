@@ -14,18 +14,19 @@ A 6-layer parallax dungeon scene with mouse-driven depth. Torch glow animations 
 ### Gaussian Splatting — Open World
 Real 3D scenes rendered via [Gaussian Splatting](https://github.com/mkkellogg/GaussianSplats3D), with head-coupled perspective powered by MediaPipe face tracking. Rotate your head to shift the camera viewpoint.
 
+### 3D Scene — The Tavern
+A GLB model rendered with Three.js from a fixed first-person camera position. Use the ↻ ↺ buttons to rotate the view 90° at a time.
+
 ---
 
 ## Running Locally
-
-Requires Python 3. The custom server sets Cross-Origin Isolation headers needed for SharedArrayBuffer (used by the Gaussian Splatting renderer).
 
 ```bash
 git clone https://github.com/saemyname/DND-lite-prototype.git
 cd DND-lite-prototype
 npm install
-./start-server.sh
-# → http://localhost:8080
+npx serve .
+# → http://localhost:3000
 ```
 
 ---
@@ -33,6 +34,7 @@ npm install
 ## Tech
 
 - Parallax: vanilla CSS + JS, 6-layer PNG composition
-- 3D rendering: [`@mkkellogg/gaussian-splats-3d`](https://github.com/mkkellogg/GaussianSplats3D) (Three.js)
+- Gaussian Splatting: [`@mkkellogg/gaussian-splats-3d`](https://github.com/mkkellogg/GaussianSplats3D) (Three.js)
 - Face tracking: MediaPipe FaceLandmarker (facial transformation matrix → yaw/pitch)
+- 3D Scene: Three.js GLTFLoader, PCFSoft shadow mapping, ACES tonemapping
 - GitHub Pages: [`coi-serviceworker`](https://github.com/gzuidhof/coi-serviceworker) for SharedArrayBuffer support

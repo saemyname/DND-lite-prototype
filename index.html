@@ -56,6 +56,7 @@
   }
   .mode-btn:first-child { border-right: none; border-radius: 2px 0 0 2px; }
   .mode-btn:last-child  { border-left:  none; border-radius: 0 2px 2px 0; }
+  .mode-btn:not(:first-child):not(:last-child) { border-left: none; border-right: none; }
   .mode-btn.active {
     background: rgba(200,169,110,.18);
     color: #c8a96e;
@@ -68,16 +69,76 @@
 
   /* ── View containers ── */
   #parallax-view,
-  #splat-view {
+  #splat-view,
+  #threejs-view {
     position: fixed;
     inset: 0;
     transition: opacity .5s ease;
   }
   #parallax-view.hidden,
-  #splat-view.hidden {
+  #splat-view.hidden,
+  #threejs-view.hidden {
     opacity: 0;
     pointer-events: none;
   }
+
+  /* ════════════════════════════
+     THREEJS
+  ════════════════════════════ */
+  #threejs-view {
+    background: #0a0810;
+  }
+  #threejs-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  #threejs-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background: #0a0810;
+    z-index: 10;
+    transition: opacity .5s;
+  }
+  #threejs-loading.hidden { opacity: 0; pointer-events: none; }
+  .tl-rune { font-size: 42px; opacity: .4; animation: spin 8s linear infinite; }
+  .tl-text { font-size: 14px; letter-spacing: 5px; text-transform: uppercase; opacity: .7; }
+
+  /* Arrow nav buttons */
+  .cam-arrow {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 200;
+    width: 60px;
+    height: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(200,169,110,.12);
+    border: 2px solid rgba(200,169,110,.5);
+    color: rgba(200,169,110,.85);
+    font-size: 32px;
+    cursor: pointer;
+    transition: all .2s;
+    user-select: none;
+    pointer-events: all;
+    text-shadow: 0 0 12px rgba(200,169,110,.6);
+  }
+  .cam-arrow:hover {
+    background: rgba(200,169,110,.25);
+    color: #c8a96e;
+    border-color: rgba(200,169,110,.9);
+    text-shadow: 0 0 20px rgba(200,169,110,.9);
+  }
+  .cam-arrow:active { background: rgba(200,169,110,.4); }
+  #cam-left  { left: 16px;  border-radius: 4px; }
+  #cam-right { right: 16px; border-radius: 4px; }
 
   /* ════════════════════════════
      PARALLAX
@@ -385,6 +446,7 @@
 <div id="mode-bar">
   <button class="mode-btn active" onclick="switchMode('parallax')">Parallax</button>
   <button class="mode-btn"        onclick="switchMode('splat')">Gaussian Splatting</button>
+  <button class="mode-btn"        onclick="switchMode('threejs')">3D Scene</button>
 </div>
 
 <!-- ══════════════════════════════════════
@@ -457,6 +519,21 @@
 </div>
 
 <!-- ══════════════════════════════════════
+     THREEJS VIEW
+══════════════════════════════════════ -->
+<div id="threejs-view" class="hidden">
+  <canvas id="threejs-canvas"></canvas>
+
+  <div id="threejs-loading">
+    <div class="tl-rune">⬡</div>
+    <div class="tl-text">Loading Scene</div>
+  </div>
+
+  <button class="cam-arrow" id="cam-left"  onclick="rotateCam(+1)">↻</button>
+  <button class="cam-arrow" id="cam-right" onclick="rotateCam(-1)">↺</button>
+</div>
+
+<!-- ══════════════════════════════════════
      PARALLAX SCRIPT
 ══════════════════════════════════════ -->
 <script>
@@ -505,24 +582,26 @@ pTick();
 
 // ── Mode switching ──
 let splatInitialized = false;
+let threejsInitialized = false;
 
 function switchMode(mode) {
+  const modes = ['parallax', 'splat', 'threejs'];
   document.querySelectorAll('.mode-btn').forEach((b, i) => {
-    b.classList.toggle('active', (i === 0) === (mode === 'parallax'));
+    b.classList.toggle('active', modes[i] === mode);
   });
 
-  if (mode === 'parallax') {
-    document.getElementById('parallax-view').classList.remove('hidden');
-    document.getElementById('splat-view').classList.add('hidden');
-    pActive = true;
-  } else {
-    document.getElementById('parallax-view').classList.add('hidden');
-    document.getElementById('splat-view').classList.remove('hidden');
-    pActive = false;
-    if (!splatInitialized) {
-      splatInitialized = true;
-      initSplat();
-    }
+  document.getElementById('parallax-view').classList.toggle('hidden', mode !== 'parallax');
+  document.getElementById('splat-view').classList.toggle('hidden', mode !== 'splat');
+  document.getElementById('threejs-view').classList.toggle('hidden', mode !== 'threejs');
+  pActive = (mode === 'parallax');
+
+  if (mode === 'splat' && !splatInitialized) {
+    splatInitialized = true;
+    initSplat();
+  }
+  if (mode === 'threejs' && !threejsInitialized) {
+    threejsInitialized = true;
+    initThreeJS();
   }
 }
 </script>
@@ -816,6 +895,148 @@ async function initSplat() {
 // Make initSplat available globally
 window.initSplat = initSplat;
 
+</script>
+
+<!-- ══════════════════════════════════════
+     THREEJS SCENE SCRIPT
+══════════════════════════════════════ -->
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+const GLB_PATH = 'Assets/the_tavern_under_the_falling_pigeon.glb';
+const STEP = Math.PI / 2;   // 90°
+const LERP_SPEED = 0.08;
+
+let targetAngle = 0;
+let currentAngle = 0;
+let camRadius = 5;
+let camHeight = 1.5;
+let lookAtY = 0;
+let animating = false;
+
+window.rotateCam = (dir) => { targetAngle += dir * STEP; };
+
+async function initThreeJS() {
+  const canvas = document.getElementById('threejs-canvas');
+  const loadingEl = document.getElementById('threejs-loading');
+
+  // Renderer
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+
+  // Scene
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0810);
+  scene.fog = new THREE.Fog(0x0a0810, 60, 120);
+
+  // Camera
+  const camera = new THREE.PerspectiveCamera(55, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
+
+  // Lights
+  const ambient = new THREE.AmbientLight(0xfff0d0, 2.5);
+  scene.add(ambient);
+
+  const sun = new THREE.DirectionalLight(0xfff5e0, 3.0);
+  sun.position.set(20, 40, 20);
+  sun.target.position.set(9, -3, 0);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.near = 1;
+  sun.shadow.camera.far  = 200;
+  sun.shadow.camera.left   = -80;
+  sun.shadow.camera.right  =  80;
+  sun.shadow.camera.top    =  80;
+  sun.shadow.camera.bottom = -80;
+  scene.add(sun);
+  scene.add(sun.target);
+
+  const sun2 = new THREE.DirectionalLight(0xe8d8c0, 1.5);
+  sun2.position.set(-4, 6, -4);
+  scene.add(sun2);
+
+  // Warm fill (torch-like)
+  const fill = new THREE.PointLight(0xff8c30, 3.0, 20);
+  fill.position.set(-2, 2, 0);
+  scene.add(fill);
+
+  // Load GLB
+  const loader = new GLTFLoader();
+  loader.load(
+    GLB_PATH,
+    (gltf) => {
+      const model = gltf.scene;
+
+      // Enable shadows on all meshes
+      model.traverse(child => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
+
+      // Center model at origin, no scaling
+      const box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      model.position.sub(center);
+
+      // Place camera at center, eye height
+      const size = box.getSize(new THREE.Vector3());
+      camHeight = -size.y * 0.1;  // slightly below center = eye level inside
+
+      scene.add(model);
+
+      // Hide loading
+      loadingEl.classList.add('hidden');
+    },
+    (progress) => {
+      if (progress.total > 0) {
+        const pct = Math.round(progress.loaded / progress.total * 100);
+        loadingEl.querySelector('.tl-text').textContent = `Loading Scene  ${pct}%`;
+      }
+    },
+    (err) => {
+      console.error('GLB load error:', err);
+      loadingEl.querySelector('.tl-text').textContent = 'Load failed — check console';
+    }
+  );
+
+  // Resize handler
+  function onResize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  }
+  window.addEventListener('resize', onResize);
+
+  // ── Arrow rotation ──
+  const CAM_POS = new THREE.Vector3(9, -3, 37);
+  let targetAngleY  = Math.PI / 4;
+  let currentAngleY = Math.PI / 4;
+
+  window.rotateCam = (dir) => { targetAngleY += dir * STEP; };
+
+  // Render loop
+  function tick() {
+    requestAnimationFrame(tick);
+
+    currentAngleY += (targetAngleY - currentAngleY) * LERP_SPEED;
+
+    camera.position.copy(CAM_POS);
+    camera.rotation.set(0, currentAngleY, 0, 'YXZ');
+
+    renderer.render(scene, camera);
+  }
+  tick();
+}
+
+window.initThreeJS = initThreeJS;
 </script>
 </body>
 </html>
