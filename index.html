@@ -810,8 +810,10 @@ function setProgress(pct, msg) {
 }
 
 function setStatus(key, state, msg) {
-  $('dot-' + key).className = 'status-dot ' + state;
-  $('status-' + key).textContent = msg;
+  const dot = $('dot-' + key);
+  const label = $('status-' + key);
+  if (dot) dot.className = 'status-dot ' + state;
+  if (label) label.textContent = msg;
 }
 
 function showError(msg) {
