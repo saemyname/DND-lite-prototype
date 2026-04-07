@@ -12,7 +12,7 @@ An immersive web prototype exploring visual experiences for a lightweight D&D-st
 A 6-layer parallax dungeon scene with mouse-driven depth. Torch glow animations and vignette overlays create a moody, atmospheric feel.
 
 ### Gaussian Splatting — Open World
-Real 3D scenes rendered via [Gaussian Splatting](https://github.com/mkkellogg/GaussianSplats3D), with head-coupled perspective powered by MediaPipe face tracking. Rotate your head to shift the camera viewpoint.
+Real 3D scenes rendered via Gaussian Splatting, with head-coupled perspective powered by MediaPipe face tracking. Rotate your head to shift the camera viewpoint.
 
 ### 3D Scene — The Tavern
 A GLB model rendered with Three.js from a fixed first-person camera position. Use the ↻ ↺ buttons to rotate the view 90° at a time. Flickering torch lights and mouse-driven camera sway create an immersive atmosphere.
