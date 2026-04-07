@@ -29,6 +29,10 @@ A web-based **D&D Lite** prototype — a heavily simplified take on tabletop D&D
 | Three.js 3D scene — GLB model viewer | ✅ |
 | 3D scene: fixed camera position, ↻↺ arrow buttons rotate 90° | ✅ |
 | 3D scene: shadow mapping, ACES tonemapping, subtle fog | ✅ |
+| 3D scene: mouse sway (camera follows cursor) | ✅ |
+| 3D scene: 5 flickering torch PointLights | ✅ |
+| HUD overlay: character name, role, 4 stats panel | ✅ |
+| HUD overlay: clickable d20 roller (nat20/nat1 color feedback) | ✅ |
 | Mode switcher (Parallax / Gaussian Splatting / 3D Scene) | ✅ |
 | GitHub Pages deployment with `coi-serviceworker` | ✅ |
 
@@ -54,7 +58,8 @@ a simple event (combat or choice), and exits to the next room.
 
 - [ ] Character creation screen — choose a **Role** (Warrior / Rogue / Mage)
 - [ ] Stats assigned per role: **Strength, Agility, Intelligence, Luck** (values ~8–14)
-- [ ] d20 combat: roll d20 + relevant stat modifier vs target DC → success/fail
+- [x] d20 roller UI (HUD bottom-right)
+- [ ] d20 combat logic: roll d20 + relevant stat modifier vs target DC → success/fail
 - [ ] 5–6 room adventure with per-room background image switching
 - [ ] Simple choice system (2–3 options per room event)
 - [ ] Win/lose state + restart
