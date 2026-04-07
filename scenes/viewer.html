@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D&D Lite — Scenes</title>
+
+<script src="../coi-serviceworker.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+    "three/": "https://cdn.jsdelivr.net/npm/three@0.176.0/"
+  }
+}
+</script>
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #050210;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    font-family: 'Georgia', serif;
+    color: #c8a96e;
+    user-select: none;
+  }
+
+  /* ── Mode switcher bar ── */
+  #mode-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 10px 20px;
+    background: linear-gradient(to bottom, rgba(0,0,0,.8) 0%, transparent 100%);
+    pointer-events: none;
+  }
+  .mode-btn {
+    pointer-events: all;
+    background: rgba(200,169,110,.06);
+    border: 1px solid rgba(200,169,110,.2);
+    color: rgba(200,169,110,.45);
+    padding: 6px 22px;
+    font-size: 11px;
+    font-family: 'Georgia', serif;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all .25s;
+  }
+  .mode-btn:first-child { border-right: none; border-radius: 2px 0 0 2px; }
+  .mode-btn:last-child  { border-left:  none; border-radius: 0 2px 2px 0; }
+  .mode-btn:not(:first-child):not(:last-child) { border-left: none; border-right: none; }
+  .mode-btn.active {
+    background: rgba(200,169,110,.18);
+    color: #c8a96e;
+    border-color: rgba(200,169,110,.5);
+  }
+  .mode-btn:hover:not(.active) {
+    background: rgba(200,169,110,.11);
+    color: rgba(200,169,110,.7);
+  }
+
+  /* ── View containers ── */
+  #parallax-view,
+  #splat-view,
+  #threejs-view {
+    position: fixed;
+    inset: 0;
+    transition: opacity .5s ease;
+  }
+  #parallax-view.hidden,
+  #splat-view.hidden,
+  #threejs-view.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* ════════════════════════════
+     THREEJS
+  ════════════════════════════ */
+  #threejs-view {
+    background: #0a0810;
+  }
+  #threejs-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  #threejs-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background: #0a0810;
+    z-index: 10;
+    transition: opacity .5s;
+  }
+  #threejs-loading.hidden { opacity: 0; pointer-events: none; }
+  .tl-rune { font-size: 42px; opacity: .4; animation: spin 8s linear infinite; }
+  .tl-text { font-size: 14px; letter-spacing: 5px; text-transform: uppercase; opacity: .7; }
+
+  /* Arrow nav buttons */
+  .cam-arrow {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 200;
+    width: 60px;
+    height: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(200,169,110,.12);
+    border: 2px solid rgba(200,169,110,.5);
+    color: rgba(200,169,110,.85);
+    font-size: 32px;
+    cursor: pointer;
+    transition: all .2s;
+    user-select: none;
+    pointer-events: all;
+    text-shadow: 0 0 12px rgba(200,169,110,.6);
+  }
+  .cam-arrow:hover {
+    background: rgba(200,169,110,.25);
+    color: #c8a96e;
+    border-color: rgba(200,169,110,.9);
+    text-shadow: 0 0 20px rgba(200,169,110,.9);
+  }
+  .cam-arrow:active { background: rgba(200,169,110,.4); }
+  #cam-left  { left: 16px;  border-radius: 4px; }
+  #cam-right { right: 16px; border-radius: 4px; }
+
+  /* ════════════════════════════
+     HUD
+  ════════════════════════════ */
+  #hud {
+    position: fixed;
+    inset: 0;
+    z-index: 400;
+    pointer-events: none;
+  }
+
+  /* Stats panel — bottom left */
+  #hud-stats {
+    position: absolute;
+    bottom: 28px;
+    left: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: rgba(0,0,0,.45);
+    border: 1px solid rgba(200,169,110,.12);
+    border-radius: 6px;
+    padding: 12px 16px;
+    backdrop-filter: blur(4px);
+  }
+  #hud-name {
+    font-size: 24px;
+    letter-spacing: 2px;
+    color: #ffe9a0;
+    opacity: .9;
+    line-height: 1.2;
+  }
+  #hud-role {
+    font-size: 12px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #c8a96e;
+    opacity: .5;
+    margin-bottom: 8px;
+  }
+  .hud-stat {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .hud-stat-name {
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #c8a96e;
+    opacity: .5;
+    width: 120px;
+  }
+  .hud-stat-bar {
+    width: 90px;
+    height: 4px;
+    background: rgba(200,169,110,.12);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .hud-stat-fill {
+    height: 100%;
+    background: linear-gradient(to right, #c8a96e, #ffe9a0);
+    border-radius: 2px;
+    transition: width .4s ease;
+  }
+  .hud-stat-val {
+    font-size: 15px;
+    color: #c8a96e;
+    opacity: .75;
+    width: 22px;
+    text-align: right;
+  }
+
+  /* D20 — bottom right */
+  #hud-d20 {
+    position: absolute;
+    bottom: 28px;
+    right: 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    pointer-events: all;
+    cursor: pointer;
+  }
+  #hud-d20:hover #d20-shape { filter: brightness(1.3); }
+  #d20-shape {
+    width: 96px;
+    height: 96px;
+    transition: filter .2s, transform .15s;
+  }
+  #d20-shape polygon, #d20-shape line {
+    stroke: rgba(200,169,110,.7);
+    stroke-width: 1.2;
+  }
+  #d20-shape polygon { fill: rgba(200,169,110,.07); }
+  #d20-result {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 26px;
+    font-family: 'Georgia', serif;
+    color: #ffe9a0;
+    pointer-events: none;
+    text-shadow: 0 0 10px rgba(200,169,110,.8);
+    transition: opacity .3s;
+  }
+  #d20-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(200,169,110,.4);
+  }
+  #d20-wrapper {
+    position: relative;
+    width: 96px;
+    height: 96px;
+  }
+  @keyframes d20-roll {
+    0%   { transform: rotate(0deg)   scale(1); }
+    20%  { transform: rotate(72deg)  scale(1.15); }
+    40%  { transform: rotate(144deg) scale(0.95); }
+    60%  { transform: rotate(216deg) scale(1.1); }
+    80%  { transform: rotate(288deg) scale(0.98); }
+    100% { transform: rotate(360deg) scale(1); }
+  }
+  #d20-shape.rolling { animation: d20-roll .5s ease-out; }
+
+  /* ════════════════════════════
+     PARALLAX
+  ════════════════════════════ */
+  #parallax-view {
+    background: #000;
+  }
+
+  .p-scene {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .layer {
+    position: absolute;
+    width: 130%;
+    height: 130%;
+    top: -15%;
+    left: -15%;
+    will-change: transform;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    background-position: center;
+  }
+
+  #L0 {
+    background-image: url('../images/layer0-bg.png');
+    background-size: cover;
+    background-position: center;
+    background-color: #080414;
+  }
+  #L1 { background-image: url('../images/layer1-arch.png'); }
+  #L2 { background-image: url('../images/layer2-walls.png'); }
+  #L3 { background-image: url('../images/layer3-ceiling-floor.png'); }
+  #L4 { background-image: url('../images/layer4-pillars.png'); }
+  #L5 { background-image: url('../images/layer5-foreground.png'); }
+
+  .torch-glow-overlay {
+    position: absolute;
+    width: 130%; height: 130%;
+    top: -15%; left: -15%;
+    will-change: transform;
+    pointer-events: none;
+  }
+
+  @keyframes glow-pulse-left {
+    0%,100% { opacity:.18; transform: scale(1); }
+    30%      { opacity:.30; transform: scale(1.08); }
+    60%      { opacity:.14; transform: scale(.95); }
+  }
+  @keyframes glow-pulse-right {
+    0%,100% { opacity:.16; transform: scale(1); }
+    40%      { opacity:.28; transform: scale(1.06); }
+    70%      { opacity:.12; transform: scale(.97); }
+  }
+  .glow-left {
+    position: absolute;
+    left: 20%; top: 28%;
+    width: 18%; height: 22%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,140,0,.55) 0%, transparent 70%);
+    animation: glow-pulse-left .8s ease-in-out infinite;
+    mix-blend-mode: screen;
+  }
+  .glow-right {
+    position: absolute;
+    right: 20%; top: 28%;
+    width: 18%; height: 22%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,140,0,.55) 0%, transparent 70%);
+    animation: glow-pulse-right .9s ease-in-out infinite;
+    mix-blend-mode: screen;
+  }
+
+  .p-vignette {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+    background: radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(0,0,0,.5) 75%, rgba(0,0,0,.92) 100%);
+  }
+  .p-letterbox {
+    position: fixed;
+    inset: 0;
+    z-index: 11;
+    pointer-events: none;
+    background:
+      linear-gradient(to bottom, rgba(0,0,0,.65) 0%, transparent 18%),
+      linear-gradient(to top,    rgba(0,0,0,.75) 0%, transparent 22%);
+  }
+  .p-location {
+    position: fixed;
+    top: 44px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    color: #c8a96e;
+    font-size: 20px;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    text-shadow: 0 0 24px rgba(200,169,110,.9), 0 0 60px rgba(200,169,110,.3);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .p-hint {
+    position: fixed;
+    bottom: 32px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    color: #7a6040;
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  /* ════════════════════════════
+     SPLAT
+  ════════════════════════════ */
+  #splat-view {
+    background: #050210;
+  }
+
+  #splat-container {
+    position: absolute;
+    inset: 0;
+  }
+  #splat-container canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  /* Loading */
+  #loading {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: #050210;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    transition: opacity .6s;
+  }
+  #loading.hidden { opacity: 0; pointer-events: none; }
+
+  .loading-rune {
+    font-size: 48px;
+    opacity: .4;
+    animation: spin 8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-title { font-size: 18px; letter-spacing: 6px; text-transform: uppercase; opacity: .9; }
+  .loading-bar-bg { width: 280px; height: 2px; background: rgba(200,169,110,.15); border-radius: 2px; }
+  .loading-bar { height: 100%; background: linear-gradient(to right, #7a5020, #c8a96e); border-radius: 2px; width: 0%; transition: width .4s ease; }
+  .loading-status { font-size: 11px; letter-spacing: 2px; opacity: .5; text-transform: uppercase; }
+
+  /* Scene bar */
+  #scene-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: linear-gradient(to bottom, rgba(0,0,0,.7) 0%, transparent 100%);
+  }
+  #scene-bar label { font-size: 11px; letter-spacing: 2px; opacity: .5; white-space: nowrap; }
+  #splat-url {
+    flex: 1;
+    background: rgba(0,0,0,.5);
+    border: 1px solid rgba(200,169,110,.25);
+    color: #c8a96e;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-family: monospace;
+    outline: none;
+  }
+  #splat-url:focus { border-color: rgba(200,169,110,.6); }
+
+  .btn {
+    background: rgba(200,169,110,.12);
+    border: 1px solid rgba(200,169,110,.35);
+    color: #c8a96e;
+    padding: 6px 14px;
+    font-size: 11px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .2s;
+  }
+  .btn:hover { background: rgba(200,169,110,.25); }
+
+  .scene-presets { display: flex; gap: 6px; }
+  .preset-btn {
+    background: rgba(200,169,110,.08);
+    border: 1px solid rgba(200,169,110,.2);
+    color: rgba(200,169,110,.6);
+    padding: 4px 10px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .preset-btn:hover, .preset-btn.active {
+    background: rgba(200,169,110,.2);
+    color: #c8a96e;
+    border-color: rgba(200,169,110,.5);
+  }
+
+  /* Webcam */
+  #webcam-preview {
+    position: fixed;
+    bottom: 20px; right: 220px;
+    z-index: 150;
+    width: 140px; height: 105px;
+    border: none;
+    border-radius: 3px;
+    overflow: hidden;
+    background: #000;
+    transition: opacity .3s;
+  }
+  #webcam-preview.hidden { opacity: 0; pointer-events: none; }
+  #webcam { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  #webcam-label { position: absolute; bottom: 4px; left: 6px; font-size: 9px; letter-spacing: 1px; color: rgba(200,169,110,.5); }
+  #face-canvas { position: absolute; inset: 0; width: 100%; height: 100%; transform: scaleX(-1); }
+
+  /* Face cursor */
+  #face-cursor {
+    position: fixed;
+    z-index: 150;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: opacity .3s;
+    opacity: 0;
+  }
+  #face-cursor .ring {
+    width: 20px; height: 20px;
+    border: 1px solid rgba(200,169,110,.6);
+    border-radius: 50%;
+    animation: ring-pulse 2s ease-in-out infinite;
+  }
+  @keyframes ring-pulse {
+    0%,100% { transform: scale(1); opacity: .6; }
+    50%      { transform: scale(1.4); opacity: .2; }
+  }
+
+  /* Status bar */
+  #status-bar {
+    position: fixed;
+    bottom: 20px; left: 20px;
+    z-index: 150;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .status-item { font-size: 10px; letter-spacing: 1.5px; opacity: .45; display: flex; align-items: center; gap: 6px; }
+  .status-dot { width: 5px; height: 5px; border-radius: 50%; background: #666; }
+  .status-dot.green  { background: #4caf50; }
+  .status-dot.yellow { background: #ff9800; }
+  .status-dot.red    { background: #f44336; }
+
+  #controls-hint {
+    position: fixed;
+    bottom: 20px; left: 50%; transform: translateX(-50%);
+    z-index: 150;
+    font-size: 10px;
+    letter-spacing: 2px;
+    opacity: .3;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .s-vignette {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+    background: radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(0,0,0,.45) 78%, rgba(0,0,0,.88) 100%);
+  }
+
+  /* Error */
+  #error-msg {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+    background: rgba(0,0,0,.85);
+  }
+  #error-msg.show { display: flex; }
+  #error-text { font-size: 13px; opacity: .7; letter-spacing: 1px; max-width: 500px; text-align: center; line-height: 1.8; }
+</style>
+</head>
+<body>
+
+<!-- ── HUD ── -->
+<div id="hud">
+  <!-- Stats: bottom left -->
+  <div id="hud-stats">
+    <div id="hud-name">Adventurer</div>
+    <div id="hud-role">—</div>
+    <div class="hud-stat">
+      <span class="hud-stat-name">Strength</span>
+      <div class="hud-stat-bar"><div class="hud-stat-fill" style="width:0%"></div></div>
+      <span class="hud-stat-val">—</span>
+    </div>
+    <div class="hud-stat">
+      <span class="hud-stat-name">Agility</span>
+      <div class="hud-stat-bar"><div class="hud-stat-fill" style="width:0%"></div></div>
+      <span class="hud-stat-val">—</span>
+    </div>
+    <div class="hud-stat">
+      <span class="hud-stat-name">Intelligence</span>
+      <div class="hud-stat-bar"><div class="hud-stat-fill" style="width:0%"></div></div>
+      <span class="hud-stat-val">—</span>
+    </div>
+    <div class="hud-stat">
+      <span class="hud-stat-name">Luck</span>
+      <div class="hud-stat-bar"><div class="hud-stat-fill" style="width:0%"></div></div>
+      <span class="hud-stat-val">—</span>
+    </div>
+  </div>
+
+  <!-- D20: bottom right -->
+  <div id="hud-d20" onclick="rollD20()">
+    <div id="d20-wrapper">
+      <svg id="d20-shape" viewBox="0 0 64 64">
+        <polygon points="32,4 60,20 60,44 32,60 4,44 4,20"/>
+        <line x1="32" y1="4"  x2="32" y2="60"/>
+        <line x1="4"  y1="20" x2="60" y2="44"/>
+        <line x1="60" y1="20" x2="4"  y2="44"/>
+        <line x1="32" y1="4"  x2="4"  y2="44"/>
+        <line x1="32" y1="4"  x2="60" y2="44"/>
+        <line x1="4"  y1="20" x2="32" y2="60"/>
+        <line x1="60" y1="20" x2="32" y2="60"/>
+      </svg>
+      <div id="d20-result">—</div>
+    </div>
+    <div id="d20-label">Roll d20</div>
+  </div>
+</div>
+
+<!-- ── Mode switcher ── -->
+<div id="mode-bar">
+  <button class="mode-btn active" onclick="switchMode('parallax')">Parallax</button>
+  <button class="mode-btn"        onclick="switchMode('splat')">Gaussian Splatting</button>
+  <button class="mode-btn"        onclick="switchMode('threejs')">3D Scene</button>
+</div>
+
+<!-- ══════════════════════════════════════
+     PARALLAX VIEW
+══════════════════════════════════════ -->
+<div id="parallax-view">
+  <div class="p-scene" id="p-scene">
+    <div class="layer" id="L0"></div>
+    <div class="layer" id="L1"></div>
+    <div class="layer" id="L2">
+      <div class="glow-left"></div>
+      <div class="glow-right"></div>
+    </div>
+    <div class="layer" id="L3"></div>
+    <div class="layer" id="L4"></div>
+    <div class="layer" id="L5"></div>
+  </div>
+  <div class="p-vignette"></div>
+  <div class="p-letterbox"></div>
+  <div class="p-location">The Forgotten Dungeon</div>
+  <div class="p-hint">Move cursor to look around</div>
+</div>
+
+<!-- ══════════════════════════════════════
+     SPLAT VIEW
+══════════════════════════════════════ -->
+<div id="splat-view" class="hidden">
+
+  <div id="scene-bar">
+    <label>SCENE</label>
+    <div class="scene-presets">
+      <button class="preset-btn active" onclick="loadPreset('garden')">Garden</button>
+      <button class="preset-btn"        onclick="loadPreset('treehill')">Treehill</button>
+    </div>
+    <input id="splat-url" type="text" placeholder="Or enter a .splat / .ply URL directly..." style="display:none">
+    <button class="btn" onclick="loadCustomUrl()" style="display:none">Load</button>
+  </div>
+
+  <div id="splat-container"></div>
+  <div class="s-vignette"></div>
+
+  <div id="loading">
+    <div class="loading-rune">⬡</div>
+    <div class="loading-title">Entering the Realm</div>
+    <div class="loading-bar-bg"><div class="loading-bar" id="progress-bar"></div></div>
+    <div class="loading-status" id="loading-status">Initializing...</div>
+  </div>
+
+  <div id="error-msg">
+    <div style="font-size:24px; opacity:.3">⚠</div>
+    <div id="error-text"></div>
+    <button class="btn" onclick="document.getElementById('error-msg').classList.remove('show')">Close</button>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════
+     SHARED WEBCAM PREVIEW (visible in all modes)
+══════════════════════════════════════ -->
+<div id="webcam-preview">
+  <video id="webcam" autoplay playsinline muted></video>
+  <canvas id="face-canvas"></canvas>
+</div>
+<div id="face-cursor"><div class="ring"></div></div>
+
+<!-- ══════════════════════════════════════
+     THREEJS VIEW
+══════════════════════════════════════ -->
+<div id="threejs-view" class="hidden">
+  <canvas id="threejs-canvas"></canvas>
+
+  <div id="threejs-loading">
+    <div class="tl-rune">⬡</div>
+    <div class="tl-text">Loading Scene</div>
+  </div>
+
+  <button class="cam-arrow" id="cam-left"  onclick="rotateCam(+1)">↻</button>
+  <button class="cam-arrow" id="cam-right" onclick="rotateCam(-1)">↺</button>
+</div>
+
+<!-- ══════════════════════════════════════
+     LOAD CHARACTER FROM LOCALSTORAGE
+══════════════════════════════════════ -->
+<script>
+(function loadCharacter() {
+  const data = localStorage.getItem('dndlite-character');
+  if (!data) {
+    window.location.href = '../index.html';
+    return;
+  }
+  const char = JSON.parse(data);
+
+  document.getElementById('hud-name').textContent = char.name;
+  document.getElementById('hud-role').textContent = char.role;
+
+  const statBars = document.querySelectorAll('.hud-stat');
+  const statKeys = ['str', 'agi', 'int', 'lck'];
+  statKeys.forEach((key, i) => {
+    const val = char[key];
+    statBars[i].querySelector('.hud-stat-val').textContent = val;
+    statBars[i].querySelector('.hud-stat-fill').style.width = (val / 20 * 100) + '%';
+  });
+})();
+</script>
+
+<!-- ══════════════════════════════════════
+     PARALLAX SCRIPT
+══════════════════════════════════════ -->
+<script>
+const layerConfig = [
+  { id: 'L0', speed: 0.008 },
+  { id: 'L1', speed: 0.025 },
+  { id: 'L2', speed: 0.050 },
+  { id: 'L3', speed: 0.082 },
+  { id: 'L4', speed: 0.125 },
+  { id: 'L5', speed: 0.175 },
+];
+
+const pLayers = layerConfig.map(cfg => ({
+  el: document.getElementById(cfg.id),
+  speed: cfg.speed,
+}));
+
+const pScene = document.getElementById('p-scene');
+let pMouseX = 0, pMouseY = 0;
+let pCurX = 0, pCurY = 0;
+let pActive = true;
+
+pScene.addEventListener('mousemove', e => {
+  pMouseX = e.clientX - window.innerWidth  / 2;
+  pMouseY = e.clientY - window.innerHeight / 2;
+});
+pScene.addEventListener('touchmove', e => {
+  const t = e.touches[0];
+  pMouseX = t.clientX - window.innerWidth  / 2;
+  pMouseY = t.clientY - window.innerHeight / 2;
+  e.preventDefault();
+}, { passive: false });
+
+function pTick() {
+  if (pActive) {
+    const ease = 0.07;
+    pCurX += (pMouseX - pCurX) * ease;
+    pCurY += (pMouseY - pCurY) * ease;
+    pLayers.forEach(({ el, speed }) => {
+      el.style.transform = `translate(${(-pCurX * speed).toFixed(2)}px, ${(-pCurY * speed).toFixed(2)}px)`;
+    });
+  }
+  requestAnimationFrame(pTick);
+}
+pTick();
+
+// ── Mode switching ──
+let splatInitialized = false;
+let threejsInitialized = false;
+
+function switchMode(mode) {
+  const modes = ['parallax', 'splat', 'threejs'];
+  document.querySelectorAll('.mode-btn').forEach((b, i) => {
+    b.classList.toggle('active', modes[i] === mode);
+  });
+
+  document.getElementById('parallax-view').classList.toggle('hidden', mode !== 'parallax');
+  document.getElementById('splat-view').classList.toggle('hidden', mode !== 'splat');
+  document.getElementById('threejs-view').classList.toggle('hidden', mode !== 'threejs');
+  pActive = (mode === 'parallax');
+
+  if (mode === 'splat' && !splatInitialized) {
+    splatInitialized = true;
+    initSplat();
+  }
+  if (mode === 'threejs' && !threejsInitialized) {
+    threejsInitialized = true;
+    initFaceTracking();
+    initThreeJS();
+  }
+}
+</script>
+
+<!-- ══════════════════════════════════════
+     SPLAT SCRIPT
+══════════════════════════════════════ -->
+<script type="module">
+
+const PRESETS = {
+  garden:   'https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/garden/garden-7k.splat',
+  treehill: 'https://huggingface.co/cakewalk/splat-data/resolve/main/treehill.splat',
+};
+
+const CAMERA_PRESETS = {
+  garden:   { pos: [0, -2, 6], lookAt: [0, 0, 0] },
+  treehill: { pos: [0, -8, 6], lookAt: [0, 0, 0] },
+};
+
+const FACE_STRENGTH = 2.5;  window.FACE_STRENGTH = FACE_STRENGTH;
+const SMOOTH = 0.04;        window.SMOOTH = SMOOTH;
+const SPLAT_NEAR = 0.1;     window.SPLAT_NEAR = SPLAT_NEAR;
+const SPLAT_FAR = 100;      window.SPLAT_FAR = SPLAT_FAR;
+const SPLAT_SCREEN_W = 40;  window.SPLAT_SCREEN_W = SPLAT_SCREEN_W;
+
+let viewer        = null;
+let faceLandmarker = null;
+let rawFX = 0, rawFY = 0;
+let smFX  = 0, smFY  = 0;
+let faceDetected  = false;
+let baseCamPos    = null;
+let lookAtPos     = { x: 0, y: 0, z: 0 };
+let splatScreenDist = 6; // will be set from camera base z
+let currentPreset = 'garden';
+let webcamActive  = false;
+
+// Expose face tracking data globally for the 3D scene
+window.faceTrack = { rawFX: 0, rawFY: 0, rawFZ: 0, detected: false };
+
+const $ = id => document.getElementById(id);
+
+// ── Shared face tracking init (runs once, used by both Splat and 3D Scene) ──
+let faceTrackInitialized = false;
+async function initFaceTracking() {
+  if (faceTrackInitialized) return;
+  faceTrackInitialized = true;
+
+  // MediaPipe
+  const MP_URLS = [
+    '../node_modules/@mediapipe/tasks-vision/vision_bundle.mjs',
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs',
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/vision_bundle.mjs',
+  ];
+
+  let FaceLandmarker, FilesetResolver, DrawingUtils;
+  for (const url of MP_URLS) {
+    try {
+      const mp = await import(url);
+      FaceLandmarker  = mp.FaceLandmarker;
+      FilesetResolver = mp.FilesetResolver;
+      DrawingUtils    = mp.DrawingUtils;
+      if (FaceLandmarker) { console.log('✅ MediaPipe loaded:', url); break; }
+    } catch(e) {
+      console.warn('⚠️ MediaPipe load failed:', url, e.message);
+    }
+  }
+  if (!FaceLandmarker) {
+    console.warn('MediaPipe load failed → mouse fallback');
+    setStatus('face', 'yellow', 'Face: mouse fallback');
+  }
+
+  if (FaceLandmarker) {
+    try {
+      const filesetResolver = await FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+      );
+      faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+        baseOptions: {
+          modelAssetPath:
+            'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+          delegate: 'GPU',
+        },
+        runningMode: 'VIDEO',
+        numFaces: 1,
+        outputFacialTransformationMatrixes: true,
+        outputFaceLandmarks: true,
+      });
+      setStatus('face', 'yellow', 'Face: Ready (awaiting webcam)');
+    } catch(e) {
+      console.warn('FaceLandmarker init failed:', e);
+      setStatus('face', 'red', 'Face: Init failed');
+    }
+  }
+
+  // Webcam
+  const webcamEl = $('webcam');
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: 320, height: 240 }
+    });
+    webcamEl.srcObject = stream;
+    await new Promise(res => webcamEl.onloadedmetadata = res);
+    webcamEl.play();
+    webcamActive = true;
+    $('webcam-preview').classList.remove('hidden');
+    setStatus('cam', 'green', 'Webcam: Connected');
+  } catch(e) {
+    $('webcam-preview').classList.add('hidden');
+    setStatus('cam', 'yellow', 'Webcam: None (mouse mode)');
+    document.addEventListener('mousemove', e => {
+      rawFX = -((e.clientX / window.innerWidth  - 0.5) * 2);
+      rawFY = -((e.clientY / window.innerHeight - 0.5) * 2);
+      faceDetected = true;
+      window.faceTrack.rawFX = rawFX;
+      window.faceTrack.rawFY = rawFY;
+      window.faceTrack.detected = true;
+    });
+  }
+
+  // Face detection loop
+  if (faceLandmarker && webcamActive) {
+    const faceCanvas = document.getElementById('face-canvas');
+    const ctx = faceCanvas.getContext('2d');
+    let drawingUtils = DrawingUtils ? new DrawingUtils(ctx) : null;
+
+    function detect() {
+      if (webcamEl.readyState >= 2) {
+        if (faceCanvas.width !== webcamEl.videoWidth) {
+          faceCanvas.width  = webcamEl.videoWidth;
+          faceCanvas.height = webcamEl.videoHeight;
+          if (DrawingUtils) drawingUtils = new DrawingUtils(ctx);
+        }
+        ctx.clearRect(0, 0, faceCanvas.width, faceCanvas.height);
+        try {
+          const results = faceLandmarker.detectForVideo(webcamEl, performance.now());
+          if (results.faceLandmarks?.length > 0) {
+            // Use nose tip (landmark 1) position for face position tracking
+            const lm = results.faceLandmarks[0];
+            const nose = lm[1];
+            rawFX = -((nose.x - 0.5) * 2);  // x: 0~1 → -1~1 (mirrored)
+            rawFY = -((nose.y - 0.5) * 2);   // y: 0~1 → -1~1
+            // Depth: ear-to-ear width (landmarks 234=right ear, 454=left ear)
+            const earL = lm[234], earR = lm[454];
+            const faceWidth = Math.sqrt((earR.x - earL.x) ** 2 + (earR.y - earL.y) ** 2);
+            // ~0.25 is typical face width at normal distance → map to -1~1
+            window.faceTrack.rawFZ = (faceWidth - 0.25) * 8;
+            faceDetected = true;
+            window.faceTrack.rawFX = rawFX;
+            window.faceTrack.rawFY = rawFY;
+            window.faceTrack.detected = true;
+            setStatus('face', 'green', `X ${rawFX.toFixed(2)}  Y ${rawFY.toFixed(2)}  Z ${window.faceTrack.rawFZ.toFixed(2)}`);
+            if (drawingUtils) {
+              for (const landmarks of results.faceLandmarks) {
+                drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
+                  { color: 'rgba(255,255,255,0.6)', lineWidth: 1.5 });
+                drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
+                  { color: 'rgba(255,255,255,0.9)', lineWidth: 2 });
+                drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,
+                  { color: 'rgba(255,255,255,0.9)', lineWidth: 2 });
+              }
+            }
+          } else {
+            faceDetected = false;
+            setStatus('face', 'yellow', 'Face: Not detected');
+          }
+        } catch(e) { console.warn('face detect error:', e); }
+      }
+      requestAnimationFrame(detect);
+    }
+    detect();
+  }
+}
+
+window.initFaceTracking = initFaceTracking;
+
+function setProgress(pct, msg) {
+  $('progress-bar').style.width = pct + '%';
+  $('loading-status').textContent = msg;
+}
+
+function setStatus(key, state, msg) {
+  const dot = $('dot-' + key);
+  const label = $('status-' + key);
+  if (dot) dot.className = 'status-dot ' + state;
+  if (label) label.textContent = msg;
+}
+
+function showError(msg) {
+  $('error-text').textContent = msg;
+  $('error-msg').classList.add('show');
+}
+
+async function initSplat() {
+
+  // STEP 1 — Load GS3D
+  setProgress(5, 'Loading Gaussian Splatting library...');
+
+  const GS3D_URLS = [
+    '../node_modules/@mkkellogg/gaussian-splats-3d/build/gaussian-splats-3d.module.js',
+    'https://cdn.jsdelivr.net/npm/@mkkellogg/gaussian-splats-3d@0.4.7/build/gaussian-splats-3d.module.min.js',
+    'https://cdn.jsdelivr.net/npm/@mkkellogg/gaussian-splats-3d@0.4.1/build/gaussian-splats-3d.module.min.js',
+  ];
+
+  let GS3D;
+  for (const url of GS3D_URLS) {
+    try {
+      setProgress(10, `Loading library... ${url.includes('node_modules') ? '(local)' : '(CDN)'}`);
+      GS3D = await import(url);
+      console.log('✅ gaussian-splats-3d loaded:', url);
+      break;
+    } catch(e) {
+      console.warn('⚠️ Load failed, trying next:', url, e.message);
+    }
+  }
+
+  if (!GS3D) {
+    showError(
+      'Failed to load Gaussian Splatting library.\n\n' +
+      'Run the following in your terminal, then refresh:\n\n' +
+      '  cd DND-lite\n' +
+      '  npm install @mkkellogg/gaussian-splats-3d\n\n' +
+      '(keep the server running)'
+    );
+    setProgress(100, 'Failed — see terminal instructions');
+    return;
+  }
+
+  const GSViewer = GS3D.Viewer || GS3D.default;
+
+  // STEP 2 — Face tracking (shared init)
+  setProgress(20, 'Loading face tracking model...');
+  await initFaceTracking();
+
+  // STEP 3 — Load splat scene
+  async function loadScene(url, preset) {
+    $('loading').classList.remove('hidden');
+    setProgress(50, 'Initializing scene...');
+    setStatus('splat', 'yellow', 'Splat: Loading...');
+
+    if (viewer) {
+      try { viewer.dispose(); } catch(e) {}
+      $('splat-container').innerHTML = '';
+    }
+
+    const camCfg = CAMERA_PRESETS[preset] || CAMERA_PRESETS.garden;
+    lookAtPos = { x: camCfg.lookAt[0], y: camCfg.lookAt[1], z: camCfg.lookAt[2] };
+
+    try {
+      viewer = new GSViewer({
+        rootElement: $('splat-container'),
+        cameraUp: [0, -1, 0],
+        initialCameraPosition: camCfg.pos,
+        initialCameraLookAt:   camCfg.lookAt,
+        selfDrivenMode: true,
+      });
+
+      setProgress(60, 'Downloading scene... (may be tens of MB, please wait)');
+
+      await viewer.addSplatScene(url, { showLoadingUI: false });
+
+      if (viewer.controls) viewer.controls.enabled = false;
+      baseCamPos = viewer.camera.position.clone();
+      splatScreenDist = baseCamPos.z - lookAtPos.z;
+
+      setProgress(100, 'Done!');
+      setStatus('splat', 'green', 'Splat: ' + (preset || 'custom'));
+
+      viewer.start();
+
+      setTimeout(() => {
+        $('loading').classList.add('hidden');
+        startCameraLoop();
+      }, 500);
+
+    } catch(e) {
+      setProgress(100, 'Load failed');
+      setStatus('splat', 'red', 'Splat: Failed');
+      $('loading').classList.add('hidden');
+      showError(
+        `Scene load failed: ${e.message}\n\n` +
+        `• The file URL may be blocked by CORS policy.\n` +
+        `• This page must be served from localhost or HTTPS.\n` +
+        `• Try hosting the .splat file yourself or use a different URL.`
+      );
+      console.error(e);
+    }
+  }
+
+  // STEP 4 — Camera loop (off-axis projection)
+  function startCameraLoop() {
+    const aspect = window.innerWidth / window.innerHeight;
+    let splatScreenH = SPLAT_SCREEN_W / aspect;
+
+    window.addEventListener('resize', () => {
+      splatScreenH = SPLAT_SCREEN_W / (window.innerWidth / window.innerHeight);
+    });
+
+    function tick() {
+      if (!viewer?.camera || !baseCamPos) { requestAnimationFrame(tick); return; }
+
+      smFX += (rawFX - smFX) * SMOOTH;
+      smFY += (rawFY - smFY) * SMOOTH;
+
+      // Sync to global for 3D scene
+      window.faceTrack.rawFX = rawFX;
+      window.faceTrack.rawFY = rawFY;
+      window.faceTrack.detected = faceDetected;
+
+      // Head offset
+      const headX = -smFX * FACE_STRENGTH;
+      const headY = Math.max(-1, Math.min(1, -smFY * FACE_STRENGTH));
+
+      // Camera position follows head
+      viewer.camera.position.x = baseCamPos.x + headX;
+      viewer.camera.position.y = baseCamPos.y + headY;
+      viewer.camera.rotation.set(0, 0, 0);
+
+      // Off-axis projection
+      const totalX = baseCamPos.x + headX - lookAtPos.x;
+      const totalY = baseCamPos.y + headY - lookAtPos.y;
+      const distToScreen = Math.abs(splatScreenDist);
+      const left   = (-SPLAT_SCREEN_W / 2 - totalX) * SPLAT_NEAR / distToScreen;
+      const right  = ( SPLAT_SCREEN_W / 2 - totalX) * SPLAT_NEAR / distToScreen;
+      const top    = (-splatScreenH / 2 - totalY) * SPLAT_NEAR / distToScreen;
+      const bottom = ( splatScreenH / 2 - totalY) * SPLAT_NEAR / distToScreen;
+      viewer.camera.projectionMatrix.makePerspective(left, right, bottom, top, SPLAT_NEAR, SPLAT_FAR);
+      viewer.camera.projectionMatrixInverse.copy(viewer.camera.projectionMatrix).invert();
+
+      if (faceDetected) {
+        const cx = window.innerWidth  / 2 + smFX * window.innerWidth  * 0.25;
+        const cy = window.innerHeight / 2 + smFY * window.innerHeight * 0.25;
+        $('face-cursor').style.left    = cx + 'px';
+        $('face-cursor').style.top     = cy + 'px';
+        $('face-cursor').style.opacity = '1';
+      } else {
+        $('face-cursor').style.opacity = '0';
+      }
+
+      requestAnimationFrame(tick);
+    }
+    tick();
+  }
+
+  // Expose to non-module scope
+  window.loadPreset = (key) => {
+    currentPreset = key;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    loadScene(PRESETS[key], key);
+  };
+
+  window.loadCustomUrl = () => {
+    const url = $('splat-url').value.trim();
+    if (!url) return;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    loadScene(url, 'custom');
+  };
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'w' || e.key === 'W') $('webcam-preview').classList.toggle('hidden');
+    if (e.key === ' ' && viewer?.camera) baseCamPos = viewer.camera.position.clone();
+  });
+
+  window.initSplat = initSplat;
+
+  loadScene(PRESETS.garden, 'garden');
+}
+
+window.initSplat = initSplat;
+
+</script>
+
+<!-- ══════════════════════════════════════
+     THREEJS SCENE SCRIPT
+══════════════════════════════════════ -->
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+
+const GLB_PATH = '../Assets/the_tavern_under_the_falling_pigeon.glb';
+const STEP = Math.PI / 2;   // 90°
+const LERP_SPEED = 0.08;
+
+let targetAngle = 0;
+let currentAngle = 0;
+let camRadius = 5;
+let camHeight = 1.5;
+let lookAtY = 0;
+let animating = false;
+
+window.rotateCam = (dir) => { targetAngle += dir * STEP; };
+
+async function initThreeJS() {
+  const canvas = document.getElementById('threejs-canvas');
+  const loadingEl = document.getElementById('threejs-loading');
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0810);
+  scene.fog = new THREE.Fog(0x0a0810, 20, 65);
+
+  const camera = new THREE.PerspectiveCamera(55, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
+
+  const ambient = new THREE.AmbientLight(0xfff0d0, 2.5);
+  scene.add(ambient);
+
+  const sun = new THREE.DirectionalLight(0xfff5e0, 3.0);
+  sun.position.set(20, 40, 20);
+  sun.target.position.set(9, -3, 0);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.near = 1;
+  sun.shadow.camera.far  = 200;
+  sun.shadow.camera.left   = -80;
+  sun.shadow.camera.right  =  80;
+  sun.shadow.camera.top    =  80;
+  sun.shadow.camera.bottom = -80;
+  scene.add(sun);
+  scene.add(sun.target);
+
+  const sun2 = new THREE.DirectionalLight(0xe8d8c0, 1.5);
+  sun2.position.set(-4, 6, -4);
+  scene.add(sun2);
+
+  const torchDefs = [
+    { x:  0.5, y:  0.0, z:  5.5 },
+    { x: -9.0, y: -1.5, z: 30.5 },
+    { x:-12.0, y:  1.0, z: 22.0 },
+    { x: 16.5, y: -0.5, z: 32.0 },
+    { x:  6.0, y: -3.5, z: 33.5 },
+  ];
+  const torchLights = torchDefs.map((pos, i) => {
+    const light = new THREE.PointLight(0xff8833, 7.5, 30, 2);
+    light.position.set(pos.x, pos.y, pos.z);
+    light._phase = i * 1.3;
+    scene.add(light);
+    return light;
+  });
+
+  const loader = new GLTFLoader();
+  loader.setMeshoptDecoder(MeshoptDecoder);
+  loader.load(
+    GLB_PATH,
+    (gltf) => {
+      const model = gltf.scene;
+
+      model.traverse(child => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
+
+      const box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      model.position.sub(center);
+
+      const size = box.getSize(new THREE.Vector3());
+      camHeight = -size.y * 0.1;
+
+      scene.add(model);
+      loadingEl.classList.add('hidden');
+    },
+    (progress) => {
+      if (progress.total > 0) {
+        const pct = Math.round(progress.loaded / progress.total * 100);
+        loadingEl.querySelector('.tl-text').textContent = `Loading Scene  ${pct}%`;
+      }
+    },
+    (err) => {
+      console.error('GLB load error:', err);
+      loadingEl.querySelector('.tl-text').textContent = 'Load failed — check console';
+    }
+  );
+
+  let screenH = window.SPLAT_SCREEN_W / (canvas.clientWidth / canvas.clientHeight);
+  function onResize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h);
+    // Don't call updateProjectionMatrix — off-axis projection is set manually in tick()
+    screenH = window.SPLAT_SCREEN_W / (w / h);
+  }
+  window.addEventListener('resize', onResize);
+
+  const CAM_BASE = new THREE.Vector3(9, -2, 37);
+  const lookTarget = new THREE.Vector3(-1, -4, 20);
+  const SCENE_SCREEN_DIST = Math.abs(CAM_BASE.z - lookTarget.z);
+
+  let targetAngleY  = 0;
+  let currentAngleY = 0;
+  let smFaceX = 0, smFaceY = 0;
+
+  window.rotateCam = (dir) => { targetAngleY += dir * STEP; };
+
+  function tick() {
+    requestAnimationFrame(tick);
+
+    currentAngleY += (targetAngleY - currentAngleY) * LERP_SPEED;
+
+    // Read face tracking data (same source as Gaussian)
+    const ft = window.faceTrack || { rawFX: 0, rawFY: 0 };
+    smFaceX += (ft.rawFX - smFaceX) * window.SMOOTH;
+    smFaceY += (ft.rawFY - smFaceY) * window.SMOOTH;
+
+    const t = performance.now() * 0.001;
+    torchLights.forEach(light => {
+      const flicker = 1.0 + 0.35 * Math.sin(t * 2.8 + light._phase)
+                          + 0.15 * Math.sin(t * 5.1 + light._phase * 2.1)
+                          + 0.08 * Math.sin(t * 9.3 + light._phase * 0.7);
+      light.intensity = 7.5 * flicker;
+    });
+
+    // Head offset (identical to Gaussian)
+    const headX = smFaceX * window.FACE_STRENGTH;
+    const headY = Math.max(-1, Math.min(1, smFaceY * window.FACE_STRENGTH));
+
+    // Camera position follows head
+    camera.position.set(
+      CAM_BASE.x + headX,
+      CAM_BASE.y + headY,
+      CAM_BASE.z
+    );
+    camera.rotation.set(0, currentAngleY, 0);
+
+    // Off-axis projection (identical to Gaussian)
+    const totalX = CAM_BASE.x + headX - lookTarget.x;
+    const totalY = CAM_BASE.y + headY - lookTarget.y;
+    const sw = window.SPLAT_SCREEN_W;
+    const sn = window.SPLAT_NEAR;
+    const sf = window.SPLAT_FAR;
+    const left   = (-sw / 2 - totalX) * sn / SCENE_SCREEN_DIST;
+    const right  = ( sw / 2 - totalX) * sn / SCENE_SCREEN_DIST;
+    const top    = (-screenH / 2 - totalY) * sn / SCENE_SCREEN_DIST;
+    const bottom = ( screenH / 2 - totalY) * sn / SCENE_SCREEN_DIST;
+    camera.projectionMatrix.makePerspective(left, right, bottom, top, sn, sf);
+    camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+
+    renderer.render(scene, camera);
+  }
+  tick();
+}
+
+window.initThreeJS = initThreeJS;
+</script>
+
+<script>
+function rollD20() {
+  const shape = document.getElementById('d20-shape');
+  const result = document.getElementById('d20-result');
+  shape.classList.remove('rolling');
+  void shape.offsetWidth;
+  shape.classList.add('rolling');
+  result.style.opacity = '0';
+  setTimeout(() => {
+    const roll = Math.floor(Math.random() * 20) + 1;
+    result.textContent = roll;
+    result.style.opacity = '1';
+    result.style.color = roll === 20 ? '#ffe97a' : roll === 1 ? '#ff6b6b' : '#ffe9a0';
+    shape.classList.remove('rolling');
+  }, 500);
+}
+</script>
+</body>
+</html>
