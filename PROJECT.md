@@ -53,29 +53,43 @@ A web-based **D&D Lite** prototype — a heavily simplified take on tabletop D&D
 
 ### Phase 1 — Short Adventure (current focus)
 
-A single linear adventure: **5–6 rooms**, each with a distinct environment image,
-a simple event (combat or choice), and exits to the next room.
+A single linear adventure: **5–6 rooms**, each with a distinct environment and
+a simple event (combat or choice), connected via an interactive tabletop map.
 
-- [ ] Character creation screen — choose a **Role** (Warrior / Rogue / Mage)
-- [ ] Stats assigned per role: **Strength, Agility, Intelligence, Luck** (values ~8–14)
-- [x] d20 roller UI (HUD bottom-right)
-- [ ] d20 combat logic: roll d20 + relevant stat modifier vs target DC → success/fail
-- [ ] 5–6 room adventure with per-room background image switching
-- [ ] Simple choice system (2–3 options per room event)
+#### 1-A · Character Creation Screen
+- [ ] Role selection UI (Warrior / Rogue / Mage) with flavor text
+- [ ] Stats auto-assigned per role (Strength, Agility, Intelligence, Luck, HP)
+- [ ] Confirm → transition into map scene
+
+#### 1-B · Tabletop Map Scene (Three.js)
+- [ ] Wooden table + parchment dungeon map as 3D scene
+- [ ] Room nodes on the map (connected graph, 5–6 rooms)
+- [ ] Player miniature token placed on current room
+- [ ] Reachable rooms highlighted (glow/light effect)
+- [ ] Click a room → miniature moves → map fades out → event scene begins
+- [ ] Map re-appears after each event is resolved
+
+#### 1-C · Combat / Event Scene
+- [ ] Per-room background image + event description text
+- [ ] Event types: `combat` / `choice` / `trap` / `rest`
+- [ ] d20 combat logic: roll + stat modifier ≥ DC → success/fail
+- [ ] 2–3 choice options per room event
+- [ ] HP changes on success/fail
 - [ ] Win/lose state + restart
 
 ### Phase 2 — Polish
 
 - [ ] Generate missing parallax layers (L3, L5)
-- [ ] Transition animations between rooms (fade / slide)
+- [ ] Transition animations between scenes (fade / slide)
 - [ ] Sound: ambient dungeon audio per room type
 - [ ] Mobile-friendly layout
 
 ### Phase 3 — Multiplayer (future)
 
 - [ ] Tech stack decision: WebSocket vs Firebase Realtime DB
-- [ ] Room creation / join UI
-- [ ] Shared game state sync
+- [ ] DM role: pre-configure rooms, events, map layout
+- [ ] Player room creation / join UI (link-based, no account required)
+- [ ] Shared game state sync (tokens, fog of war, dice rolls)
 
 ---
 
