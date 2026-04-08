@@ -1,0 +1,51 @@
+{
+  "id": "goblin",
+  "name": "The Goblin Camp",
+  "size": [18, 8, 18],
+  "palette": ["grass", "wood", "stone_floor", "dark"],
+  "fills": [
+    { "from": [0,0,0], "to": [17,0,17], "type": 0 },
+    { "from": [7,0,7], "to": [10,0,10], "type": 2 }
+  ],
+  "blocks": [
+    [5,1,8,1],[6,1,8,1],[7,1,8,1],
+    [5,2,8,1],
+    [11,1,8,1],[12,1,8,1],[13,1,8,1],
+    [13,2,8,1],
+    [8,1,5,1],[9,1,5,1],[10,1,5,1],
+    [8,2,5,1],
+
+    [7,1,12,1],[7,2,12,1],[7,3,12,1],
+    [8,1,12,1],[8,2,12,1],
+    [10,1,12,1],[10,2,12,1],[10,3,12,1],
+    [11,1,12,1],[11,2,12,1],
+
+    [2,1,2,1],[2,2,2,1],[2,3,2,1],[2,4,2,1],
+    [3,1,2,1],[3,2,2,1],[3,3,2,3],
+    [15,1,3,1],[15,2,3,1],[15,3,3,1],[15,4,3,1],
+    [14,1,3,1],[14,2,3,1],[14,3,3,3],
+    [3,1,15,1],[3,2,15,1],[3,3,15,1],[3,4,15,1],
+    [4,1,15,1],[4,2,15,3],
+    [14,1,14,1],[14,2,14,1],[14,3,14,1],
+    [15,1,15,1],[15,2,15,3],
+
+    [8,1,8,3],[9,1,9,3],
+    [8,1,9,1],[9,1,8,1]
+  ],
+  "lights": [
+    { "pos": [8,2,8], "color": "0xff6622", "intensity": 6 },
+    { "pos": [9,6,9], "color": "0xfff5e0", "intensity": 2 },
+    { "pos": [5,3,8], "color": "0xff4411", "intensity": 3 }
+  ],
+  "spawn": [9, 1, 16],
+  "event": {
+    "type": "combat",
+    "description": "You stumble upon a goblin camp in a forest clearing. Crude wooden barricades surround a smoldering campfire. A pack of goblins snarls at you, brandishing rusty daggers and jagged spears. They charge!",
+    "dc": 13,
+    "stat": "str",
+    "successText": "Your blade cuts through the goblin ranks! They scatter into the trees, leaving behind their meager treasures.",
+    "failText": "A goblin's dagger finds a gap in your defenses. The wound is shallow but painful.",
+    "successHp": 0,
+    "failHp": -4
+  }
+}

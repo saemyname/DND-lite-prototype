@@ -1,0 +1,36 @@
+{
+  "id": "corridor",
+  "name": "The Dark Corridor",
+  "size": [7, 6, 18],
+  "palette": ["stone_floor", "stone_wall", "wood"],
+  "fills": [
+    { "from": [0,0,0], "to": [6,0,17], "type": 0 },
+    { "from": [0,1,0], "to": [0,4,17], "type": 1 },
+    { "from": [6,1,0], "to": [6,4,17], "type": 1 },
+    { "from": [0,1,0], "to": [6,4,0], "type": 1 },
+    { "from": [0,1,17], "to": [2,4,17], "type": 1 },
+    { "from": [4,1,17], "to": [6,4,17], "type": 1 },
+    { "from": [0,5,0], "to": [6,5,17], "type": 1 }
+  ],
+  "blocks": [
+    [2, 1, 4, 2], [2, 2, 4, 2], [2, 3, 4, 2],
+    [4, 1, 4, 2], [4, 2, 4, 2], [4, 3, 4, 2],
+    [2, 1, 10, 2], [2, 2, 10, 2], [2, 3, 10, 2],
+    [4, 1, 10, 2], [4, 2, 10, 2], [4, 3, 10, 2]
+  ],
+  "lights": [
+    { "pos": [3, 3, 4], "color": "0xff6622", "intensity": 4 },
+    { "pos": [3, 3, 10], "color": "0xff6622", "intensity": 4 }
+  ],
+  "spawn": [3, 1, 15],
+  "event": {
+    "type": "trap",
+    "description": "The floor shifts beneath your feet. You hear a click — pressure plates! Darts shoot from hidden slots in the walls. You must dodge!",
+    "dc": 8,
+    "stat": "agi",
+    "successText": "You tumble sideways, narrowly avoiding the volley of darts. They clatter harmlessly against the far wall.",
+    "failText": "A dart catches your shoulder. The wound burns with a faint poison.",
+    "successHp": 0,
+    "failHp": -3
+  }
+}

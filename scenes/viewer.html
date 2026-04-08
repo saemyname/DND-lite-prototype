@@ -109,36 +109,30 @@
   .tl-rune { font-size: 42px; opacity: .4; animation: spin 8s linear infinite; }
   .tl-text { font-size: 14px; letter-spacing: 5px; text-transform: uppercase; opacity: .7; }
 
-  /* Arrow nav buttons */
-  .cam-arrow {
+  /* Back to map button */
+  #back-to-map {
     position: fixed;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 28px;
+    left: 28px;
     z-index: 200;
-    width: 60px;
-    height: 90px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(200,169,110,.12);
-    border: 2px solid rgba(200,169,110,.5);
-    color: rgba(200,169,110,.85);
-    font-size: 32px;
+    padding: 10px 20px;
+    background: rgba(0,0,0,.45);
+    border: 1px solid rgba(200,169,110,.25);
+    border-radius: 4px;
+    color: #c8a96e;
+    font-family: 'Georgia', serif;
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
     cursor: pointer;
     transition: all .2s;
-    user-select: none;
-    pointer-events: all;
-    text-shadow: 0 0 12px rgba(200,169,110,.6);
+    backdrop-filter: blur(4px);
   }
-  .cam-arrow:hover {
-    background: rgba(200,169,110,.25);
-    color: #c8a96e;
-    border-color: rgba(200,169,110,.9);
-    text-shadow: 0 0 20px rgba(200,169,110,.9);
+  #back-to-map:hover {
+    background: rgba(200,169,110,.15);
+    border-color: rgba(200,169,110,.5);
+    color: #ffe9a0;
   }
-  .cam-arrow:active { background: rgba(200,169,110,.4); }
-  #cam-left  { left: 16px;  border-radius: 4px; }
-  #cam-right { right: 16px; border-radius: 4px; }
 
   /* ════════════════════════════
      HUD
@@ -496,9 +490,9 @@
     transition: opacity .3s;
   }
   #webcam-preview.hidden { opacity: 0; pointer-events: none; }
-  #webcam { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  #webcam { width: 100%; height: 100%; object-fit: cover; }
   #webcam-label { position: absolute; bottom: 4px; left: 6px; font-size: 9px; letter-spacing: 1px; color: rgba(200,169,110,.5); }
-  #face-canvas { position: absolute; inset: 0; width: 100%; height: 100%; transform: scaleX(-1); }
+  #face-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 
   /* Face cursor */
   #face-cursor {
@@ -571,6 +565,8 @@
 </style>
 </head>
 <body>
+
+<button id="back-to-map" onclick="window.location.href='map.html'">← Back to Map</button>
 
 <!-- ── HUD ── -->
 <div id="hud">
@@ -700,8 +696,6 @@
     <div class="tl-text">Loading Scene</div>
   </div>
 
-  <button class="cam-arrow" id="cam-left"  onclick="rotateCam(+1)">↻</button>
-  <button class="cam-arrow" id="cam-right" onclick="rotateCam(-1)">↺</button>
 </div>
 
 <!-- ══════════════════════════════════════
@@ -797,7 +791,7 @@ function switchMode(mode) {
   }
   if (mode === 'threejs' && !threejsInitialized) {
     threejsInitialized = true;
-    initFaceTracking();
+    initFaceCamera();
     initThreeJS();
   }
 }
@@ -818,161 +812,18 @@ const CAMERA_PRESETS = {
   treehill: { pos: [0, -8, 6], lookAt: [0, 0, 0] },
 };
 
-const FACE_STRENGTH = 2.5;  window.FACE_STRENGTH = FACE_STRENGTH;
-const SMOOTH = 0.04;        window.SMOOTH = SMOOTH;
-const SPLAT_NEAR = 0.1;     window.SPLAT_NEAR = SPLAT_NEAR;
-const SPLAT_FAR = 100;      window.SPLAT_FAR = SPLAT_FAR;
-const SPLAT_SCREEN_W = 40;  window.SPLAT_SCREEN_W = SPLAT_SCREEN_W;
+import { initFaceCamera, getFaceData, onResizeFaceCamera } from '../scripts/face-camera.js';
 
 let viewer        = null;
-let faceLandmarker = null;
-let rawFX = 0, rawFY = 0;
-let smFX  = 0, smFY  = 0;
-let faceDetected  = false;
 let baseCamPos    = null;
 let lookAtPos     = { x: 0, y: 0, z: 0 };
-let splatScreenDist = 6; // will be set from camera base z
+let splatScreenDist = 6;
 let currentPreset = 'garden';
-let webcamActive  = false;
-
-// Expose face tracking data globally for the 3D scene
-window.faceTrack = { rawFX: 0, rawFY: 0, rawFZ: 0, detected: false };
+let smFX = 0, smFY = 0;
 
 const $ = id => document.getElementById(id);
 
-// ── Shared face tracking init (runs once, used by both Splat and 3D Scene) ──
-let faceTrackInitialized = false;
-async function initFaceTracking() {
-  if (faceTrackInitialized) return;
-  faceTrackInitialized = true;
-
-  // MediaPipe
-  const MP_URLS = [
-    '../node_modules/@mediapipe/tasks-vision/vision_bundle.mjs',
-    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs',
-    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/vision_bundle.mjs',
-  ];
-
-  let FaceLandmarker, FilesetResolver, DrawingUtils;
-  for (const url of MP_URLS) {
-    try {
-      const mp = await import(url);
-      FaceLandmarker  = mp.FaceLandmarker;
-      FilesetResolver = mp.FilesetResolver;
-      DrawingUtils    = mp.DrawingUtils;
-      if (FaceLandmarker) { console.log('✅ MediaPipe loaded:', url); break; }
-    } catch(e) {
-      console.warn('⚠️ MediaPipe load failed:', url, e.message);
-    }
-  }
-  if (!FaceLandmarker) {
-    console.warn('MediaPipe load failed → mouse fallback');
-    setStatus('face', 'yellow', 'Face: mouse fallback');
-  }
-
-  if (FaceLandmarker) {
-    try {
-      const filesetResolver = await FilesetResolver.forVisionTasks(
-        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
-      );
-      faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
-        baseOptions: {
-          modelAssetPath:
-            'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-          delegate: 'GPU',
-        },
-        runningMode: 'VIDEO',
-        numFaces: 1,
-        outputFacialTransformationMatrixes: true,
-        outputFaceLandmarks: true,
-      });
-      setStatus('face', 'yellow', 'Face: Ready (awaiting webcam)');
-    } catch(e) {
-      console.warn('FaceLandmarker init failed:', e);
-      setStatus('face', 'red', 'Face: Init failed');
-    }
-  }
-
-  // Webcam
-  const webcamEl = $('webcam');
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: 320, height: 240 }
-    });
-    webcamEl.srcObject = stream;
-    await new Promise(res => webcamEl.onloadedmetadata = res);
-    webcamEl.play();
-    webcamActive = true;
-    $('webcam-preview').classList.remove('hidden');
-    setStatus('cam', 'green', 'Webcam: Connected');
-  } catch(e) {
-    $('webcam-preview').classList.add('hidden');
-    setStatus('cam', 'yellow', 'Webcam: None (mouse mode)');
-    document.addEventListener('mousemove', e => {
-      rawFX = -((e.clientX / window.innerWidth  - 0.5) * 2);
-      rawFY = -((e.clientY / window.innerHeight - 0.5) * 2);
-      faceDetected = true;
-      window.faceTrack.rawFX = rawFX;
-      window.faceTrack.rawFY = rawFY;
-      window.faceTrack.detected = true;
-    });
-  }
-
-  // Face detection loop
-  if (faceLandmarker && webcamActive) {
-    const faceCanvas = document.getElementById('face-canvas');
-    const ctx = faceCanvas.getContext('2d');
-    let drawingUtils = DrawingUtils ? new DrawingUtils(ctx) : null;
-
-    function detect() {
-      if (webcamEl.readyState >= 2) {
-        if (faceCanvas.width !== webcamEl.videoWidth) {
-          faceCanvas.width  = webcamEl.videoWidth;
-          faceCanvas.height = webcamEl.videoHeight;
-          if (DrawingUtils) drawingUtils = new DrawingUtils(ctx);
-        }
-        ctx.clearRect(0, 0, faceCanvas.width, faceCanvas.height);
-        try {
-          const results = faceLandmarker.detectForVideo(webcamEl, performance.now());
-          if (results.faceLandmarks?.length > 0) {
-            // Use nose tip (landmark 1) position for face position tracking
-            const lm = results.faceLandmarks[0];
-            const nose = lm[1];
-            rawFX = -((nose.x - 0.5) * 2);  // x: 0~1 → -1~1 (mirrored)
-            rawFY = -((nose.y - 0.5) * 2);   // y: 0~1 → -1~1
-            // Depth: ear-to-ear width (landmarks 234=right ear, 454=left ear)
-            const earL = lm[234], earR = lm[454];
-            const faceWidth = Math.sqrt((earR.x - earL.x) ** 2 + (earR.y - earL.y) ** 2);
-            // ~0.25 is typical face width at normal distance → map to -1~1
-            window.faceTrack.rawFZ = (faceWidth - 0.25) * 8;
-            faceDetected = true;
-            window.faceTrack.rawFX = rawFX;
-            window.faceTrack.rawFY = rawFY;
-            window.faceTrack.detected = true;
-            setStatus('face', 'green', `X ${rawFX.toFixed(2)}  Y ${rawFY.toFixed(2)}  Z ${window.faceTrack.rawFZ.toFixed(2)}`);
-            if (drawingUtils) {
-              for (const landmarks of results.faceLandmarks) {
-                drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
-                  { color: 'rgba(255,255,255,0.6)', lineWidth: 1.5 });
-                drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
-                  { color: 'rgba(255,255,255,0.9)', lineWidth: 2 });
-                drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,
-                  { color: 'rgba(255,255,255,0.9)', lineWidth: 2 });
-              }
-            }
-          } else {
-            faceDetected = false;
-            setStatus('face', 'yellow', 'Face: Not detected');
-          }
-        } catch(e) { console.warn('face detect error:', e); }
-      }
-      requestAnimationFrame(detect);
-    }
-    detect();
-  }
-}
-
-window.initFaceTracking = initFaceTracking;
+window.initFaceCamera = initFaceCamera;
 
 function setProgress(pct, msg) {
   $('progress-bar').style.width = pct + '%';
@@ -1030,7 +881,7 @@ async function initSplat() {
 
   // STEP 2 — Face tracking (shared init)
   setProgress(20, 'Loading face tracking model...');
-  await initFaceTracking();
+  await initFaceCamera();
 
   // STEP 3 — Load splat scene
   async function loadScene(url, preset) {
@@ -1089,27 +940,27 @@ async function initSplat() {
 
   // STEP 4 — Camera loop (off-axis projection)
   function startCameraLoop() {
-    const aspect = window.innerWidth / window.innerHeight;
-    let splatScreenH = SPLAT_SCREEN_W / aspect;
+    const SW = window.SPLAT_SCREEN_W;
+    const SN = window.SPLAT_NEAR;
+    const SF = window.SPLAT_FAR;
+    const FS = window.FACE_STRENGTH;
+    const SM = window.SMOOTH;
+    let splatScreenH = SW / (window.innerWidth / window.innerHeight);
 
     window.addEventListener('resize', () => {
-      splatScreenH = SPLAT_SCREEN_W / (window.innerWidth / window.innerHeight);
+      splatScreenH = SW / (window.innerWidth / window.innerHeight);
     });
 
     function tick() {
       if (!viewer?.camera || !baseCamPos) { requestAnimationFrame(tick); return; }
 
-      smFX += (rawFX - smFX) * SMOOTH;
-      smFY += (rawFY - smFY) * SMOOTH;
+      const ft = window.faceTrack;
+      smFX += (ft.rawFX - smFX) * SM;
+      smFY += (ft.rawFY - smFY) * SM;
 
-      // Sync to global for 3D scene
-      window.faceTrack.rawFX = rawFX;
-      window.faceTrack.rawFY = rawFY;
-      window.faceTrack.detected = faceDetected;
-
-      // Head offset
-      const headX = -smFX * FACE_STRENGTH;
-      const headY = Math.max(-1, Math.min(1, -smFY * FACE_STRENGTH));
+      // Head offset (negated for Gaussian's flipped Y-up)
+      const headX = -smFX * FS;
+      const headY = Math.max(-1, Math.min(1, -smFY * FS));
 
       // Camera position follows head
       viewer.camera.position.x = baseCamPos.x + headX;
@@ -1120,14 +971,14 @@ async function initSplat() {
       const totalX = baseCamPos.x + headX - lookAtPos.x;
       const totalY = baseCamPos.y + headY - lookAtPos.y;
       const distToScreen = Math.abs(splatScreenDist);
-      const left   = (-SPLAT_SCREEN_W / 2 - totalX) * SPLAT_NEAR / distToScreen;
-      const right  = ( SPLAT_SCREEN_W / 2 - totalX) * SPLAT_NEAR / distToScreen;
-      const top    = (-splatScreenH / 2 - totalY) * SPLAT_NEAR / distToScreen;
-      const bottom = ( splatScreenH / 2 - totalY) * SPLAT_NEAR / distToScreen;
-      viewer.camera.projectionMatrix.makePerspective(left, right, bottom, top, SPLAT_NEAR, SPLAT_FAR);
+      const left   = (-SW / 2 - totalX) * SN / distToScreen;
+      const right  = ( SW / 2 - totalX) * SN / distToScreen;
+      const top    = (-splatScreenH / 2 - totalY) * SN / distToScreen;
+      const bottom = ( splatScreenH / 2 - totalY) * SN / distToScreen;
+      viewer.camera.projectionMatrix.makePerspective(left, right, bottom, top, SN, SF);
       viewer.camera.projectionMatrixInverse.copy(viewer.camera.projectionMatrix).invert();
 
-      if (faceDetected) {
+      if (ft.detected) {
         const cx = window.innerWidth  / 2 + smFX * window.innerWidth  * 0.25;
         const cy = window.innerHeight / 2 + smFY * window.innerHeight * 0.25;
         $('face-cursor').style.left    = cx + 'px';
@@ -1178,19 +1029,10 @@ window.initSplat = initSplat;
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+import { updateFaceCamera, onResizeFaceCamera, initRotationButtons } from '../scripts/face-camera.js';
 
 const GLB_PATH = '../Assets/the_tavern_under_the_falling_pigeon.glb';
-const STEP = Math.PI / 2;   // 90°
-const LERP_SPEED = 0.08;
-
-let targetAngle = 0;
-let currentAngle = 0;
-let camRadius = 5;
 let camHeight = 1.5;
-let lookAtY = 0;
-let animating = false;
-
-window.rotateCam = (dir) => { targetAngle += dir * STEP; };
 
 async function initThreeJS() {
   const canvas = document.getElementById('threejs-canvas');
@@ -1282,34 +1124,27 @@ async function initThreeJS() {
     }
   );
 
-  let screenH = window.SPLAT_SCREEN_W / (canvas.clientWidth / canvas.clientHeight);
   function onResize() {
     const w = window.innerWidth, h = window.innerHeight;
     renderer.setSize(w, h);
-    // Don't call updateProjectionMatrix — off-axis projection is set manually in tick()
-    screenH = window.SPLAT_SCREEN_W / (w / h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
   }
   window.addEventListener('resize', onResize);
 
   const CAM_BASE = new THREE.Vector3(9, -2, 37);
-  const lookTarget = new THREE.Vector3(-1, -4, 20);
-  const SCENE_SCREEN_DIST = Math.abs(CAM_BASE.z - lookTarget.z);
+  const lookTarget = new THREE.Vector3(5, -3, 30);
 
-  let targetAngleY  = 0;
-  let currentAngleY = 0;
-  let smFaceX = 0, smFaceY = 0;
+  const threejsCamConfig = {
+    basePos: CAM_BASE,
+    lookTarget: lookTarget,
+    offAxis: false,
+  };
 
-  window.rotateCam = (dir) => { targetAngleY += dir * STEP; };
+  initRotationButtons(document.getElementById('threejs-view'));
 
   function tick() {
     requestAnimationFrame(tick);
-
-    currentAngleY += (targetAngleY - currentAngleY) * LERP_SPEED;
-
-    // Read face tracking data (same source as Gaussian)
-    const ft = window.faceTrack || { rawFX: 0, rawFY: 0 };
-    smFaceX += (ft.rawFX - smFaceX) * window.SMOOTH;
-    smFaceY += (ft.rawFY - smFaceY) * window.SMOOTH;
 
     const t = performance.now() * 0.001;
     torchLights.forEach(light => {
@@ -1319,31 +1154,7 @@ async function initThreeJS() {
       light.intensity = 7.5 * flicker;
     });
 
-    // Head offset (identical to Gaussian)
-    const headX = smFaceX * window.FACE_STRENGTH;
-    const headY = Math.max(-1, Math.min(1, smFaceY * window.FACE_STRENGTH));
-
-    // Camera position follows head
-    camera.position.set(
-      CAM_BASE.x + headX,
-      CAM_BASE.y + headY,
-      CAM_BASE.z
-    );
-    camera.rotation.set(0, currentAngleY, 0);
-
-    // Off-axis projection (identical to Gaussian)
-    const totalX = CAM_BASE.x + headX - lookTarget.x;
-    const totalY = CAM_BASE.y + headY - lookTarget.y;
-    const sw = window.SPLAT_SCREEN_W;
-    const sn = window.SPLAT_NEAR;
-    const sf = window.SPLAT_FAR;
-    const left   = (-sw / 2 - totalX) * sn / SCENE_SCREEN_DIST;
-    const right  = ( sw / 2 - totalX) * sn / SCENE_SCREEN_DIST;
-    const top    = (-screenH / 2 - totalY) * sn / SCENE_SCREEN_DIST;
-    const bottom = ( screenH / 2 - totalY) * sn / SCENE_SCREEN_DIST;
-    camera.projectionMatrix.makePerspective(left, right, bottom, top, sn, sf);
-    camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
-
+    updateFaceCamera(camera, threejsCamConfig);
     renderer.render(scene, camera);
   }
   tick();
