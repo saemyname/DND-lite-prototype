@@ -236,6 +236,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { initFaceCamera, updateFaceCamera, onResizeFaceCamera, initRotationButtons } from '../scripts/face-camera.js';
 
 // ── Character ──
@@ -322,7 +323,10 @@ scene.add(rimLight);
 const table = new THREE.Group();
 scene.add(table);
 
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/libs/draco/');
 const gltfLoader = new GLTFLoader();
+gltfLoader.setDRACOLoader(dracoLoader);
 gltfLoader.load('../Assets/tabletop_castle_01.glb', (gltf) => {
   const model = gltf.scene;
   model.traverse(child => {
