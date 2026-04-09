@@ -71,6 +71,21 @@
   #map-loading.hidden { opacity: 0; pointer-events: none; }
   .ml-rune { font-size: 42px; opacity: .4; animation: spin 8s linear infinite; }
   .ml-text { font-size: 14px; letter-spacing: 5px; text-transform: uppercase; opacity: .7; }
+  .ml-bar-wrap {
+    width: 200px;
+    height: 3px;
+    background: rgba(200,169,110,.12);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .ml-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(to right, #c8a96e, #ffe9a0);
+    border-radius: 2px;
+    transition: width .2s;
+  }
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* HUD — bottom left */
@@ -161,28 +176,7 @@
   }
 
   /* Webcam preview */
-  #webcam-preview {
-    position: fixed;
-    bottom: 12px;
-    right: 12px;
-    z-index: 60;
-    width: 160px;
-    border-radius: 8px;
-    overflow: hidden;
-    border: 1px solid rgba(200,169,110,.2);
-    background: #000;
-  }
-  #webcam-preview.hidden { display: none; }
-  #webcam-preview video,
-  #webcam-preview canvas {
-    display: block;
-    width: 100%;
-  }
-  #webcam-preview canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-  }
+  /* Webcam styles injected by face-camera.js */
 </style>
 </head>
 <body>
@@ -224,7 +218,8 @@
 
 <div id="map-loading">
   <div class="ml-rune">⬡</div>
-  <div class="ml-text">Unrolling the Map</div>
+  <div class="ml-text" id="ml-text">Unrolling the Map</div>
+  <div class="ml-bar-wrap"><div class="ml-bar-fill" id="ml-bar"></div></div>
 </div>
 
 <!-- Webcam preview -->
@@ -254,12 +249,12 @@ const statBars = document.querySelectorAll('.hud-stat');
 
 // ── Dungeon rooms ──
 const ROOMS = [
-  { id: 'entrance',  name: 'Entrance Hall',     type: 'start',   x: -3.5, y: 0, z: -0.8,  exits: ['corridor'] },
-  { id: 'corridor',  name: 'Dark Corridor',     type: 'trap',    x: -1.8, y: 0.5, z: -0.3,  exits: ['shrine'] },
-  { id: 'shrine',    name: 'Forgotten Shrine',  type: 'choice',  x: -1.2, y: 1.0, z: 0.5,  exits: ['goblin'] },
-  { id: 'goblin',    name: 'Goblin Den',        type: 'combat',  x: -0.2, y: 1, z: 0.3, exits: ['treasury'] },
-  { id: 'treasury',  name: 'The Treasury',      type: 'rest',    x: 0, y: 1, z: -0.5, exits: ['lair'] },
-  { id: 'lair',      name: "Dragon's Lair",     type: 'boss',    x: 0, y: 2, z: -1, exits: [] },
+  { id: 'entrance',  name: 'Entrance Hall',     type: 'start',   x: -4.5, y: 0, z: -0.8,  exits: ['corridor'] },
+  { id: 'corridor',  name: 'Dark Corridor',     type: 'trap',    x: -2.8, y: 0.5, z: -0.8,  exits: ['entrance','shrine'] },
+  { id: 'shrine',    name: 'Forgotten Shrine',  type: 'choice',  x: -1.7, y: 1.0, z: 0,  exits: ['corridor','goblin'] },
+  { id: 'goblin',    name: 'Goblin Den',        type: 'combat',  x: -0.7, y: 1, z: 1, exits: ['shrine','treasury'] },
+  { id: 'treasury',  name: 'The Treasury',      type: 'rest',    x: -0.5, y: 1.2, z: -0.5, exits: ['goblin','lair'] },
+  { id: 'lair',      name: "Dragon's Lair",     type: 'boss',    x: 0, y: 2.5, z: -1.5, exits: ['treasury'] },
 ];
 
 let currentRoom = localStorage.getItem('dndlite-currentRoom') || 'entrance';
@@ -268,6 +263,28 @@ let playerTargetPos;      // where it's moving to
 const roomMeshes = [];    // for raycasting
 const roomById = {};
 ROOMS.forEach(r => roomById[r.id] = r);
+
+// Room progression — a room is unlocked if:
+// 1. It's the entrance, OR
+// 2. It's the current room, OR
+// 3. An adjacent room (connected via exits) has been cleared
+const clearedEvents = JSON.parse(localStorage.getItem('dndlite-clearedEvents') || '{}');
+function isRoomUnlocked(roomId) {
+  if (roomId === 'entrance' || roomId === currentRoom) return true;
+  // Check if any room that has an exit to this room has been cleared
+  // Start-type rooms are always considered cleared (entrance is the beginning)
+  return ROOMS.some(r =>
+    r.exits.includes(roomId) && (r.type === 'start' || isRoomCleared(r.id))
+  );
+}
+function isRoomCleared(roomId) {
+  // A room is cleared if its main event key or any choice key exists in clearedEvents
+  if (clearedEvents[roomId]) return true;
+  for (const key of Object.keys(clearedEvents)) {
+    if (key.startsWith(roomId + ':')) return true;
+  }
+  return false;
+}
 
 // ── Three.js setup ──
 const canvas = document.getElementById('map-canvas');
@@ -301,8 +318,7 @@ scene.add(topLight);
 // Main overhead warm light (like a hanging lantern)
 const overhead = new THREE.PointLight(0xffa552, 15, 30, 1.5);
 overhead.position.set(0, 4, 0);
-overhead.castShadow = true;
-overhead.shadow.mapSize.set(1024, 1024);
+overhead.castShadow = false;
 scene.add(overhead);
 
 // Two candle-like side lights
@@ -327,7 +343,7 @@ const dracoLoader = new DRACOLoader();
 dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/libs/draco/');
 const gltfLoader = new GLTFLoader();
 gltfLoader.setDRACOLoader(dracoLoader);
-gltfLoader.load('../Assets/tabletop_castle_01.glb', (gltf) => {
+gltfLoader.load('../Assets/tabletop_castle_02.glb', (gltf) => {
   const model = gltf.scene;
   model.traverse(child => {
     if (child.isMesh) {
@@ -349,13 +365,24 @@ gltfLoader.load('../Assets/tabletop_castle_01.glb', (gltf) => {
   model.scale.setScalar(scale);
 
   table.add(model);
-}, undefined, (err) => {
+
+  // Hide loading screen
+  document.getElementById('map-loading').classList.add('hidden');
+}, (progress) => {
+  // Update progress bar
+  if (progress.total > 0) {
+    const pct = Math.round(progress.loaded / progress.total * 100);
+    document.getElementById('ml-bar').style.width = pct + '%';
+    document.getElementById('ml-text').textContent = `Loading Scene  ${pct}%`;
+  }
+}, (err) => {
   console.error('GLB load error:', err);
+  document.getElementById('ml-text').textContent = 'Load failed';
 });
 
 // ── Markers group (all markers, paths, token inside — movable as one unit) ──
 const markersGroup = new THREE.Group();
-markersGroup.position.set(12, -2, 8); // same as CAM_LOOK
+markersGroup.position.set(12, -1.5, 8); // same as CAM_LOOK
 scene.add(markersGroup);
 
 // ── Draw paths (connections between rooms) ──
@@ -396,14 +423,6 @@ ROOMS.forEach(room => {
 });
 
 // ── Room markers ──
-const TYPE_COLORS = {
-  start:  0x4caf50,
-  trap:   0xff9800,
-  combat: 0xf44336,
-  choice: 0x42a5f5,
-  rest:   0x66bb6a,
-  boss:   0xab47bc,
-};
 
 const markerGlowMeshes = [];
 
@@ -479,48 +498,73 @@ ROOMS.forEach(room => {
 });
 
 // ── Player miniature ──
-function createPlayerToken() {
-  const group = new THREE.Group();
+const MINI_FILES = { Warrior: 'warrior.glb', Rogue: 'rogue.glb', Mage: 'mage.glb' };
+const MAP_MINI_SCALE = 0.25;
 
-  // Base
+function createFallbackToken() {
+  const group = new THREE.Group();
   const baseGeo = new THREE.CylinderGeometry(0.18, 0.22, 0.08, 16);
   const baseMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.4, metalness: 0.7 });
   group.add(new THREE.Mesh(baseGeo, baseMat));
-
-  // Body
   const bodyGeo = new THREE.CylinderGeometry(0.08, 0.14, 0.35, 12);
   const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.4, metalness: 0.6 });
   const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.y = 0.22;
   group.add(body);
-
-  // Head
   const headGeo = new THREE.SphereGeometry(0.1, 12, 10);
   const headMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.35, metalness: 0.7 });
   const head = new THREE.Mesh(headGeo, headMat);
   head.position.y = 0.46;
   group.add(head);
-
   group.traverse(c => { if (c.isMesh) c.castShadow = true; });
-
-  const startRoom = roomById[currentRoom];
-  group.position.set(startRoom.x, (startRoom.y || 0) + 0.08, startRoom.z);
-  playerTargetPos = group.position.clone();
-
-  markersGroup.add(group);
   return group;
 }
 
-playerToken = createPlayerToken();
+{
+  const charData = JSON.parse(localStorage.getItem('dndlite-character') || '{}');
+  const file = MINI_FILES[charData.role];
+  const startRoom = roomById[currentRoom];
+
+  // Start with fallback
+  playerToken = createFallbackToken();
+  playerToken.position.set(startRoom.x, (startRoom.y || 0) + 0.08, startRoom.z);
+  playerTargetPos = playerToken.position.clone();
+  markersGroup.add(playerToken);
+
+  // Try loading GLB to replace fallback
+  if (file) {
+    gltfLoader.load('../Assets/' + file, (gltf) => {
+      const model = gltf.scene;
+      model.scale.setScalar(MAP_MINI_SCALE);
+      model.traverse(c => { if (c.isMesh) c.castShadow = true; });
+      const box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      model.position.x -= center.x;
+      model.position.z -= center.z;
+      model.position.y -= box.min.y;
+      const group = new THREE.Group();
+      group.add(model);
+      // Replace fallback
+      group.position.copy(playerToken.position);
+      markersGroup.remove(playerToken);
+      markersGroup.add(group);
+      playerToken = group;
+      playerTargetPos = group.position.clone();
+    });
+  }
+}
 
 // ── Update reachable room highlights ──
 function updateReachable() {
   const current = roomById[currentRoom];
   markerGlowMeshes.forEach(({ gem, ring, room }) => {
-    const reachable = current.exits.includes(room.id);
+    const isExit = current.exits.includes(room.id);
+    const unlocked = isRoomUnlocked(room.id);
+    const reachable = isExit && unlocked;
     const isCurrent = room.id === currentRoom;
     ring.material.opacity = reachable ? 0.5 : 0;
-    gem.material.emissiveIntensity = isCurrent ? 0.8 : reachable ? 0.5 : 0.15;
+    gem.material.emissiveIntensity = isCurrent ? 0.8 : reachable ? 0.5 : unlocked ? 0.25 : 0.08;
+    gem.material.opacity = unlocked || isCurrent ? 0.9 : 0.35;
   });
 }
 updateReachable();
@@ -543,7 +587,8 @@ canvas.addEventListener('mousemove', e => {
     const room = roomById[roomId];
     const current = roomById[currentRoom];
 
-    if (current.exits.includes(roomId)) {
+    const canVisit = (current.exits.includes(roomId) && isRoomUnlocked(roomId)) || roomId === currentRoom;
+    if (canVisit) {
       hoveredRoom = roomId;
       canvas.style.cursor = 'pointer';
       document.getElementById('tooltip-name').textContent = room.name;
@@ -619,7 +664,7 @@ function tick() {
   // Glow ring pulse on reachable rooms
   const current = roomById[currentRoom];
   markerGlowMeshes.forEach(({ ring, room }) => {
-    if (current.exits.includes(room.id)) {
+    if (current.exits.includes(room.id) && isRoomUnlocked(room.id)) {
       ring.material.opacity = 0.3 + 0.2 * Math.sin(t * 2.5 + ROOMS.indexOf(room));
     }
   });
@@ -637,45 +682,7 @@ function tick() {
   renderer.render(scene, camera);
 }
 
-// ── DEBUG MODE ──
-let debugMode = 0;
-const debugTargets = [
-  { name: 'CamBase', vec: BASE_CAM_POS },
-  { name: 'MarkersAll', vec: markersGroup.position },
-  ...ROOMS.map(r => ({ name: r.id, vec: r._markerGroup.position })),
-];
-const MOVE_STEP = 0.5;
-
-const debugEl = document.createElement('div');
-debugEl.style.cssText = 'position:fixed;top:12px;right:12px;z-index:999;background:rgba(0,0,0,.8);color:#ffe9a0;font:12px monospace;padding:12px 16px;border-radius:6px;border:1px solid rgba(200,169,110,.3);line-height:1.8;pointer-events:none;';
-document.body.appendChild(debugEl);
-
-function updateDebugUI() {
-  debugEl.innerHTML = debugTargets.map((d, i) => {
-    const v = d.vec;
-    const prefix = i === debugMode ? '▸ ' : '  ';
-    return `${prefix}${d.name}: x${v.x.toFixed(1)} y${v.y.toFixed(1)} z${v.z.toFixed(1)}`;
-  }).join('<br>') + '<br><br>Tab=switch  WASD=XZ  QE=Y';
-}
-updateDebugUI();
-
-window.addEventListener('keydown', e => {
-  if (e.key === 'Tab') { e.preventDefault(); debugMode = (debugMode + 1) % debugTargets.length; updateDebugUI(); return; }
-  const v = debugTargets[debugMode].vec;
-  switch(e.key.toLowerCase()) {
-    case 'w': v.z -= MOVE_STEP; break;
-    case 's': v.z += MOVE_STEP; break;
-    case 'a': v.x -= MOVE_STEP; break;
-    case 'd': v.x += MOVE_STEP; break;
-    case 'q': v.y -= MOVE_STEP; break;
-    case 'e': v.y += MOVE_STEP; break;
-    default: return;
-  }
-  updateDebugUI();
-});
-
-// Hide loading and start
-document.getElementById('map-loading').classList.add('hidden');
+// Start render loop (loading screen hides when GLB is ready)
 tick();
 </script>
 </body>

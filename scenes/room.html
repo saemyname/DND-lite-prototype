@@ -33,7 +33,7 @@
     inset: 0;
     z-index: 10;
     pointer-events: none;
-    background: radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(0,0,0,.5) 70%, rgba(0,0,0,.92) 100%);
+    background: radial-gradient(ellipse at 50% 50%, transparent 50%, rgba(0,0,0,.2) 80%, rgba(0,0,0,.5) 100%);
   }
 
   /* Room title */
@@ -46,8 +46,12 @@
     font-size: 18px;
     letter-spacing: 6px;
     text-transform: uppercase;
-    color: rgba(200,169,110,.6);
-    text-shadow: 0 0 20px rgba(200,169,110,.3);
+    color: rgba(220,190,130,.9);
+    text-shadow: 0 0 10px rgba(200,169,110,.4);
+    background: rgba(0,0,0,.55);
+    padding: 8px 20px;
+    border: 1px solid rgba(200,169,110,.3);
+    border-radius: 4px;
     pointer-events: none;
     opacity: 0;
     transition: opacity 1s;
@@ -194,37 +198,121 @@
   #event-result.success { color: #66bb6a; }
   #event-result.fail { color: #e85d5d; }
 
+  /* D20 dice — always visible, left of webcam */
+  #d20-hud {
+    position: fixed;
+    bottom: 20px;
+    right: 100px;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    pointer-events: none;
+    cursor: default;
+    transform: scale(1);
+    transform-origin: bottom center;
+    transition: transform .4s ease, filter .3s;
+  }
+  #d20-hud.active {
+    animation: d20-bounce .6s ease;
+    transform: scale(2) translateY(0);
+    pointer-events: all;
+    cursor: pointer;
+  }
+  @keyframes d20-bounce {
+    0%   { transform: scale(1) translateY(0); }
+    15%  { transform: scale(2) translateY(-40px); }
+    30%  { transform: scale(2) translateY(0); }
+    45%  { transform: scale(2) translateY(-20px); }
+    60%  { transform: scale(2) translateY(0); }
+    75%  { transform: scale(2) translateY(-8px); }
+    90%  { transform: scale(2) translateY(0); }
+    100% { transform: scale(2) translateY(0); }
+  }
+  #d20-hud.rolled {
+    pointer-events: none;
+    cursor: default;
+  }
+  #d20-hud.active:not(.rolled):hover #d20-dice-shape { filter: brightness(1.4) drop-shadow(0 0 8px rgba(200,169,110,.5)); }
+  #d20-dice-wrapper {
+    position: relative;
+    width: 80px;
+    height: 80px;
+  }
+  #d20-dice-shape {
+    width: 80px;
+    height: 80px;
+    transition: filter .2s;
+  }
+  #d20-dice-shape polygon, #d20-dice-shape line {
+    stroke: rgba(200,169,110,.85);
+    stroke-width: 1.4;
+  }
+  #d20-dice-shape polygon { fill: rgba(30,22,12,.85); }
+  #d20-dice-value {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 22px;
+    font-family: 'Georgia', serif;
+    color: #ffe9a0;
+    pointer-events: none;
+    text-shadow: 0 0 10px rgba(200,169,110,.8);
+  }
+  #d20-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(200,169,110,.4);
+    height: 14px;
+  }
+  @keyframes d20-roll {
+    0%   { transform: rotate(0deg)   scale(1); }
+    20%  { transform: rotate(72deg)  scale(1.15); }
+    40%  { transform: rotate(144deg) scale(0.95); }
+    60%  { transform: rotate(216deg) scale(1.1); }
+    80%  { transform: rotate(288deg) scale(0.98); }
+    100% { transform: rotate(360deg) scale(1); }
+  }
+  #d20-dice-shape.rolling { animation: d20-roll .5s ease-out; }
+  #d20-dice-shape.success polygon { fill: rgba(102,187,106,.15); }
+  #d20-dice-shape.success polygon, #d20-dice-shape.success line { stroke: rgba(102,187,106,.8); }
+  #d20-dice-shape.fail polygon { fill: rgba(232,93,93,.15); }
+  #d20-dice-shape.fail polygon, #d20-dice-shape.fail line { stroke: rgba(232,93,93,.8); }
+
   #event-outcome {
     font-size: 13px;
     line-height: 1.6;
     color: rgba(200,169,110,.7);
   }
 
-  .hidden { display: none !important; }
-
-  /* Webcam preview */
-  #webcam-preview {
+  #back-to-map {
     position: fixed;
-    bottom: 12px;
-    right: 12px;
-    z-index: 60;
-    width: 140px;
-    border-radius: 8px;
-    overflow: hidden;
-    border: 1px solid rgba(200,169,110,.2);
-    background: #000;
+    top: 28px;
+    left: 28px;
+    z-index: 50;
+    padding: 10px 20px;
+    background: rgba(0,0,0,.45);
+    border: 1px solid rgba(200,169,110,.25);
+    border-radius: 4px;
+    color: #c8a96e;
+    font-family: 'Georgia', serif;
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all .2s;
+    backdrop-filter: blur(4px);
   }
-  #webcam-preview.hidden { display: none; }
-  #webcam-preview video,
-  #webcam-preview canvas {
-    display: block;
-    width: 100%;
+  #back-to-map:hover {
+    background: rgba(200,169,110,.15);
+    border-color: rgba(200,169,110,.5);
+    color: #ffe9a0;
   }
-  #webcam-preview canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-  }
+
+  .hidden { display: none !important; }
 
   /* Loading */
   #room-loading {
@@ -275,6 +363,7 @@
 <canvas id="room-canvas"></canvas>
 <div class="vignette"></div>
 
+<button id="back-to-map" onclick="window.location.href='map.html'">← Map</button>
 <div id="room-title"></div>
 
 <!-- HUD -->
@@ -316,6 +405,24 @@
   <div id="event-outcome" class="hidden"></div>
 </div>
 
+<!-- D20 dice — fixed bottom right -->
+<div id="d20-hud">
+  <div id="d20-dice-wrapper">
+    <svg id="d20-dice-shape" viewBox="0 0 64 64">
+      <polygon points="32,4 60,20 60,44 32,60 4,44 4,20"/>
+      <line x1="32" y1="4"  x2="32" y2="60"/>
+      <line x1="4"  y1="20" x2="60" y2="44"/>
+      <line x1="60" y1="20" x2="4"  y2="44"/>
+      <line x1="32" y1="4"  x2="4"  y2="44"/>
+      <line x1="32" y1="4"  x2="60" y2="44"/>
+      <line x1="4"  y1="20" x2="32" y2="60"/>
+      <line x1="60" y1="20" x2="32" y2="60"/>
+    </svg>
+    <div id="d20-dice-value">—</div>
+  </div>
+  <div id="d20-label">Roll d20</div>
+</div>
+
 <!-- Webcam preview -->
 <div id="webcam-preview" class="hidden">
   <video id="webcam" autoplay playsinline muted></video>
@@ -337,6 +444,7 @@
 
 <script type="module">
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { initFaceCamera, updateFaceCamera, initRotationButtons } from '../scripts/face-camera.js';
 
 const $ = id => document.getElementById(id);
@@ -589,7 +697,7 @@ async function loadRoom() {
       const color = parseInt(l.color);
       const light = new THREE.PointLight(color, l.intensity || 6, 20, 2);
       light.position.set(l.pos[0], l.pos[1], l.pos[2]);
-      light.castShadow = true;
+      light.castShadow = false;
       light._phase = i * 1.7;
       scene.add(light);
       roomLights.push(light);
@@ -598,9 +706,12 @@ async function loadRoom() {
 
   // Camera based on room size
   const [sx, sy, sz] = data.size;
-  // Camera inside the room, looking at center
-  const cx = sx / 2, cy = sy * 0.2, cz = sz / 2;  // room center
-  const CAM_BASE = new THREE.Vector3(cx, sy * 0.6, sz - 2);
+  // Camera above room, looking at center — fit entire room in view
+  const cx = sx / 2, cy = sy * 0.2, cz = sz / 2;
+  const maxSpan = Math.max(sx, sz);
+  const camHeight = Math.max(sy * 1.2, maxSpan * 0.6);
+  const camBack = maxSpan * 0.8;
+  const CAM_BASE = new THREE.Vector3(cx, camHeight, cz + camBack);
   const CAM_LOOK = new THREE.Vector3(cx, cy, cz);
 
   const camConfig = {
@@ -620,29 +731,6 @@ async function loadRoom() {
     camera.updateProjectionMatrix();
   });
 
-  // Render loop
-  function tick() {
-    requestAnimationFrame(tick);
-    const t = performance.now() * 0.001;
-
-    // Light flicker
-    roomLights.forEach(light => {
-      const flicker = 1.0 + 0.3 * Math.sin(t * 2.8 + light._phase)
-                          + 0.15 * Math.sin(t * 5.1 + light._phase * 2.1);
-      light.intensity = (light._baseIntensity || 6) * flicker;
-    });
-
-    updateFaceCamera(camera, camConfig);
-
-    // Clamp camera inside room walls (1 block margin)
-    const margin = 0.5;
-    camera.position.x = Math.max(margin, Math.min(sx - margin, camera.position.x));
-    camera.position.z = Math.max(margin, Math.min(sz - margin, camera.position.z));
-    camera.lookAt(CAM_LOOK);
-
-    renderer.render(scene, camera);
-  }
-
   // Store base intensity
   roomLights.forEach(l => { l._baseIntensity = l.intensity; });
 
@@ -650,7 +738,33 @@ async function loadRoom() {
   const MOVE_RANGE = { Warrior: 3, Rogue: 5, Mage: 4 };
   const moveRange = MOVE_RANGE[charData.role] || 4;
 
-  function createPlayerToken() {
+  const gltfLoader = new GLTFLoader();
+  const MINI_SCALE = 0.4;
+  const MINI_FILES = { Warrior: 'warrior.glb', Rogue: 'rogue.glb', Mage: 'mage.glb' };
+
+  function loadPlayerToken() {
+    return new Promise((resolve) => {
+      const file = MINI_FILES[charData.role];
+      if (!file) { resolve(createFallbackToken()); return; }
+      gltfLoader.load('../Assets/' + file, (gltf) => {
+        const model = gltf.scene;
+        model.scale.setScalar(MINI_SCALE);
+        model.traverse(c => { if (c.isMesh) c.castShadow = true; });
+        // Center model on its bounding box
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        model.position.x -= center.x;
+        model.position.z -= center.z;
+        // Sit on ground: offset so bottom of bbox is at y=0
+        model.position.y -= box.min.y;
+        const group = new THREE.Group();
+        group.add(model);
+        resolve(group);
+      }, undefined, () => { resolve(createFallbackToken()); });
+    });
+  }
+
+  function createFallbackToken() {
     const group = new THREE.Group();
     const baseGeo = new THREE.CylinderGeometry(0.18, 0.22, 0.08, 16);
     const baseMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.4, metalness: 0.7 });
@@ -681,10 +795,22 @@ async function loadRoom() {
     return 0;
   }
 
+  const IMPASSABLE = ['water', 'lava'];
+  const paletteTypes = data.palette;
+
   function isWalkable(x, z) {
     if (x < 0 || x >= gsx || z < 0 || z >= gsz) return false;
     const fy = getFloorY(x, z);
-    return fy > 0 && fy < gsy; // has floor and space above
+    if (fy <= 0 || fy >= gsy) return false;
+
+    // Check floor block type — water/lava are impassable
+    const floorType = voxelGrid[gridIdx(x, fy - 1, z)];
+    if (floorType >= 0 && IMPASSABLE.includes(paletteTypes[floorType])) return false;
+
+    // Need 2 blocks of headroom to stand
+    if (fy + 1 < gsy && voxelGrid[gridIdx(x, fy + 1, z)] >= 0) return false;
+
+    return true;
   }
 
   // ── BFS move range ──
@@ -704,8 +830,11 @@ async function loadRoom() {
           const nx = x + dx, nz = z + dz;
           const key = `${nx},${nz}`;
           if (!visited.has(key) && isWalkable(nx, nz)) {
-            visited.add(key);
-            queue.push({ x: nx, z: nz, dist: dist + 1 });
+            const nfy = getFloorY(nx, nz);
+            if (nfy === fy) {
+              visited.add(key);
+              queue.push({ x: nx, z: nz, dist: dist + 1 });
+            }
           }
         }
       }
@@ -724,9 +853,9 @@ async function loadRoom() {
       const plane = new THREE.Mesh(
         new THREE.PlaneGeometry(0.9, 0.9),
         new THREE.MeshBasicMaterial({
-          color: 0x4488ff,
+          color: 0xff3333,
           transparent: true,
-          opacity: 0.3,
+          opacity: 0.35,
           side: THREE.DoubleSide,
         })
       );
@@ -745,20 +874,43 @@ async function loadRoom() {
 
   // ── Turn state machine ──
   let turnState = 'spawn';
+  let roomCleared = false;
   let playerToken = null;
   let playerPos = { x: data.spawn[0], z: data.spawn[2] };
   let playerTargetPos = null;
 
   function startTurn() {
-    const eventType = data.event.type;
+    const event = data.event;
+    const eventType = event.type;
 
-    // start/rest: skip movement, go straight to event
-    if (eventType === 'start' || eventType === 'rest') {
-      turnState = 'action';
-      // Place token at spawn without movement phase
+    // Check if all events in this room are already cleared
+    let allCleared = false;
+    if (eventType === 'choice' && event.choices) {
+      const remaining = event.choices.filter((_, i) => !isEventCleared(`${currentRoom}:${i}`));
+      allCleared = remaining.length === 0;
+    } else if (eventType !== 'start') {
+      allCleared = isEventCleared(currentRoom);
+    }
+
+    if (allCleared) {
+      // Room is cleared — free movement, then return to map
+      turnState = 'move';
       const fy = getFloorY(playerPos.x, playerPos.z);
       playerToken.position.set(playerPos.x + 0.5, fy, playerPos.z + 0.5);
-      startEvent(data.event);
+      playerTargetPos = playerToken.position.clone();
+      const moveTiles = calcMoveRange(playerPos.x, playerPos.z, moveRange);
+      showMoveRange(moveTiles);
+      $('event-panel').classList.remove('visible');
+      roomCleared = true;
+      return;
+    }
+
+    // start: skip movement, go straight to event
+    if (eventType === 'start') {
+      turnState = 'action';
+      const fy = getFloorY(playerPos.x, playerPos.z);
+      playerToken.position.set(playerPos.x + 0.5, fy, playerPos.z + 0.5);
+      startEvent(event);
       return;
     }
 
@@ -771,15 +923,8 @@ async function loadRoom() {
     const moveTiles = calcMoveRange(playerPos.x, playerPos.z, moveRange);
     showMoveRange(moveTiles);
 
-    // Show move instruction
-    const panel = $('event-panel');
-    const desc = $('event-desc');
-    const actions = $('event-actions');
-    $('event-result').classList.add('hidden');
-    $('event-outcome').classList.add('hidden');
-    desc.textContent = `Choose where to move. (${charData.role}: ${moveRange} tiles)`;
-    actions.innerHTML = '';
-    panel.classList.add('visible');
+    // No panel during movement — let the player see the board
+    $('event-panel').classList.remove('visible');
   }
 
   // ── Click to move ──
@@ -804,22 +949,81 @@ async function loadRoom() {
     }
   });
 
-  // Hover cursor
+  // ── Move arrow indicator ──
+  let moveArrow = null;
+
+  function updateArrow(fromPos, toPos) {
+    clearArrow();
+    const start = new THREE.Vector3(fromPos.x, fromPos.y + 0.15, fromPos.z);
+    const end = new THREE.Vector3(toPos.x, toPos.y + 0.15, toPos.z);
+    const dir = new THREE.Vector3().subVectors(end, start);
+    const len = dir.length();
+    if (len < 0.3) return;
+    moveArrow = new THREE.ArrowHelper(dir.normalize(), start, len, 0xff4444, 0.4, 0.2);
+    scene.add(moveArrow);
+  }
+
+  function clearArrow() {
+    if (moveArrow) { scene.remove(moveArrow); moveArrow = null; }
+  }
+
+  // Hover cursor + arrow
   canvas.addEventListener('mousemove', (e) => {
     if (turnState !== 'move') {
       canvas.style.cursor = 'default';
+      clearArrow();
       return;
     }
     mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
     const hits = raycaster.intersectObjects(highlightMeshes);
-    canvas.style.cursor = hits.length > 0 ? 'pointer' : 'default';
+    if (hits.length > 0) {
+      canvas.style.cursor = 'pointer';
+      const tile = hits[0].object.userData;
+      const from = playerToken.position;
+      const to = new THREE.Vector3(tile.tileX + 0.5, tile.tileY, tile.tileZ + 0.5);
+      updateArrow(from, to);
+    } else {
+      canvas.style.cursor = 'default';
+      clearArrow();
+    }
   });
 
+  // ── Trigger position marker ──
+  const triggerPos = data.event.triggerPos || null;
+  const TRIGGER_RANGE = 1; // must be within 1 tile
+
+  function isNearTrigger() {
+    if (!triggerPos) return true; // no triggerPos → auto-trigger (backward compat)
+    const dx = Math.abs(playerPos.x - triggerPos[0]);
+    const dz = Math.abs(playerPos.z - triggerPos[1]);
+    return dx <= TRIGGER_RANGE && dz <= TRIGGER_RANGE;
+  }
+
+  // Visual marker at trigger position
+  if (triggerPos) {
+    const tfy = getFloorY(triggerPos[0], triggerPos[1]);
+    const markerGeo = new THREE.RingGeometry(0.25, 0.4, 16);
+    markerGeo.rotateX(-Math.PI / 2);
+    const markerMat = new THREE.MeshBasicMaterial({ color: 0xff6644, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+    const marker = new THREE.Mesh(markerGeo, markerMat);
+    marker.position.set(triggerPos[0] + 0.5, tfy + 0.02, triggerPos[1] + 0.5);
+    scene.add(marker);
+
+    // Floating icon above trigger
+    const iconGeo = new THREE.OctahedronGeometry(0.15);
+    const iconMat = new THREE.MeshStandardMaterial({ color: 0xff6644, emissive: 0xff4422, emissiveIntensity: 0.5 });
+    const icon = new THREE.Mesh(iconGeo, iconMat);
+    icon.position.set(triggerPos[0] + 0.5, tfy + 1.0, triggerPos[1] + 0.5);
+    icon.userData._baseY = tfy + 1.0;
+    scene.add(icon);
+    roomLights.push({ _isTriggerIcon: true, _mesh: icon }); // reuse tick for bobbing
+  }
+
   // ── Spawn player ──
-  playerToken = createPlayerToken();
   const spawnY = getFloorY(data.spawn[0], data.spawn[2]);
+  playerToken = await loadPlayerToken();
   playerToken.position.set(data.spawn[0] + 0.5, spawnY, data.spawn[2] + 0.5);
   playerTargetPos = playerToken.position.clone();
   scene.add(playerToken);
@@ -829,16 +1033,16 @@ async function loadRoom() {
     requestAnimationFrame(tick);
     const t = performance.now() * 0.001;
 
-    // Light flicker
+    // Light flicker + trigger icon bob
     roomLights.forEach(light => {
+      if (light._isTriggerIcon) {
+        light._mesh.position.y = light._mesh.userData._baseY + Math.sin(t * 2) * 0.15;
+        light._mesh.rotation.y = t * 1.5;
+        return;
+      }
       const flicker = 1.0 + 0.3 * Math.sin(t * 2.8 + light._phase)
                           + 0.15 * Math.sin(t * 5.1 + light._phase * 2.1);
       light.intensity = (light._baseIntensity || 6) * flicker;
-    });
-
-    // Highlight pulse
-    highlightMeshes.forEach((m, i) => {
-      m.material.opacity = 0.2 + 0.15 * Math.sin(t * 3 + i * 0.5);
     });
 
     // Player movement animation
@@ -852,22 +1056,46 @@ async function loadRoom() {
         const dx = playerToken.position.x - playerTargetPos.x;
         const dz = playerToken.position.z - playerTargetPos.z;
         if (Math.abs(dx) < 0.05 && Math.abs(dz) < 0.05) {
-          turnState = 'action';
-          setTimeout(() => startEvent(data.event), 300);
+          if (roomCleared) {
+            // Cleared room — keep moving freely
+            turnState = 'move';
+            const moveTiles = calcMoveRange(playerPos.x, playerPos.z, moveRange);
+            showMoveRange(moveTiles);
+          } else if (isNearTrigger()) {
+            // Near event trigger — start event
+            turnState = 'action';
+            setTimeout(() => startEvent(data.event), 300);
+          } else {
+            // Not near trigger — move again
+            turnState = 'move';
+            const moveTiles = calcMoveRange(playerPos.x, playerPos.z, moveRange);
+            showMoveRange(moveTiles);
+          }
         }
       }
     }
 
     updateFaceCamera(camera, camConfig);
 
-    // Clamp camera inside room walls
-    const margin = 0.5;
-    camera.position.x = Math.max(margin, Math.min(sx - margin, camera.position.x));
-    camera.position.z = Math.max(margin, Math.min(sz - margin, camera.position.z));
+    // Clamp camera inside room walls (indoor rooms only)
+    if (data.id === 'lair') {
+      const margin = 0.5;
+      camera.position.x = Math.max(margin, Math.min(sx - margin, camera.position.x));
+      camera.position.z = Math.max(margin, Math.min(sz - margin, camera.position.z));
+    }
     camera.lookAt(CAM_LOOK);
 
     renderer.render(scene, camera);
   }
+
+  // Expose startTurn for retry
+  retryTurn = () => startTurn();
+  continueFreeMove = () => {
+    roomCleared = true;
+    turnState = 'move';
+    const moveTiles = calcMoveRange(playerPos.x, playerPos.z, moveRange);
+    showMoveRange(moveTiles);
+  };
 
   // Show room
   $('room-loading').classList.add('hidden');
@@ -883,6 +1111,22 @@ async function loadRoom() {
 // ══════════════════════════════════════
 //   EVENT / COMBAT SYSTEM
 // ══════════════════════════════════════
+
+// Callbacks — set inside loadRoom, called from resolveRoll
+let retryTurn = null;
+let continueFreeMove = null;
+
+// Track cleared events per room
+const clearedEvents = JSON.parse(localStorage.getItem('dndlite-clearedEvents') || '{}');
+
+function markEventCleared(eventKey) {
+  clearedEvents[eventKey] = true;
+  localStorage.setItem('dndlite-clearedEvents', JSON.stringify(clearedEvents));
+}
+
+function isEventCleared(eventKey) {
+  return !!clearedEvents[eventKey];
+}
 
 const STAT_NAMES = { str: 'Strength', agi: 'Agility', int: 'Intelligence', lck: 'Luck' };
 
@@ -901,28 +1145,33 @@ function startEvent(event) {
   result.classList.add('hidden');
   result.className = 'hidden';
   outcome.classList.add('hidden');
+  deactivateD20();
+
 
   if (event.type === 'start' || event.type === 'rest') {
     // No roll needed
-    if (event.type === 'rest') {
+    if (event.type === 'rest' && !isEventCleared(currentRoom)) {
       const heal = event.successHp || 4;
       charData.hp = Math.min(20, charData.hp + heal);
       localStorage.setItem('dndlite-character', JSON.stringify(charData));
       updateHP();
       desc.textContent += `\n\nYou recover ${heal} HP.`;
     }
+    if (!isEventCleared(currentRoom)) markEventCleared(currentRoom);
     const btn = createBtn('Continue', () => {
       window.location.href = 'map.html';
     });
     actions.appendChild(btn);
 
-  } else if (event.type === 'choice' && event.choices) {
-    // Multiple choices
-    event.choices.forEach(choice => {
+  } else if (event.choices) {
+    // Multiple choices (choice / boss with choices) — filter out cleared ones
+    event.choices.forEach((choice, i) => {
+      const eventKey = `${currentRoom}:${i}`;
+      if (isEventCleared(eventKey)) return;
       const statLabel = STAT_NAMES[choice.stat] || choice.stat.toUpperCase();
       const btn = createBtn(`${choice.label} (${statLabel})`, () => {
         disableButtons(actions);
-        resolveRoll(choice.stat, choice.dc, choice.successText, choice.failText, choice.successHp || 0, choice.failHp || 0);
+        prepareRoll(choice.stat, choice.dc, choice.successText, choice.failText, choice.successHp || 0, choice.failHp || 0, eventKey);
       });
       actions.appendChild(btn);
     });
@@ -936,7 +1185,7 @@ function startEvent(event) {
                   `Attack (${statLabel})`;
     const btn = createBtn(label, () => {
       disableButtons(actions);
-      resolveRoll(stat, event.dc, event.successText, event.failText, event.successHp || 0, event.failHp || 0);
+      prepareRoll(stat, event.dc, event.successText, event.failText, event.successHp || 0, event.failHp || 0, currentRoom);
     });
     actions.appendChild(btn);
   }
@@ -956,34 +1205,77 @@ function disableButtons(container) {
   container.querySelectorAll('.event-btn').forEach(b => b.disabled = true);
 }
 
-function resolveRoll(stat, dc, successText, failText, successHp, failHp) {
+let pendingRoll = null;
+
+function deactivateD20() {
+  const hud = $('d20-hud');
+  hud.classList.remove('active', 'rolled');
+  $('d20-dice-shape').classList.remove('rolling', 'success', 'fail');
+  $('d20-dice-value').textContent = '—';
+  $('d20-dice-value').style.color = '#ffe9a0';
+  $('d20-label').textContent = '';
+}
+
+function prepareRoll(stat, dc, successText, failText, successHp, failHp, eventKey) {
+  pendingRoll = { stat, dc, successText, failText, successHp, failHp, eventKey };
+
+  // Activate d20 — scale up, clickable
+  const hud = $('d20-hud');
+  hud.classList.remove('rolled');
+  hud.classList.add('active');
+  $('d20-dice-shape').classList.remove('rolling', 'success', 'fail');
+  $('d20-dice-value').textContent = '—';
+  $('d20-dice-value').style.color = '#ffe9a0';
+  $('d20-label').textContent = 'Roll d20';
+}
+
+function executeRoll() {
+  if (!pendingRoll) return;
+  const { stat, dc, successText, failText, successHp, failHp, eventKey } = pendingRoll;
+  pendingRoll = null;
+
   const result = $('event-result');
   const outcome = $('event-outcome');
   const actions = $('event-actions');
+  const hud = $('d20-hud');
+  const diceShape = $('d20-dice-shape');
+  const diceValue = $('d20-dice-value');
 
   const roll = rollD20();
   const statVal = charData[stat] || 10;
   const mod = getModifier(statVal);
   const total = roll + mod;
   const success = total >= dc;
-
   const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
   const statLabel = STAT_NAMES[stat] || stat.toUpperCase();
 
-  // Show result with animation
-  result.classList.remove('hidden', 'success', 'fail');
-  result.classList.add(success ? 'success' : 'fail');
+  // Disable further clicks
+  hud.classList.add('rolled');
+  $('d20-label').textContent = '';
 
-  // Animate roll number
+  // Start rolling animation
+  diceShape.classList.remove('rolling', 'success', 'fail');
+  void diceShape.offsetWidth;
+  diceShape.classList.add('rolling');
+
   let animCount = 0;
   const animInterval = setInterval(() => {
-    result.textContent = `Rolling... ${Math.floor(Math.random() * 20) + 1}`;
+    diceValue.textContent = Math.floor(Math.random() * 20) + 1;
     animCount++;
     if (animCount > 12) {
       clearInterval(animInterval);
-      result.textContent = `Rolled ${roll} ${modStr} (${statLabel}) = ${total}  vs  DC ${dc}  —  ${success ? 'SUCCESS!' : 'FAILED'}`;
 
-      // Show outcome text
+      // Show final roll on dice
+      diceValue.textContent = roll;
+      diceValue.style.color = roll === 20 ? '#ffe97a' : roll === 1 ? '#ff6b6b' : '#ffe9a0';
+      diceShape.classList.remove('rolling');
+      diceShape.classList.add(success ? 'success' : 'fail');
+
+      // Show result in event panel
+      result.classList.remove('hidden', 'success', 'fail');
+      result.classList.add(success ? 'success' : 'fail');
+      result.textContent = `${roll} ${modStr} (${statLabel}) = ${total} vs DC ${dc} — ${success ? 'SUCCESS!' : 'FAILED'}`;
+
       outcome.classList.remove('hidden');
       outcome.textContent = success ? successText : failText;
 
@@ -993,7 +1285,6 @@ function resolveRoll(stat, dc, successText, failText, successHp, failHp) {
         charData.hp = Math.max(0, Math.min(20, charData.hp + hpChange));
         localStorage.setItem('dndlite-character', JSON.stringify(charData));
         updateHP();
-
         const sign = hpChange > 0 ? '+' : '';
         outcome.textContent += ` (${sign}${hpChange} HP)`;
       }
@@ -1004,15 +1295,41 @@ function resolveRoll(stat, dc, successText, failText, successHp, failHp) {
         return;
       }
 
-      // Add continue button
-      const continueBtn = createBtn('Continue', () => {
-        window.location.href = 'map.html';
-      });
       actions.innerHTML = '';
-      actions.appendChild(continueBtn);
+      if (success) {
+        if (eventKey) markEventCleared(eventKey);
+        const exploreBtn = createBtn('Explore', () => {
+          $('event-panel').classList.remove('visible');
+          deactivateD20();
+          result.classList.add('hidden');
+          outcome.classList.add('hidden');
+          actions.innerHTML = '';
+          if (continueFreeMove) continueFreeMove();
+        });
+        const leaveBtn = createBtn('Leave', () => {
+          window.location.href = 'map.html';
+        });
+        actions.appendChild(exploreBtn);
+        actions.appendChild(leaveBtn);
+      } else {
+        const retryBtn = createBtn('Try again', () => {
+          $('event-panel').classList.remove('visible');
+          deactivateD20();
+          result.classList.add('hidden');
+          outcome.classList.add('hidden');
+          actions.innerHTML = '';
+          retryTurn();
+        });
+        actions.appendChild(retryBtn);
+      }
     }
   }, 60);
 }
+
+// D20 click handler
+$('d20-hud').addEventListener('click', () => {
+  if (pendingRoll) executeRoll();
+});
 
 // ── Start ──
 loadRoom();

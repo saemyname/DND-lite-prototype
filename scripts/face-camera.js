@@ -55,6 +55,34 @@ export async function initFaceCamera() {
   if (initialized) return;
   initialized = true;
 
+  // Inject shared webcam preview styles
+  const wcStyle = document.createElement('style');
+  wcStyle.textContent = `
+    #webcam-preview {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 60;
+      width: 140px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: none;
+      background: transparent;
+    }
+    #webcam-preview.hidden { display: none; }
+    #webcam-preview video,
+    #webcam-preview canvas {
+      display: block;
+      width: 100%;
+    }
+    #webcam-preview canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+  `;
+  document.head.appendChild(wcStyle);
+
   // MediaPipe
   const MP_URLS = [
     '../node_modules/@mediapipe/tasks-vision/vision_bundle.mjs',
@@ -134,7 +162,10 @@ export async function initFaceCamera() {
     const ctx = faceCanvas ? faceCanvas.getContext('2d') : null;
     let drawingUtils = (DrawingUtils && ctx) ? new DrawingUtils(ctx) : null;
 
+    let detectFrame = 0;
     function detect() {
+      detectFrame++;
+      if (detectFrame % 3 !== 0) { requestAnimationFrame(detect); return; }
       if (webcamEl.readyState >= 2) {
         if (ctx && faceCanvas.width !== webcamEl.videoWidth) {
           faceCanvas.width  = webcamEl.videoWidth;

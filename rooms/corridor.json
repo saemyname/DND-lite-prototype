@@ -1,30 +1,31 @@
 {
   "id": "corridor",
   "name": "The Dark Corridor",
-  "size": [7, 6, 18],
+  "size": [14, 6, 14],
   "palette": ["stone_floor", "stone_wall", "wood"],
   "fills": [
-    { "from": [0,0,0], "to": [6,0,17], "type": 0 },
-    { "from": [0,1,0], "to": [0,4,17], "type": 1 },
-    { "from": [6,1,0], "to": [6,4,17], "type": 1 },
-    { "from": [0,1,0], "to": [6,4,0], "type": 1 },
-    { "from": [0,1,17], "to": [2,4,17], "type": 1 },
-    { "from": [4,1,17], "to": [6,4,17], "type": 1 },
-    { "from": [0,5,0], "to": [6,5,17], "type": 1 }
+    { "from": [0,0,0], "to": [13,0,13], "type": 0 },
+    { "from": [0,1,0], "to": [3,4,13], "type": 1 },
+    { "from": [10,1,0], "to": [13,4,13], "type": 1 },
+    { "from": [0,1,0], "to": [13,4,0], "type": 1 },
+    { "from": [0,1,13], "to": [5,4,13], "type": 1 },
+    { "from": [8,1,13], "to": [13,4,13], "type": 1 },
+    { "from": [0,5,0], "to": [13,5,13], "type": 1 }
   ],
   "blocks": [
-    [2, 1, 4, 2], [2, 2, 4, 2], [2, 3, 4, 2],
-    [4, 1, 4, 2], [4, 2, 4, 2], [4, 3, 4, 2],
-    [2, 1, 10, 2], [2, 2, 10, 2], [2, 3, 10, 2],
-    [4, 1, 10, 2], [4, 2, 10, 2], [4, 3, 10, 2]
+    [5, 1, 4, 2], [5, 2, 4, 2], [5, 3, 4, 2],
+    [8, 1, 4, 2], [8, 2, 4, 2], [8, 3, 4, 2],
+    [5, 1, 9, 2], [5, 2, 9, 2], [5, 3, 9, 2],
+    [8, 1, 9, 2], [8, 2, 9, 2], [8, 3, 9, 2]
   ],
   "lights": [
-    { "pos": [3, 3, 4], "color": "0xff6622", "intensity": 4 },
-    { "pos": [3, 3, 10], "color": "0xff6622", "intensity": 4 }
+    { "pos": [7, 3, 4], "color": "0xff6622", "intensity": 4 },
+    { "pos": [7, 3, 9], "color": "0xff6622", "intensity": 4 }
   ],
-  "spawn": [3, 1, 15],
+  "spawn": [7, 1, 11],
   "event": {
     "type": "trap",
+    "triggerPos": [7, 6],
     "description": "The floor shifts beneath your feet. You hear a click — pressure plates! Darts shoot from hidden slots in the walls. You must dodge!",
     "dc": 8,
     "stat": "agi",
