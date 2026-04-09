@@ -323,6 +323,7 @@ function beginAdventure() {
   // Reset all game state
   localStorage.setItem('dndlite-character', JSON.stringify(character));
   localStorage.setItem('dndlite-currentRoom', 'entrance');
+  localStorage.removeItem('dndlite-clearedEvents');
 
   // Navigate to map scene
   window.location.href = 'scenes/map.html';

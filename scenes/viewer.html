@@ -478,21 +478,8 @@
   }
 
   /* Webcam */
-  #webcam-preview {
-    position: fixed;
-    bottom: 20px; right: 220px;
-    z-index: 150;
-    width: 140px; height: 105px;
-    border: none;
-    border-radius: 3px;
-    overflow: hidden;
-    background: #000;
-    transition: opacity .3s;
-  }
-  #webcam-preview.hidden { opacity: 0; pointer-events: none; }
-  #webcam { width: 100%; height: 100%; object-fit: cover; }
+  /* Webcam styles injected by face-camera.js */
   #webcam-label { position: absolute; bottom: 4px; left: 6px; font-size: 9px; letter-spacing: 1px; color: rgba(200,169,110,.5); }
-  #face-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 
   /* Face cursor */
   #face-cursor {
@@ -566,7 +553,12 @@
 </head>
 <body>
 
-<button id="back-to-map" onclick="window.location.href='map.html'">← Back to Map</button>
+<button id="back-to-map" onclick="
+  const ce = JSON.parse(localStorage.getItem('dndlite-clearedEvents') || '{}');
+  const room = localStorage.getItem('dndlite-currentRoom');
+  if (room && !ce[room]) { ce[room] = true; localStorage.setItem('dndlite-clearedEvents', JSON.stringify(ce)); }
+  window.location.href='map.html';
+">← Back to Map</button>
 
 <!-- ── HUD ── -->
 <div id="hud">

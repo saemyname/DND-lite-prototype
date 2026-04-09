@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D&D Lite — Room Editor</title>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+    "three/": "https://cdn.jsdelivr.net/npm/three@0.176.0/"
+  }
+}
+</script>
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a14;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    font-family: 'Georgia', serif;
+    color: #c8a96e;
+    display: flex;
+  }
+
+  /* Sidebar */
+  #sidebar {
+    width: 260px;
+    min-width: 260px;
+    height: 100vh;
+    overflow-y: auto;
+    background: rgba(0,0,0,.6);
+    border-right: 1px solid rgba(200,169,110,.15);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    z-index: 10;
+  }
+  #sidebar h2 {
+    font-size: 16px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #ffe9a0;
+    opacity: .8;
+    margin-bottom: 4px;
+  }
+  .section-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(200,169,110,.4);
+    margin-top: 4px;
+  }
+
+  /* Inputs */
+  .input-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .input-row label {
+    font-size: 12px;
+    color: rgba(200,169,110,.5);
+    min-width: 36px;
+  }
+  input[type="text"], input[type="number"] {
+    background: rgba(200,169,110,.06);
+    border: 1px solid rgba(200,169,110,.2);
+    border-radius: 4px;
+    color: #c8a96e;
+    font-family: 'Georgia', serif;
+    font-size: 13px;
+    padding: 6px 8px;
+    outline: none;
+    width: 100%;
+  }
+  input[type="number"] { width: 54px; text-align: center; }
+  input:focus { border-color: rgba(200,169,110,.5); }
+
+  /* Palette */
+  #palette {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+  }
+  .swatch {
+    aspect-ratio: 1;
+    border-radius: 4px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 2px;
+    font-size: 8px;
+    color: rgba(255,255,255,.6);
+    text-shadow: 0 1px 2px rgba(0,0,0,.8);
+    text-transform: capitalize;
+    transition: border-color .15s;
+  }
+  .swatch:hover { border-color: rgba(200,169,110,.5); }
+  .swatch.active { border-color: #ffe9a0; box-shadow: 0 0 8px rgba(255,233,160,.3); }
+
+  /* Tools */
+  #tools {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .tool-btn {
+    padding: 7px 12px;
+    background: rgba(200,169,110,.06);
+    border: 1px solid rgba(200,169,110,.2);
+    border-radius: 4px;
+    color: #c8a96e;
+    font-family: 'Georgia', serif;
+    font-size: 11px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .tool-btn:hover { background: rgba(200,169,110,.15); }
+  .tool-btn.active {
+    background: rgba(200,169,110,.2);
+    border-color: #ffe9a0;
+    color: #ffe9a0;
+  }
+
+  /* Action buttons */
+  .action-btn {
+    padding: 8px 14px;
+    background: rgba(200,169,110,.08);
+    border: 1px solid rgba(200,169,110,.25);
+    border-radius: 4px;
+    color: #c8a96e;
+    font-family: 'Georgia', serif;
+    font-size: 12px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all .15s;
+    width: 100%;
+  }
+  .action-btn:hover {
+    background: rgba(200,169,110,.18);
+    border-color: rgba(200,169,110,.5);
+    color: #ffe9a0;
+  }
+  .btn-row { display: flex; gap: 6px; }
+  .btn-row .action-btn { width: auto; flex: 1; }
+
+  /* Status */
+  #status {
+    font-size: 11px;
+    color: rgba(200,169,110,.4);
+    letter-spacing: 1px;
+    margin-top: auto;
+    padding-top: 8px;
+    border-top: 1px solid rgba(200,169,110,.1);
+    line-height: 1.6;
+  }
+
+  /* Event editor */
+  .event-section { display: flex; flex-direction: column; gap: 6px; }
+  select {
+    background: rgba(200,169,110,.06);
+    border: 1px solid rgba(200,169,110,.2);
+    border-radius: 4px;
+    color: #c8a96e;
+    font-family: 'Georgia', serif;
+    font-size: 12px;
+    padding: 6px 8px;
+    outline: none;
+  }
+  textarea {
+    background: rgba(200,169,110,.06);
+    border: 1px solid rgba(200,169,110,.2);
+    border-radius: 4px;
+    color: #c8a96e;
+    font-family: 'Georgia', serif;
+    font-size: 12px;
+    padding: 6px 8px;
+    outline: none;
+    resize: vertical;
+    min-height: 50px;
+  }
+
+  /* Canvas */
+  #editor-canvas {
+    flex: 1;
+    display: block;
+  }
+
+  /* Ghost block preview */
+  .crosshair { cursor: crosshair; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <h2>Room Editor</h2>
+
+  <div class="section-label">Room</div>
+  <input type="text" id="room-id" placeholder="room_id" value="untitled">
+  <input type="text" id="room-name" placeholder="Room Name" value="Untitled Room">
+
+  <div class="section-label">Grid Size</div>
+  <div class="input-row">
+    <label>X</label><input type="number" id="size-x" value="20" min="4" max="64">
+    <label>Y</label><input type="number" id="size-y" value="8" min="2" max="32">
+    <label>Z</label><input type="number" id="size-z" value="20" min="4" max="64">
+    <button class="tool-btn" id="btn-resize">Apply</button>
+  </div>
+
+  <div class="section-label">Blocks</div>
+  <div id="palette"></div>
+
+  <div class="section-label">Tool</div>
+  <div id="tools">
+    <button class="tool-btn active" data-tool="place">Place</button>
+    <button class="tool-btn" data-tool="erase">Erase</button>
+    <button class="tool-btn" data-tool="spawn">Spawn</button>
+  </div>
+
+  <div class="section-label">Actions</div>
+  <button class="action-btn" id="btn-export">Export JSON</button>
+  <button class="action-btn" id="btn-import">Import JSON</button>
+  <input type="file" id="file-input" accept=".json" style="display:none">
+  <div class="btn-row">
+    <button class="action-btn" id="btn-undo">Undo</button>
+    <button class="action-btn" id="btn-redo">Redo</button>
+  </div>
+  <button class="action-btn" id="btn-clear">Clear All</button>
+
+  <div id="status">Blocks: 0 | Spawn: --</div>
+</div>
+
+<canvas id="editor-canvas"></canvas>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const $ = id => document.getElementById(id);
+
+// ══════════════════════════════════════
+//   BLOCK TYPES & TEXTURE ATLAS
+// ══════════════════════════════════════
+
+const BLOCK_TYPES = {
+  stone_floor: { base: '#666666', noise: '#777777' },
+  stone_wall:  { base: '#444444', noise: '#555555' },
+  wood:        { base: '#8B5A2B', noise: '#A0693E' },
+  grass:       { base: '#3a7a3a', noise: '#4a8a4a' },
+  water:       { base: '#2244aa', noise: '#3355bb' },
+  lava:        { base: '#cc4400', noise: '#ff6600', emissive: true },
+  gold:        { base: '#ccaa22', noise: '#ddbb44' },
+  dark:        { base: '#111111', noise: '#1a1a1a' },
+};
+const BLOCK_NAMES = Object.keys(BLOCK_TYPES);
+const ATLAS_COLS = 4, ATLAS_ROWS = 2, TILE = 16;
+
+function generateAtlasTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = TILE * ATLAS_COLS;
+  canvas.height = TILE * ATLAS_ROWS;
+  const ctx = canvas.getContext('2d');
+
+  BLOCK_NAMES.forEach((name, i) => {
+    const tile = BLOCK_TYPES[name];
+    const col = i % ATLAS_COLS, row = Math.floor(i / ATLAS_COLS);
+    const ox = col * TILE, oy = row * TILE;
+    ctx.fillStyle = tile.base;
+    ctx.fillRect(ox, oy, TILE, TILE);
+    for (let p = 0; p < 50; p++) {
+      ctx.fillStyle = tile.noise;
+      ctx.fillRect(ox + Math.floor(Math.random() * TILE), oy + Math.floor(Math.random() * TILE), 1, 1);
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.fillRect(ox, oy, TILE, 1);
+    ctx.fillRect(ox, oy, 1, TILE);
+  });
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+const FACES = [
+  { dir: [1,0,0],  verts: [[1,0,0],[1,1,0],[1,1,1],[1,0,1]], n: [1,0,0] },
+  { dir: [-1,0,0], verts: [[0,0,1],[0,1,1],[0,1,0],[0,0,0]], n: [-1,0,0] },
+  { dir: [0,1,0],  verts: [[0,1,1],[1,1,1],[1,1,0],[0,1,0]], n: [0,1,0] },
+  { dir: [0,-1,0], verts: [[0,0,0],[1,0,0],[1,0,1],[0,0,1]], n: [0,-1,0] },
+  { dir: [0,0,1],  verts: [[1,0,1],[1,1,1],[0,1,1],[0,0,1]], n: [0,0,1] },
+  { dir: [0,0,-1], verts: [[0,0,0],[0,1,0],[1,1,0],[1,0,0]], n: [0,0,-1] },
+];
+
+// ══════════════════════════════════════
+//   EDITOR STATE
+// ══════════════════════════════════════
+
+let gridSize = [20, 8, 20];
+let grid;
+let spawnPoint = null;
+let selectedBlock = 0;
+let activeTool = 'place';
+
+let undoStack = [];
+let redoStack = [];
+const MAX_UNDO = 500;
+
+function initGrid(sx, sy, sz) {
+  gridSize = [sx, sy, sz];
+  grid = new Int8Array(sx * sy * sz).fill(-1);
+}
+
+function idx(x, y, z) {
+  return x + y * gridSize[0] + z * gridSize[0] * gridSize[1];
+}
+
+function getBlock(x, y, z) {
+  if (x < 0 || x >= gridSize[0] || y < 0 || y >= gridSize[1] || z < 0 || z >= gridSize[2]) return -1;
+  return grid[idx(x, y, z)];
+}
+
+function setBlock(x, y, z, type, recordUndo = true) {
+  if (x < 0 || x >= gridSize[0] || y < 0 || y >= gridSize[1] || z < 0 || z >= gridSize[2]) return;
+  const old = grid[idx(x, y, z)];
+  if (old === type) return;
+  if (recordUndo) {
+    undoStack.push({ x, y, z, oldType: old, newType: type });
+    if (undoStack.length > MAX_UNDO) undoStack.shift();
+    redoStack.length = 0;
+  }
+  grid[idx(x, y, z)] = type;
+  queueRebuild();
+}
+
+initGrid(20, 8, 20);
+
+// ══════════════════════════════════════
+//   THREE.JS SCENE
+// ══════════════════════════════════════
+
+const canvas = $('editor-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
+camera.position.set(30, 20, 30);
+
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(10, 0, 10);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.update();
+
+// Lighting
+const ambient = new THREE.AmbientLight(0xffffff, 2.0);
+scene.add(ambient);
+const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
+dirLight.position.set(15, 25, 10);
+dirLight.castShadow = true;
+scene.add(dirLight);
+
+// Grid helper
+let gridHelper = null;
+function updateGridHelper() {
+  if (gridHelper) scene.remove(gridHelper);
+  const [sx, , sz] = gridSize;
+  const maxDim = Math.max(sx, sz);
+  gridHelper = new THREE.GridHelper(maxDim, maxDim, 0x444466, 0x222244);
+  gridHelper.position.set(sx / 2, 0, sz / 2);
+  scene.add(gridHelper);
+
+  // Update orbit target
+  controls.target.set(sx / 2, 0, sz / 2);
+}
+updateGridHelper();
+
+// Axes helper
+const axes = new THREE.AxesHelper(3);
+scene.add(axes);
+
+// Spawn marker
+let spawnMarker = null;
+function updateSpawnMarker() {
+  if (spawnMarker) scene.remove(spawnMarker);
+  if (!spawnPoint) return;
+  const geo = new THREE.SphereGeometry(0.3, 12, 10);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x44ff44, emissive: 0x22aa22, emissiveIntensity: 0.5 });
+  spawnMarker = new THREE.Mesh(geo, mat);
+  spawnMarker.position.set(spawnPoint[0] + 0.5, spawnPoint[1] + 0.3, spawnPoint[2] + 0.5);
+  scene.add(spawnMarker);
+}
+
+// Ghost preview block
+const ghostMat = new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+const ghostMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), ghostMat);
+ghostMesh.visible = false;
+scene.add(ghostMesh);
+
+// ══════════════════════════════════════
+//   MESH BUILDING
+// ══════════════════════════════════════
+
+const atlasTex = generateAtlasTexture();
+let meshGroup = new THREE.Group();
+let pickGroup = new THREE.Group();
+scene.add(meshGroup);
+scene.add(pickGroup);
+
+// Ground plane for picking when no blocks exist
+let groundPlane = null;
+function updateGroundPlane() {
+  if (groundPlane) pickGroup.remove(groundPlane);
+  const [sx, , sz] = gridSize;
+  const geo = new THREE.PlaneGeometry(sx, sz);
+  geo.rotateX(-Math.PI / 2);
+  groundPlane = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, side: THREE.DoubleSide }));
+  groundPlane.position.set(sx / 2, 0, sz / 2);
+  groundPlane.userData = { isGround: true };
+  pickGroup.add(groundPlane);
+}
+updateGroundPlane();
+
+let rebuildQueued = false;
+function queueRebuild() {
+  if (rebuildQueued) return;
+  rebuildQueued = true;
+  requestAnimationFrame(actualRebuild);
+}
+
+function actualRebuild() {
+  rebuildQueued = false;
+  const [sx, sy, sz] = gridSize;
+
+  // Clear old visual meshes
+  while (meshGroup.children.length > 0) {
+    const c = meshGroup.children[0];
+    c.geometry?.dispose();
+    c.material?.dispose();
+    meshGroup.remove(c);
+  }
+  // Clear old pick boxes (keep ground plane)
+  const toRemove = pickGroup.children.filter(c => !c.userData.isGround);
+  toRemove.forEach(c => {
+    c.geometry?.dispose();
+    c.material?.dispose();
+    pickGroup.remove(c);
+  });
+
+  // Group faces by block type for merged visual meshes
+  const groups = {};
+  BLOCK_NAMES.forEach((_, i) => { groups[i] = { positions: [], normals: [], uvs: [], indices: [] }; });
+
+  const pickBoxGeo = new THREE.BoxGeometry(1, 1, 1);
+  const pickBoxMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, side: THREE.DoubleSide });
+
+  for (let z = 0; z < sz; z++)
+    for (let y = 0; y < sy; y++)
+      for (let x = 0; x < sx; x++) {
+        const type = grid[idx(x, y, z)];
+        if (type < 0) continue;
+
+        const g = groups[type];
+        if (!g) continue;
+
+        const atlasIdx = type;
+        const col = atlasIdx % ATLAS_COLS, row = Math.floor(atlasIdx / ATLAS_COLS);
+        const u0 = col / ATLAS_COLS;
+        const v0 = 1 - (row + 1) / ATLAS_ROWS;
+        const u1 = (col + 1) / ATLAS_COLS;
+        const v1 = 1 - row / ATLAS_ROWS;
+
+        for (const face of FACES) {
+          const nx = x + face.dir[0], ny = y + face.dir[1], nz = z + face.dir[2];
+          if (nx >= 0 && nx < sx && ny >= 0 && ny < sy && nz >= 0 && nz < sz) {
+            if (grid[idx(nx, ny, nz)] >= 0) continue;
+          }
+          const base = g.positions.length / 3;
+          for (const v of face.verts) {
+            g.positions.push(x + v[0], y + v[1], z + v[2]);
+            g.normals.push(face.n[0], face.n[1], face.n[2]);
+          }
+          g.uvs.push(u0, v0, u1, v0, u1, v1, u0, v1);
+          g.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+        }
+
+        // Pick box
+        const pickBox = new THREE.Mesh(pickBoxGeo, pickBoxMat);
+        pickBox.position.set(x + 0.5, y + 0.5, z + 0.5);
+        pickBox.userData = { vx: x, vy: y, vz: z };
+        pickGroup.add(pickBox);
+      }
+
+  // Create visual meshes
+  BLOCK_NAMES.forEach((name, i) => {
+    const g = groups[i];
+    if (g.positions.length === 0) return;
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(g.positions, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(g.normals, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(g.uvs, 2));
+    geo.setIndex(g.indices);
+
+    const blockInfo = BLOCK_TYPES[name];
+    const mat = new THREE.MeshStandardMaterial({ map: atlasTex, roughness: 0.9, metalness: 0.05 });
+    if (blockInfo.emissive) {
+      mat.emissive = new THREE.Color(blockInfo.base);
+      mat.emissiveIntensity = 0.6;
+    }
+
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    meshGroup.add(mesh);
+  });
+
+  updateStatus();
+}
+
+// ══════════════════════════════════════
+//   RAYCASTING & INTERACTION
+// ══════════════════════════════════════
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let mouseDownPos = null;
+
+function getPickTarget(e) {
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(pickGroup.children);
+  return hits.length > 0 ? hits[0] : null;
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  mouseDownPos = { x: e.clientX, y: e.clientY };
+});
+
+canvas.addEventListener('mouseup', (e) => {
+  if (!mouseDownPos) return;
+  const dx = e.clientX - mouseDownPos.x;
+  const dy = e.clientY - mouseDownPos.y;
+  if (Math.abs(dx) > 4 || Math.abs(dy) > 4) return; // was a drag
+
+  const hit = getPickTarget(e);
+  if (!hit) return;
+
+  const isErase = activeTool === 'erase' || e.shiftKey || e.button === 2;
+  const normal = hit.face.normal;
+
+  if (hit.object.userData.isGround) {
+    const gx = Math.floor(hit.point.x);
+    const gz = Math.floor(hit.point.z);
+    if (gx < 0 || gx >= gridSize[0] || gz < 0 || gz >= gridSize[2]) return;
+
+    if (activeTool === 'spawn') {
+      spawnPoint = [gx, 1, gz];
+      updateSpawnMarker();
+      updateStatus();
+    } else if (!isErase) {
+      setBlock(gx, 0, gz, selectedBlock);
+    }
+    return;
+  }
+
+  const { vx, vy, vz } = hit.object.userData;
+
+  if (activeTool === 'spawn') {
+    const nx = vx + Math.round(normal.x);
+    const ny = vy + Math.round(normal.y);
+    const nz = vz + Math.round(normal.z);
+    spawnPoint = [nx, ny, nz];
+    updateSpawnMarker();
+    updateStatus();
+    return;
+  }
+
+  if (isErase) {
+    setBlock(vx, vy, vz, -1);
+  } else {
+    const nx = vx + Math.round(normal.x);
+    const ny = vy + Math.round(normal.y);
+    const nz = vz + Math.round(normal.z);
+    setBlock(nx, ny, nz, selectedBlock);
+  }
+});
+
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  // Right-click erase handled in mouseup via e.button === 2
+});
+
+// Ghost preview on hover
+canvas.addEventListener('mousemove', (e) => {
+  const hit = getPickTarget(e);
+  if (!hit || activeTool === 'erase') {
+    ghostMesh.visible = false;
+    canvas.style.cursor = hit ? 'crosshair' : 'default';
+    return;
+  }
+
+  canvas.style.cursor = 'crosshair';
+
+  if (hit.object.userData.isGround) {
+    const gx = Math.floor(hit.point.x);
+    const gz = Math.floor(hit.point.z);
+    if (gx >= 0 && gx < gridSize[0] && gz >= 0 && gz < gridSize[2]) {
+      ghostMesh.position.set(gx + 0.5, 0.5, gz + 0.5);
+      ghostMesh.visible = activeTool === 'place';
+    }
+  } else {
+    const { vx, vy, vz } = hit.object.userData;
+    const normal = hit.face.normal;
+    const nx = vx + Math.round(normal.x);
+    const ny = vy + Math.round(normal.y);
+    const nz = vz + Math.round(normal.z);
+    ghostMesh.position.set(nx + 0.5, ny + 0.5, nz + 0.5);
+    ghostMesh.visible = activeTool === 'place';
+  }
+});
+
+// ══════════════════════════════════════
+//   UNDO / REDO
+// ══════════════════════════════════════
+
+function undo() {
+  if (undoStack.length === 0) return;
+  const action = undoStack.pop();
+  grid[idx(action.x, action.y, action.z)] = action.oldType;
+  redoStack.push(action);
+  queueRebuild();
+}
+
+function redo() {
+  if (redoStack.length === 0) return;
+  const action = redoStack.pop();
+  grid[idx(action.x, action.y, action.z)] = action.newType;
+  undoStack.push(action);
+  queueRebuild();
+}
+
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+    e.preventDefault();
+    if (e.shiftKey) redo(); else undo();
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'y') {
+    e.preventDefault();
+    redo();
+  }
+  // Number keys to select block
+  const num = parseInt(e.key);
+  if (num >= 1 && num <= BLOCK_NAMES.length) {
+    selectedBlock = num - 1;
+    activeTool = 'place';
+    updatePaletteUI();
+    updateToolUI();
+  }
+});
+
+// ══════════════════════════════════════
+//   EXPORT / IMPORT
+// ══════════════════════════════════════
+
+function exportJSON() {
+  const [sx, sy, sz] = gridSize;
+
+  // Build palette — only include used block types
+  const usedTypes = new Set();
+  for (let i = 0; i < grid.length; i++) {
+    if (grid[i] >= 0) usedTypes.add(grid[i]);
+  }
+
+  const palette = [...usedTypes].sort((a, b) => a - b);
+  const paletteNames = palette.map(i => BLOCK_NAMES[i]);
+  const paletteRemap = {};
+  palette.forEach((globalIdx, localIdx) => { paletteRemap[globalIdx] = localIdx; });
+
+  const blocks = [];
+  for (let z = 0; z < sz; z++)
+    for (let y = 0; y < sy; y++)
+      for (let x = 0; x < sx; x++) {
+        const t = grid[idx(x, y, z)];
+        if (t >= 0) blocks.push([x, y, z, paletteRemap[t]]);
+      }
+
+  const roomData = {
+    id: $('room-id').value || 'untitled',
+    name: $('room-name').value || 'Untitled Room',
+    size: [sx, sy, sz],
+    palette: paletteNames,
+    fills: [],
+    blocks: blocks,
+    lights: [{ pos: [Math.floor(sx / 2), sy - 1, Math.floor(sz / 2)], color: '0xfff5e0', intensity: 3 }],
+    spawn: spawnPoint || [Math.floor(sx / 2), 1, sz - 2],
+    event: {
+      type: 'start',
+      description: 'Describe what happens here...',
+      successText: '',
+      successHp: 0
+    }
+  };
+
+  const blob = new Blob([JSON.stringify(roomData, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${roomData.id}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importJSON(data) {
+  const [sx, sy, sz] = data.size;
+  initGrid(sx, sy, sz);
+
+  $('size-x').value = sx;
+  $('size-y').value = sy;
+  $('size-z').value = sz;
+  $('room-id').value = data.id || '';
+  $('room-name').value = data.name || '';
+
+  // Palette mapping: local index → global BLOCK_NAMES index
+  const paletteMap = data.palette.map(name => BLOCK_NAMES.indexOf(name));
+
+  if (data.fills) {
+    for (const f of data.fills) {
+      const globalType = paletteMap[f.type];
+      if (globalType < 0) continue;
+      for (let x = f.from[0]; x <= f.to[0]; x++)
+        for (let y = f.from[1]; y <= f.to[1]; y++)
+          for (let z = f.from[2]; z <= f.to[2]; z++)
+            grid[idx(x, y, z)] = globalType;
+    }
+  }
+
+  if (data.blocks) {
+    for (const b of data.blocks) {
+      const globalType = paletteMap[b[3]];
+      if (globalType < 0) continue;
+      grid[idx(b[0], b[1], b[2])] = globalType;
+    }
+  }
+
+  spawnPoint = data.spawn || null;
+  updateGridHelper();
+  updateGroundPlane();
+  updateSpawnMarker();
+  queueRebuild();
+  undoStack.length = 0;
+  redoStack.length = 0;
+}
+
+// ══════════════════════════════════════
+//   UI WIRING
+// ══════════════════════════════════════
+
+// Palette
+function buildPaletteUI() {
+  const container = $('palette');
+  BLOCK_NAMES.forEach((name, i) => {
+    const swatch = document.createElement('div');
+    swatch.className = 'swatch' + (i === selectedBlock ? ' active' : '');
+    swatch.style.backgroundColor = BLOCK_TYPES[name].base;
+    swatch.title = `${name} [${i + 1}]`;
+    swatch.textContent = name.replace('_', ' ');
+    swatch.dataset.idx = i;
+    swatch.addEventListener('click', () => {
+      selectedBlock = i;
+      activeTool = 'place';
+      updatePaletteUI();
+      updateToolUI();
+    });
+    container.appendChild(swatch);
+  });
+}
+
+function updatePaletteUI() {
+  $('palette').querySelectorAll('.swatch').forEach(s => {
+    s.classList.toggle('active', parseInt(s.dataset.idx) === selectedBlock);
+  });
+}
+
+// Tools
+function updateToolUI() {
+  $('tools').querySelectorAll('.tool-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tool === activeTool);
+  });
+}
+
+$('tools').querySelectorAll('.tool-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    activeTool = btn.dataset.tool;
+    updateToolUI();
+  });
+});
+
+// Resize
+$('btn-resize').addEventListener('click', () => {
+  const newSx = parseInt($('size-x').value) || 20;
+  const newSy = parseInt($('size-y').value) || 8;
+  const newSz = parseInt($('size-z').value) || 20;
+
+  const oldGrid = grid;
+  const [oldSx, oldSy, oldSz] = gridSize;
+
+  initGrid(newSx, newSy, newSz);
+
+  for (let z = 0; z < Math.min(oldSz, newSz); z++)
+    for (let y = 0; y < Math.min(oldSy, newSy); y++)
+      for (let x = 0; x < Math.min(oldSx, newSx); x++) {
+        const oldIdx = x + y * oldSx + z * oldSx * oldSy;
+        grid[idx(x, y, z)] = oldGrid[oldIdx];
+      }
+
+  updateGridHelper();
+  updateGroundPlane();
+  queueRebuild();
+  undoStack.length = 0;
+  redoStack.length = 0;
+});
+
+// Export / Import
+$('btn-export').addEventListener('click', exportJSON);
+$('btn-import').addEventListener('click', () => $('file-input').click());
+$('file-input').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      importJSON(data);
+    } catch (err) {
+      alert('Invalid JSON file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+// Undo / Redo
+$('btn-undo').addEventListener('click', undo);
+$('btn-redo').addEventListener('click', redo);
+
+// Clear
+$('btn-clear').addEventListener('click', () => {
+  if (!confirm('Clear all blocks?')) return;
+  grid.fill(-1);
+  spawnPoint = null;
+  updateSpawnMarker();
+  queueRebuild();
+  undoStack.length = 0;
+  redoStack.length = 0;
+});
+
+// Status
+function updateStatus() {
+  let blockCount = 0;
+  for (let i = 0; i < grid.length; i++) {
+    if (grid[i] >= 0) blockCount++;
+  }
+  const spawnStr = spawnPoint ? `(${spawnPoint.join(', ')})` : '--';
+  $('status').textContent = `Blocks: ${blockCount} | Spawn: ${spawnStr}`;
+}
+
+// ══════════════════════════════════════
+//   RESIZE CANVAS + RENDER LOOP
+// ══════════════════════════════════════
+
+function onResize() {
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', onResize);
+
+function tick() {
+  requestAnimationFrame(tick);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// ── Init ──
+buildPaletteUI();
+onResize();
+tick();
+</script>
+</body>
+</html>
