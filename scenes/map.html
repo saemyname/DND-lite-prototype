@@ -175,6 +175,31 @@
     pointer-events: none;
   }
 
+  /* Editor button */
+  #btn-editor {
+    position: fixed;
+    top: 28px;
+    right: 180px;
+    z-index: 50;
+    padding: 8px 16px;
+    background: rgba(200,169,110,.08);
+    border: 1px solid rgba(200,169,110,.2);
+    border-radius: 4px;
+    color: rgba(200,169,110,.5);
+    font-family: 'Georgia', serif;
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all .2s;
+    text-decoration: none;
+  }
+  #btn-editor:hover {
+    background: rgba(200,169,110,.18);
+    border-color: rgba(200,169,110,.5);
+    color: #ffe9a0;
+  }
+
   /* Webcam preview */
   /* Webcam styles injected by face-camera.js */
 </style>
@@ -184,6 +209,7 @@
 <canvas id="map-canvas"></canvas>
 
 <div id="location-title">Dungeon Map</div>
+<a id="btn-editor" href="editor.html">Room Editor</a>
 
 <div id="tooltip">
   <div id="tooltip-name"></div>

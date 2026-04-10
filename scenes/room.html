@@ -446,6 +446,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { initFaceCamera, updateFaceCamera, initRotationButtons } from '../scripts/face-camera.js';
+import { loadBlockMaterials, buildVoxelGroups, groupToMesh } from '../scripts/voxel-textures.js';
 
 const $ = id => document.getElementById(id);
 
@@ -469,66 +470,15 @@ function updateHP() {
 updateHP();
 
 // ══════════════════════════════════════
-//   TEXTURE ATLAS (procedural)
+//   VOXEL BLOCKS — Kenney textures via shared module
 // ══════════════════════════════════════
 
-const BLOCK_TYPES = {
-  stone_floor: { base: '#666666', noise: '#777777' },
-  stone_wall:  { base: '#444444', noise: '#555555' },
-  wood:        { base: '#8B5A2B', noise: '#A0693E' },
-  grass:       { base: '#3a7a3a', noise: '#4a8a4a' },
-  water:       { base: '#2244aa', noise: '#3355bb' },
-  lava:        { base: '#cc4400', noise: '#ff6600', emissive: true },
-  gold:        { base: '#ccaa22', noise: '#ddbb44' },
-  dark:        { base: '#111111', noise: '#1a1a1a' },
-};
-const BLOCK_NAMES = Object.keys(BLOCK_TYPES);
-const ATLAS_COLS = 4, ATLAS_ROWS = 2, TILE = 16;
-
-function generateAtlasTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = TILE * ATLAS_COLS;
-  canvas.height = TILE * ATLAS_ROWS;
-  const ctx = canvas.getContext('2d');
-
-  BLOCK_NAMES.forEach((name, i) => {
-    const tile = BLOCK_TYPES[name];
-    const col = i % ATLAS_COLS, row = Math.floor(i / ATLAS_COLS);
-    const ox = col * TILE, oy = row * TILE;
-
-    ctx.fillStyle = tile.base;
-    ctx.fillRect(ox, oy, TILE, TILE);
-
-    // Noise pixels for texture
-    for (let p = 0; p < 50; p++) {
-      ctx.fillStyle = tile.noise;
-      ctx.fillRect(ox + Math.floor(Math.random() * TILE), oy + Math.floor(Math.random() * TILE), 1, 1);
-    }
-
-    // Subtle border lines
-    ctx.fillStyle = 'rgba(0,0,0,0.15)';
-    ctx.fillRect(ox, oy, TILE, 1);
-    ctx.fillRect(ox, oy, 1, TILE);
-  });
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.magFilter = THREE.NearestFilter;
-  tex.minFilter = THREE.NearestFilter;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-// ══════════════════════════════════════
-//   VOXEL RENDERER
-// ══════════════════════════════════════
+const blockMaterials = loadBlockMaterials('../Assets/Tiles/');
 
 function parseRoom(data) {
   const [sx, sy, sz] = data.size;
   const grid = new Int8Array(sx * sy * sz).fill(-1);
-
   const idx = (x, y, z) => x + y * sx + z * sx * sy;
-  const paletteMap = {};
-  data.palette.forEach((name, i) => { paletteMap[i] = BLOCK_NAMES.indexOf(name); });
 
   // Fill rectangular regions
   if (data.fills) {
@@ -547,89 +497,21 @@ function parseRoom(data) {
     }
   }
 
-  return { grid, sx, sy, sz, paletteMap };
+  return { grid, sx, sy, sz };
 }
 
-// Face directions: [dx, dy, dz, normal index, vertex offsets]
-const FACES = [
-  { dir: [1,0,0],  verts: [[1,0,0],[1,1,0],[1,1,1],[1,0,1]], n: [1,0,0] },   // +X
-  { dir: [-1,0,0], verts: [[0,0,1],[0,1,1],[0,1,0],[0,0,0]], n: [-1,0,0] },  // -X
-  { dir: [0,1,0],  verts: [[0,1,1],[1,1,1],[1,1,0],[0,1,0]], n: [0,1,0] },   // +Y
-  { dir: [0,-1,0], verts: [[0,0,0],[1,0,0],[1,0,1],[0,0,1]], n: [0,-1,0] },  // -Y
-  { dir: [0,0,1],  verts: [[1,0,1],[1,1,1],[0,1,1],[0,0,1]], n: [0,0,1] },   // +Z
-  { dir: [0,0,-1], verts: [[0,0,0],[0,1,0],[1,1,0],[1,0,0]], n: [0,0,-1] },  // -Z
-];
-
-function buildVoxelMeshes(roomData, atlasTex, scene) {
-  const { grid, sx, sy, sz, paletteMap } = parseRoom(roomData);
-  const idx = (x, y, z) => x + y * sx + z * sx * sy;
-
-  // Group faces by palette type
-  const groups = {};
-  roomData.palette.forEach((_, i) => { groups[i] = { positions: [], normals: [], uvs: [], indices: [] }; });
-
-  for (let z = 0; z < sz; z++)
-    for (let y = 0; y < sy; y++)
-      for (let x = 0; x < sx; x++) {
-        const type = grid[idx(x, y, z)];
-        if (type < 0) continue;
-
-        const g = groups[type];
-        if (!g) continue;
-
-        const atlasIdx = paletteMap[type];
-        const col = atlasIdx % ATLAS_COLS, row = Math.floor(atlasIdx / ATLAS_COLS);
-        const u0 = col / ATLAS_COLS;
-        const v0 = 1 - (row + 1) / ATLAS_ROWS;
-        const u1 = (col + 1) / ATLAS_COLS;
-        const v1 = 1 - row / ATLAS_ROWS;
-
-        for (const face of FACES) {
-          const nx = x + face.dir[0], ny = y + face.dir[1], nz = z + face.dir[2];
-          // Show face if neighbor is out of bounds or air
-          if (nx >= 0 && nx < sx && ny >= 0 && ny < sy && nz >= 0 && nz < sz) {
-            if (grid[idx(nx, ny, nz)] >= 0) continue;
-          }
-
-          const base = g.positions.length / 3;
-          for (const v of face.verts) {
-            g.positions.push(x + v[0], y + v[1], z + v[2]);
-            g.normals.push(face.n[0], face.n[1], face.n[2]);
-          }
-          g.uvs.push(u0,v0, u1,v0, u1,v1, u0,v1);
-          g.indices.push(base, base+1, base+2, base, base+2, base+3);
-        }
-      }
-
+function buildVoxelMeshes(roomData, scene) {
+  const { grid, sx, sy, sz } = parseRoom(roomData);
+  // The room JSON's palette maps local index → block name; pass it directly
+  // to buildVoxelGroups so the mesh builder can look up textures by name.
+  const groups = buildVoxelGroups(grid, [sx, sy, sz], roomData.palette);
   const meshes = [];
-  roomData.palette.forEach((name, i) => {
-    const g = groups[i];
-    if (g.positions.length === 0) return;
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(g.positions, 3));
-    geo.setAttribute('normal', new THREE.Float32BufferAttribute(g.normals, 3));
-    geo.setAttribute('uv', new THREE.Float32BufferAttribute(g.uvs, 2));
-    geo.setIndex(g.indices);
-
-    const blockInfo = BLOCK_TYPES[name];
-    const mat = new THREE.MeshStandardMaterial({
-      map: atlasTex,
-      roughness: 0.9,
-      metalness: 0.05,
-    });
-    if (blockInfo.emissive) {
-      mat.emissive = new THREE.Color(blockInfo.base);
-      mat.emissiveIntensity = 0.6;
-    }
-
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+  for (const [key, g] of Object.entries(groups)) {
+    if (g.positions.length === 0) continue;
+    const mesh = groupToMesh(key, g, blockMaterials);
     scene.add(mesh);
     meshes.push(mesh);
-  });
-
+  }
   return meshes;
 }
 
@@ -688,8 +570,7 @@ async function loadRoom() {
   }
 
   // Build voxels
-  const atlasTex = generateAtlasTexture();
-  buildVoxelMeshes(data, atlasTex, scene);
+  buildVoxelMeshes(data, scene);
 
   // Room lights
   if (data.lights) {
