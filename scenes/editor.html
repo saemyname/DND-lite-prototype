@@ -23,21 +23,23 @@
     height: 100vh;
     font-family: 'Georgia', serif;
     color: #c8a96e;
-    display: flex;
+    position: relative;
   }
 
   /* Sidebar */
   #sidebar {
-    width: 260px;
-    min-width: 260px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
     height: 100vh;
     overflow-y: auto;
-    background: rgba(0,0,0,.6);
+    background: rgba(0,0,0,.7);
     border-right: 1px solid rgba(200,169,110,.15);
     padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
     z-index: 10;
   }
   #sidebar h2 {
@@ -47,7 +49,19 @@
     color: #ffe9a0;
     opacity: .8;
     margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
   }
+  #sidebar h2 a {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: rgba(200,169,110,.5);
+    text-decoration: none;
+    cursor: pointer;
+    transition: color .15s;
+  }
+  #sidebar h2 a:hover { color: #ffe9a0; }
   .section-label {
     font-size: 11px;
     letter-spacing: 3px;
@@ -81,24 +95,55 @@
   input[type="number"] { width: 54px; text-align: center; }
   input:focus { border-color: rgba(200,169,110,.5); }
 
-  /* Palette */
-  #palette {
+  /* Grid size row — compact layout */
+  .size-row {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: auto 1fr auto 1fr auto 1fr;
     gap: 4px;
+    align-items: center;
+  }
+  .size-row label {
+    font-size: 11px;
+    color: rgba(200,169,110,.5);
+  }
+  .size-row input { width: 100%; padding: 5px 4px; font-size: 12px; }
+  .size-row .tool-btn {
+    grid-column: 1 / -1;
+    margin-top: 4px;
+    padding: 6px;
+    font-size: 11px;
+  }
+
+  /* Palette — bottom-center floating bar */
+  #palette-bar {
+    position: fixed;
+    bottom: 16px;
+    left: calc(50% - 10px);
+    transform: translateX(-50%);
+    z-index: 20;
+    padding: 8px 10px;
+    background: rgba(0,0,0,.7);
+    border: 1px solid rgba(200,169,110,.2);
+    border-radius: 6px;
+    backdrop-filter: blur(4px);
+  }
+  #palette {
+    display: flex;
+    gap: 6px;
   }
   .swatch {
-    aspect-ratio: 1;
+    width: 56px;
+    height: 56px;
     border-radius: 4px;
     border: 2px solid transparent;
     cursor: pointer;
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    padding: 2px;
-    font-size: 8px;
-    color: rgba(255,255,255,.6);
-    text-shadow: 0 1px 2px rgba(0,0,0,.8);
+    padding: 3px;
+    font-size: 9px;
+    color: rgba(255,255,255,.7);
+    text-shadow: 0 1px 2px rgba(0,0,0,.9);
     text-transform: capitalize;
     transition: border-color .15s;
   }
@@ -157,7 +202,6 @@
     font-size: 11px;
     color: rgba(200,169,110,.4);
     letter-spacing: 1px;
-    margin-top: auto;
     padding-top: 8px;
     border-top: 1px solid rgba(200,169,110,.1);
     line-height: 1.6;
@@ -175,6 +219,7 @@
     padding: 6px 8px;
     outline: none;
   }
+  select option { background: #1a1a2e; color: #c8a96e; }
   textarea {
     background: rgba(200,169,110,.06);
     border: 1px solid rgba(200,169,110,.2);
@@ -190,129 +235,319 @@
 
   /* Canvas */
   #editor-canvas {
-    flex: 1;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
     display: block;
+    z-index: 1;
+  }
+
+  /* Floating toolbar (top-center of scene) */
+  #toolbar {
+    position: fixed;
+    top: 16px;
+    left: calc(50% - 10px);
+    transform: translateX(-50%);
+    z-index: 20;
+    display: flex;
+    gap: 6px;
+    padding: 8px 10px;
+    background: rgba(0,0,0,.7);
+    border: 1px solid rgba(200,169,110,.2);
+    border-radius: 6px;
+    backdrop-filter: blur(4px);
+  }
+  #toolbar .tool-btn { padding: 8px 14px; font-size: 12px; }
+  .toolbar-divider {
+    width: 1px;
+    background: rgba(200,169,110,.2);
+    margin: 0 4px;
+  }
+  #toolbar #btn-undo, #toolbar #btn-redo {
+    font-size: 18px;
+    padding: 4px 12px;
+    line-height: 1;
   }
 
   /* Ghost block preview */
   .crosshair { cursor: crosshair; }
+
+  /* Right panel */
+  #right-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 300px;
+    height: 100vh;
+    overflow-y: auto;
+    background: rgba(0,0,0,.7);
+    border-left: 1px solid rgba(200,169,110,.15);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 10;
+  }
+  #right-panel h3 {
+    font-size: 13px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #ffe9a0;
+    opacity: .7;
+    margin-bottom: 2px;
+  }
+
+  /* Choice list in event editor */
+  .choice-item {
+    padding: 8px;
+    background: rgba(200,169,110,.04);
+    border: 1px solid rgba(200,169,110,.1);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 11px;
+  }
+  .choice-item .choice-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .choice-item .choice-header span { color: rgba(200,169,110,.5); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; }
+  .choice-item .choice-remove {
+    background: none; border: none; color: rgba(200,169,110,.4); cursor: pointer; font-size: 13px;
+  }
+  .choice-item .choice-remove:hover { color: #ff6644; }
+  .choice-item input, .choice-item textarea, .choice-item select {
+    font-size: 11px;
+    padding: 4px 6px;
+  }
+  .choice-item textarea { min-height: 36px; }
+  .choice-row { display: flex; gap: 4px; align-items: center; }
+  .choice-row label { font-size: 10px; color: rgba(200,169,110,.4); min-width: 24px; }
+  .choice-row input, .choice-row select { flex: 1; }
+
+  /* Trigger position display */
+  .trigger-display {
+    font-size: 11px;
+    color: rgba(200,169,110,.5);
+    padding: 4px 0;
+  }
+  .trigger-display.active { color: #ffe9a0; }
+
+  /* Scrollbar */
+  #sidebar::-webkit-scrollbar, #right-panel::-webkit-scrollbar { width: 6px; }
+  #sidebar::-webkit-scrollbar-thumb, #right-panel::-webkit-scrollbar-thumb { background: rgba(200,169,110,.15); border-radius: 3px; }
+  #sidebar::-webkit-scrollbar-track, #right-panel::-webkit-scrollbar-track { background: transparent; }
+
+  /* Trigger marker */
+  .tool-btn[data-tool="trigger"].active { color: #ff8844; border-color: #ff8844; }
+
+  /* Template grid (2x2) */
+  .template-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .template-grid .action-btn { width: auto; padding: 8px; font-size: 11px; }
 </style>
 </head>
 <body>
 
 <div id="sidebar">
-  <h2>Room Editor</h2>
+  <h2>Room Editor <a href="map.html">&larr; Map</a></h2>
+
+  <div class="section-label">New from Template</div>
+  <div class="template-grid">
+    <button class="action-btn" data-template="empty">Empty</button>
+    <button class="action-btn" data-template="castle">Castle</button>
+    <button class="action-btn" data-template="meadow">Meadow</button>
+    <button class="action-btn" data-template="lava">Lava</button>
+  </div>
+
+  <div class="section-label">Load Existing</div>
+  <div class="btn-row">
+    <select id="room-select" style="flex:2">
+      <option value="">— Select Room —</option>
+    </select>
+    <button class="action-btn" id="btn-load" style="flex:1">Load</button>
+  </div>
 
   <div class="section-label">Room</div>
   <input type="text" id="room-id" placeholder="room_id" value="untitled">
   <input type="text" id="room-name" placeholder="Room Name" value="Untitled Room">
 
   <div class="section-label">Grid Size</div>
-  <div class="input-row">
-    <label>X</label><input type="number" id="size-x" value="20" min="4" max="64">
-    <label>Y</label><input type="number" id="size-y" value="8" min="2" max="32">
-    <label>Z</label><input type="number" id="size-z" value="20" min="4" max="64">
+  <div class="size-row">
+    <label>X</label><input type="number" id="size-x" value="14" min="4" max="64">
+    <label>Y</label><input type="number" id="size-y" value="6" min="2" max="32">
+    <label>Z</label><input type="number" id="size-z" value="14" min="4" max="64">
     <button class="tool-btn" id="btn-resize">Apply</button>
   </div>
 
-  <div class="section-label">Blocks</div>
-  <div id="palette"></div>
-
-  <div class="section-label">Tool</div>
-  <div id="tools">
-    <button class="tool-btn active" data-tool="place">Place</button>
-    <button class="tool-btn" data-tool="erase">Erase</button>
-    <button class="tool-btn" data-tool="spawn">Spawn</button>
-  </div>
-
   <div class="section-label">Actions</div>
-  <button class="action-btn" id="btn-export">Export JSON</button>
-  <button class="action-btn" id="btn-import">Import JSON</button>
+  <button class="action-btn" id="btn-export">Download JSON</button>
+  <button class="action-btn" id="btn-import">Import JSON File</button>
   <input type="file" id="file-input" accept=".json" style="display:none">
-  <div class="btn-row">
-    <button class="action-btn" id="btn-undo">Undo</button>
-    <button class="action-btn" id="btn-redo">Redo</button>
-  </div>
   <button class="action-btn" id="btn-clear">Clear All</button>
 
-  <div id="status">Blocks: 0 | Spawn: --</div>
+  <div id="status">Blocks: 0 | Spawn: -- | Trigger: --</div>
 </div>
 
 <canvas id="editor-canvas"></canvas>
 
+<div id="toolbar">
+  <button class="tool-btn active" data-tool="place">Place</button>
+  <button class="tool-btn" data-tool="erase">Erase</button>
+  <button class="tool-btn" data-tool="spawn">Spawn</button>
+  <button class="tool-btn" data-tool="trigger">Trigger</button>
+  <div class="toolbar-divider"></div>
+  <button class="tool-btn active" id="btn-cull" title="Hide near walls / ceiling">Cutaway</button>
+  <div class="toolbar-divider"></div>
+  <button class="tool-btn" id="btn-undo" title="Undo (Cmd+Z)">↶</button>
+  <button class="tool-btn" id="btn-redo" title="Redo (Cmd+Shift+Z)">↷</button>
+</div>
+
+<div id="palette-bar">
+  <div id="palette"></div>
+</div>
+
+<div id="right-panel">
+  <h3>Event</h3>
+  <div class="event-section">
+    <select id="event-type">
+      <option value="start">Start</option>
+      <option value="trap">Trap</option>
+      <option value="combat">Combat</option>
+      <option value="choice">Choice</option>
+      <option value="boss">Boss</option>
+      <option value="rest">Rest</option>
+    </select>
+    <textarea id="event-desc" placeholder="Event description..."></textarea>
+
+    <div id="simple-event-fields">
+      <div class="section-label">Stat Check</div>
+      <div class="input-row">
+        <select id="event-stat" style="flex:1">
+          <option value="">None</option>
+          <option value="str">STR</option>
+          <option value="agi">AGI</option>
+          <option value="int">INT</option>
+          <option value="lck">LCK</option>
+        </select>
+        <label>DC</label>
+        <input type="number" id="event-dc" value="10" min="1" max="25" style="width:50px">
+      </div>
+      <textarea id="event-success" placeholder="Success text..."></textarea>
+      <textarea id="event-fail" placeholder="Fail text..."></textarea>
+      <div class="input-row">
+        <label style="min-width:auto">Success HP</label>
+        <input type="number" id="event-successHp" value="0">
+        <label style="min-width:auto">Fail HP</label>
+        <input type="number" id="event-failHp" value="0">
+      </div>
+    </div>
+
+    <div id="choices-event-fields" style="display:none">
+      <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
+        Choices
+        <button class="tool-btn" id="btn-add-choice" style="padding:3px 8px;font-size:10px">+ Add</button>
+      </div>
+      <div id="choices-list"></div>
+    </div>
+  </div>
+
+  <div class="trigger-display" id="trigger-display">
+    Trigger: <span id="trigger-val">--</span>
+    <br><small>Select "Trigger" tool and click a floor tile</small>
+  </div>
+</div>
+
 <script type="module">
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import {
+  BLOCK_TYPES, BLOCK_NAMES, FACES,
+  getThumbnailFile, loadBlockMaterials, buildVoxelGroups, groupToMesh,
+} from '../scripts/voxel-textures.js';
 
 const $ = id => document.getElementById(id);
 
 // ══════════════════════════════════════
-//   BLOCK TYPES & TEXTURE ATLAS
+//   KNOWN ROOMS (for loading)
 // ══════════════════════════════════════
 
-const BLOCK_TYPES = {
-  stone_floor: { base: '#666666', noise: '#777777' },
-  stone_wall:  { base: '#444444', noise: '#555555' },
-  wood:        { base: '#8B5A2B', noise: '#A0693E' },
-  grass:       { base: '#3a7a3a', noise: '#4a8a4a' },
-  water:       { base: '#2244aa', noise: '#3355bb' },
-  lava:        { base: '#cc4400', noise: '#ff6600', emissive: true },
-  gold:        { base: '#ccaa22', noise: '#ddbb44' },
-  dark:        { base: '#111111', noise: '#1a1a1a' },
-};
-const BLOCK_NAMES = Object.keys(BLOCK_TYPES);
-const ATLAS_COLS = 4, ATLAS_ROWS = 2, TILE = 16;
+const KNOWN_ROOMS = ['entrance', 'corridor', 'shrine', 'goblin', 'treasury', 'lair'];
 
-function generateAtlasTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = TILE * ATLAS_COLS;
-  canvas.height = TILE * ATLAS_ROWS;
-  const ctx = canvas.getContext('2d');
+// Populate dropdown
+const roomSelect = $('room-select');
+KNOWN_ROOMS.forEach(id => {
+  const opt = document.createElement('option');
+  opt.value = id;
+  opt.textContent = id;
+  roomSelect.appendChild(opt);
+});
 
-  BLOCK_NAMES.forEach((name, i) => {
-    const tile = BLOCK_TYPES[name];
-    const col = i % ATLAS_COLS, row = Math.floor(i / ATLAS_COLS);
-    const ox = col * TILE, oy = row * TILE;
-    ctx.fillStyle = tile.base;
-    ctx.fillRect(ox, oy, TILE, TILE);
-    for (let p = 0; p < 50; p++) {
-      ctx.fillStyle = tile.noise;
-      ctx.fillRect(ox + Math.floor(Math.random() * TILE), oy + Math.floor(Math.random() * TILE), 1, 1);
-    }
-    ctx.fillStyle = 'rgba(0,0,0,0.15)';
-    ctx.fillRect(ox, oy, TILE, 1);
-    ctx.fillRect(ox, oy, 1, TILE);
-  });
+// ══════════════════════════════════════
+//   BLOCK MATERIALS (loaded from voxel-textures.js)
+// ══════════════════════════════════════
 
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.magFilter = THREE.NearestFilter;
-  tex.minFilter = THREE.NearestFilter;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-const FACES = [
-  { dir: [1,0,0],  verts: [[1,0,0],[1,1,0],[1,1,1],[1,0,1]], n: [1,0,0] },
-  { dir: [-1,0,0], verts: [[0,0,1],[0,1,1],[0,1,0],[0,0,0]], n: [-1,0,0] },
-  { dir: [0,1,0],  verts: [[0,1,1],[1,1,1],[1,1,0],[0,1,0]], n: [0,1,0] },
-  { dir: [0,-1,0], verts: [[0,0,0],[1,0,0],[1,0,1],[0,0,1]], n: [0,-1,0] },
-  { dir: [0,0,1],  verts: [[1,0,1],[1,1,1],[0,1,1],[0,0,1]], n: [0,0,1] },
-  { dir: [0,0,-1], verts: [[0,0,0],[0,1,0],[1,1,0],[1,0,0]], n: [0,0,-1] },
-];
+const blockMaterials = loadBlockMaterials('../Assets/Tiles/');
 
 // ══════════════════════════════════════
 //   EDITOR STATE
 // ══════════════════════════════════════
 
-let gridSize = [20, 8, 20];
+let gridSize = [14, 6, 14];
 let grid;
 let spawnPoint = null;
+let triggerPos = null;
 let selectedBlock = 0;
 let activeTool = 'place';
 
 let undoStack = [];
 let redoStack = [];
 const MAX_UNDO = 500;
+
+// Event data
+let eventData = {
+  type: 'start',
+  description: '',
+  stat: '',
+  dc: 10,
+  successText: '',
+  failText: '',
+  successHp: 0,
+  failHp: 0,
+  choices: [],
+};
+
+// Lights data — auto-managed (one default ceiling light, recomputed on resize)
+let lightsData = [];
+function setDefaultLights() {
+  const [sx, sy, sz] = gridSize;
+  lightsData = [
+    { pos: [Math.floor(sx / 2), sy - 1, Math.floor(sz / 2)], color: '0xfff5e0', intensity: 4 }
+  ];
+}
+
+// Wall culling — hide the 2 walls closest to the camera so we can see inside
+let cullWalls = true;
+let cullState = { hideX: 'plus', hideZ: 'plus', hideCeiling: true };
+function computeCullState() {
+  const [sx, sy, sz] = gridSize;
+  const cx = sx / 2, cz = sz / 2;
+  return {
+    hideX: camera.position.x < cx ? 'minus' : 'plus',
+    hideZ: camera.position.z < cz ? 'minus' : 'plus',
+    hideCeiling: camera.position.y > sy,
+  };
+}
+function cullStateChanged(a, b) {
+  return a.hideX !== b.hideX || a.hideZ !== b.hideZ || a.hideCeiling !== b.hideCeiling;
+}
 
 function initGrid(sx, sy, sz) {
   gridSize = [sx, sy, sz];
@@ -341,7 +576,8 @@ function setBlock(x, y, z, type, recordUndo = true) {
   queueRebuild();
 }
 
-initGrid(20, 8, 20);
+initGrid(14, 6, 14);
+setDefaultLights();
 
 // ══════════════════════════════════════
 //   THREE.JS SCENE
@@ -406,6 +642,36 @@ function updateSpawnMarker() {
   scene.add(spawnMarker);
 }
 
+// Trigger marker
+let triggerMarker = null;
+function updateTriggerMarker() {
+  if (triggerMarker) scene.remove(triggerMarker);
+  if (!triggerPos) return;
+  const geo = new THREE.CylinderGeometry(0.4, 0.4, 0.05, 16);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xff8844, emissive: 0xff6622, emissiveIntensity: 0.6, transparent: true, opacity: 0.7 });
+  triggerMarker = new THREE.Mesh(geo, mat);
+  triggerMarker.position.set(triggerPos[0] + 0.5, 1.02, triggerPos[1] + 0.5);
+  scene.add(triggerMarker);
+  $('trigger-val').textContent = `(${triggerPos[0]}, ${triggerPos[1]})`;
+  $('trigger-display').classList.add('active');
+}
+
+// Light preview spheres
+let lightPreviews = [];
+function updateLightPreviews() {
+  lightPreviews.forEach(p => scene.remove(p));
+  lightPreviews = [];
+  lightsData.forEach((l, i) => {
+    const geo = new THREE.SphereGeometry(0.2, 8, 6);
+    const color = parseInt(l.color.replace('0x', '#').replace('#', '0x'));
+    const mat = new THREE.MeshBasicMaterial({ color: color || 0xffffff });
+    const sphere = new THREE.Mesh(geo, mat);
+    sphere.position.set(l.pos[0], l.pos[1], l.pos[2]);
+    scene.add(sphere);
+    lightPreviews.push(sphere);
+  });
+}
+
 // Ghost preview block
 const ghostMat = new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
 const ghostMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), ghostMat);
@@ -416,7 +682,6 @@ scene.add(ghostMesh);
 //   MESH BUILDING
 // ══════════════════════════════════════
 
-const atlasTex = generateAtlasTexture();
 let meshGroup = new THREE.Group();
 let pickGroup = new THREE.Group();
 scene.add(meshGroup);
@@ -447,11 +712,10 @@ function actualRebuild() {
   rebuildQueued = false;
   const [sx, sy, sz] = gridSize;
 
-  // Clear old visual meshes
+  // Clear old visual meshes (geometry only — materials are shared from voxel-textures.js)
   while (meshGroup.children.length > 0) {
     const c = meshGroup.children[0];
     c.geometry?.dispose();
-    c.material?.dispose();
     meshGroup.remove(c);
   }
   // Clear old pick boxes (keep ground plane)
@@ -462,73 +726,39 @@ function actualRebuild() {
     pickGroup.remove(c);
   });
 
-  // Group faces by block type for merged visual meshes
-  const groups = {};
-  BLOCK_NAMES.forEach((_, i) => { groups[i] = { positions: [], normals: [], uvs: [], indices: [] }; });
+  // Helper: is this perimeter cell on a culled wall (camera-facing)?
+  function isCulled(x, y, z) {
+    if (!cullWalls) return false;
+    if (y === 0) return false; // never hide floor
+    if (cullState.hideCeiling && y === sy - 1) return true;
+    if (cullState.hideX === 'minus' && x === 0) return true;
+    if (cullState.hideX === 'plus'  && x === sx - 1) return true;
+    if (cullState.hideZ === 'minus' && z === 0) return true;
+    if (cullState.hideZ === 'plus'  && z === sz - 1) return true;
+    return false;
+  }
 
+  // Build mesh groups via shared module — palette is the global BLOCK_NAMES
+  // since the editor's grid uses the same indices.
+  const groups = buildVoxelGroups(grid, gridSize, BLOCK_NAMES, { isCulled });
+  for (const [key, g] of Object.entries(groups)) {
+    if (g.positions.length === 0) continue;
+    meshGroup.add(groupToMesh(key, g, blockMaterials));
+  }
+
+  // Pick boxes (one per visible cell, used for raycast click targeting)
   const pickBoxGeo = new THREE.BoxGeometry(1, 1, 1);
   const pickBoxMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, side: THREE.DoubleSide });
-
   for (let z = 0; z < sz; z++)
     for (let y = 0; y < sy; y++)
       for (let x = 0; x < sx; x++) {
-        const type = grid[idx(x, y, z)];
-        if (type < 0) continue;
-
-        const g = groups[type];
-        if (!g) continue;
-
-        const atlasIdx = type;
-        const col = atlasIdx % ATLAS_COLS, row = Math.floor(atlasIdx / ATLAS_COLS);
-        const u0 = col / ATLAS_COLS;
-        const v0 = 1 - (row + 1) / ATLAS_ROWS;
-        const u1 = (col + 1) / ATLAS_COLS;
-        const v1 = 1 - row / ATLAS_ROWS;
-
-        for (const face of FACES) {
-          const nx = x + face.dir[0], ny = y + face.dir[1], nz = z + face.dir[2];
-          if (nx >= 0 && nx < sx && ny >= 0 && ny < sy && nz >= 0 && nz < sz) {
-            if (grid[idx(nx, ny, nz)] >= 0) continue;
-          }
-          const base = g.positions.length / 3;
-          for (const v of face.verts) {
-            g.positions.push(x + v[0], y + v[1], z + v[2]);
-            g.normals.push(face.n[0], face.n[1], face.n[2]);
-          }
-          g.uvs.push(u0, v0, u1, v0, u1, v1, u0, v1);
-          g.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
-        }
-
-        // Pick box
+        if (grid[idx(x, y, z)] < 0) continue;
+        if (isCulled(x, y, z)) continue;
         const pickBox = new THREE.Mesh(pickBoxGeo, pickBoxMat);
         pickBox.position.set(x + 0.5, y + 0.5, z + 0.5);
         pickBox.userData = { vx: x, vy: y, vz: z };
         pickGroup.add(pickBox);
       }
-
-  // Create visual meshes
-  BLOCK_NAMES.forEach((name, i) => {
-    const g = groups[i];
-    if (g.positions.length === 0) return;
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(g.positions, 3));
-    geo.setAttribute('normal', new THREE.Float32BufferAttribute(g.normals, 3));
-    geo.setAttribute('uv', new THREE.Float32BufferAttribute(g.uvs, 2));
-    geo.setIndex(g.indices);
-
-    const blockInfo = BLOCK_TYPES[name];
-    const mat = new THREE.MeshStandardMaterial({ map: atlasTex, roughness: 0.9, metalness: 0.05 });
-    if (blockInfo.emissive) {
-      mat.emissive = new THREE.Color(blockInfo.base);
-      mat.emissiveIntensity = 0.6;
-    }
-
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    meshGroup.add(mesh);
-  });
 
   updateStatus();
 }
@@ -539,7 +769,13 @@ function actualRebuild() {
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
-let mouseDownPos = null;
+
+// Use right-click for orbit so left-click is free for paint/drag-fill
+controls.mouseButtons = {
+  LEFT: null,
+  MIDDLE: THREE.MOUSE.DOLLY,
+  RIGHT: THREE.MOUSE.ROTATE,
+};
 
 function getPickTarget(e) {
   const rect = canvas.getBoundingClientRect();
@@ -550,68 +786,109 @@ function getPickTarget(e) {
   return hits.length > 0 ? hits[0] : null;
 }
 
-canvas.addEventListener('mousedown', (e) => {
-  mouseDownPos = { x: e.clientX, y: e.clientY };
-});
+// Raycast onto a horizontal plane at given Y, return [x,z] grid cell or null
+function pickPlanePos(e, planeY) {
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -planeY);
+  const out = new THREE.Vector3();
+  if (raycaster.ray.intersectPlane(plane, out)) {
+    return [Math.floor(out.x), Math.floor(out.z)];
+  }
+  return null;
+}
 
-canvas.addEventListener('mouseup', (e) => {
-  if (!mouseDownPos) return;
-  const dx = e.clientX - mouseDownPos.x;
-  const dy = e.clientY - mouseDownPos.y;
-  if (Math.abs(dx) > 4 || Math.abs(dy) > 4) return; // was a drag
+// ── Drag-fill state + ghost rectangle ──
+let dragState = null; // { startCell, endCell, planeY, mode }
+
+const dragGhostMat = new THREE.LineBasicMaterial({ color: 0xffe9a0 });
+const dragGhostBoxMat = new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
+const dragGhostBox = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), dragGhostBoxMat);
+const dragGhostEdges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)), dragGhostMat);
+const dragGhostGroup = new THREE.Group();
+dragGhostGroup.add(dragGhostBox);
+dragGhostGroup.add(dragGhostEdges);
+dragGhostGroup.visible = false;
+scene.add(dragGhostGroup);
+
+function updateDragGhost() {
+  if (!dragState) { dragGhostGroup.visible = false; return; }
+  const [sx, sy, sz] = dragState.startCell;
+  const [ex, , ez] = dragState.endCell;
+  const minX = Math.min(sx, ex), maxX = Math.max(sx, ex);
+  const minZ = Math.min(sz, ez), maxZ = Math.max(sz, ez);
+  const w = maxX - minX + 1;
+  const d = maxZ - minZ + 1;
+  dragGhostGroup.position.set(minX + w / 2, sy + 0.5, minZ + d / 2);
+  dragGhostGroup.scale.set(w, 1, d);
+  dragGhostGroup.visible = true;
+
+  const color = dragState.mode === 'erase' ? 0xff6644 : 0xffe9a0;
+  dragGhostMat.color.setHex(color);
+  dragGhostBoxMat.color.setHex(color);
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button !== 0) return; // only left starts paint/drag
+
+  // Spawn / trigger are handled on mouseup as single clicks
+  if (activeTool === 'spawn' || activeTool === 'trigger') return;
 
   const hit = getPickTarget(e);
   if (!hit) return;
 
-  const isErase = activeTool === 'erase' || e.shiftKey || e.button === 2;
-  const normal = hit.face.normal;
+  const isErase = activeTool === 'erase' || e.shiftKey;
 
+  let startCell, planeY;
   if (hit.object.userData.isGround) {
     const gx = Math.floor(hit.point.x);
     const gz = Math.floor(hit.point.z);
     if (gx < 0 || gx >= gridSize[0] || gz < 0 || gz >= gridSize[2]) return;
+    startCell = [gx, 0, gz];
+    planeY = 0;
+  } else {
+    const { vx, vy, vz } = hit.object.userData;
+    if (isErase) {
+      startCell = [vx, vy, vz];
+      planeY = vy;
+    } else {
+      const nx = vx + Math.round(hit.face.normal.x);
+      const ny = vy + Math.round(hit.face.normal.y);
+      const nz = vz + Math.round(hit.face.normal.z);
+      if (ny < 0 || ny >= gridSize[1]) return;
+      startCell = [nx, ny, nz];
+      planeY = ny;
+    }
+  }
 
-    if (activeTool === 'spawn') {
-      spawnPoint = [gx, 1, gz];
-      updateSpawnMarker();
-      updateStatus();
-    } else if (!isErase) {
-      setBlock(gx, 0, gz, selectedBlock);
+  dragState = {
+    startCell,
+    endCell: [...startCell],
+    planeY,
+    mode: isErase ? 'erase' : 'place',
+  };
+  updateDragGhost();
+  ghostMesh.visible = false;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  // Drag-fill mode: update rect end cell
+  if (dragState) {
+    const pos = pickPlanePos(e, dragState.planeY);
+    if (pos) {
+      const ex = Math.max(0, Math.min(gridSize[0] - 1, pos[0]));
+      const ez = Math.max(0, Math.min(gridSize[2] - 1, pos[1]));
+      dragState.endCell = [ex, dragState.planeY, ez];
+      updateDragGhost();
     }
     return;
   }
 
-  const { vx, vy, vz } = hit.object.userData;
-
-  if (activeTool === 'spawn') {
-    const nx = vx + Math.round(normal.x);
-    const ny = vy + Math.round(normal.y);
-    const nz = vz + Math.round(normal.z);
-    spawnPoint = [nx, ny, nz];
-    updateSpawnMarker();
-    updateStatus();
-    return;
-  }
-
-  if (isErase) {
-    setBlock(vx, vy, vz, -1);
-  } else {
-    const nx = vx + Math.round(normal.x);
-    const ny = vy + Math.round(normal.y);
-    const nz = vz + Math.round(normal.z);
-    setBlock(nx, ny, nz, selectedBlock);
-  }
-});
-
-canvas.addEventListener('contextmenu', (e) => {
-  e.preventDefault();
-  // Right-click erase handled in mouseup via e.button === 2
-});
-
-// Ghost preview on hover
-canvas.addEventListener('mousemove', (e) => {
+  // Hover ghost (single block preview)
   const hit = getPickTarget(e);
-  if (!hit || activeTool === 'erase') {
+  if (!hit || activeTool === 'erase' || activeTool === 'trigger') {
     ghostMesh.visible = false;
     canvas.style.cursor = hit ? 'crosshair' : 'default';
     return;
@@ -637,6 +914,72 @@ canvas.addEventListener('mousemove', (e) => {
   }
 });
 
+function commitDrag() {
+  if (!dragState) return;
+  const [sx, sy, sz] = dragState.startCell;
+  const [ex, , ez] = dragState.endCell;
+  const minX = Math.min(sx, ex), maxX = Math.max(sx, ex);
+  const minZ = Math.min(sz, ez), maxZ = Math.max(sz, ez);
+  const fillType = dragState.mode === 'erase' ? -1 : selectedBlock;
+  for (let x = minX; x <= maxX; x++) {
+    for (let z = minZ; z <= maxZ; z++) {
+      setBlock(x, sy, z, fillType);
+    }
+  }
+  dragState = null;
+  updateDragGhost();
+}
+
+canvas.addEventListener('mouseup', (e) => {
+  // Drag-fill commit (place/erase)
+  if (dragState) {
+    if (e.button === 0) commitDrag();
+    return;
+  }
+
+  // Single-click handling for spawn/trigger
+  if (e.button !== 0) return;
+  const hit = getPickTarget(e);
+  if (!hit) return;
+
+  const normal = hit.face?.normal;
+
+  if (activeTool === 'spawn') {
+    if (hit.object.userData.isGround) {
+      const gx = Math.floor(hit.point.x);
+      const gz = Math.floor(hit.point.z);
+      if (gx < 0 || gx >= gridSize[0] || gz < 0 || gz >= gridSize[2]) return;
+      spawnPoint = [gx, 1, gz];
+    } else {
+      const { vx, vy, vz } = hit.object.userData;
+      spawnPoint = [vx + Math.round(normal.x), vy + Math.round(normal.y), vz + Math.round(normal.z)];
+    }
+    updateSpawnMarker();
+    updateStatus();
+  } else if (activeTool === 'trigger') {
+    if (hit.object.userData.isGround) {
+      const gx = Math.floor(hit.point.x);
+      const gz = Math.floor(hit.point.z);
+      if (gx < 0 || gx >= gridSize[0] || gz < 0 || gz >= gridSize[2]) return;
+      triggerPos = [gx, gz];
+    } else {
+      const { vx, vy, vz } = hit.object.userData;
+      triggerPos = [vx + Math.round(normal.x), vz + Math.round(normal.z)];
+    }
+    updateTriggerMarker();
+    updateStatus();
+  }
+});
+
+// If cursor leaves canvas mid-drag, commit anyway (so user doesn't get stuck)
+canvas.addEventListener('mouseleave', () => {
+  if (dragState) commitDrag();
+});
+
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+});
+
 // ══════════════════════════════════════
 //   UNDO / REDO
 // ══════════════════════════════════════
@@ -658,6 +1001,9 @@ function redo() {
 }
 
 document.addEventListener('keydown', (e) => {
+  // Don't trigger shortcuts when typing in inputs
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
   if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
     e.preventDefault();
     if (e.shiftKey) redo(); else undo();
@@ -679,6 +1025,58 @@ document.addEventListener('keydown', (e) => {
 // ══════════════════════════════════════
 //   EXPORT / IMPORT
 // ══════════════════════════════════════
+
+function collectEventData() {
+  const type = $('event-type').value;
+  const desc = $('event-desc').value;
+
+  const evt = { type, description: desc };
+
+  if (triggerPos) {
+    evt.triggerPos = [...triggerPos];
+  }
+
+  const hasChoices = type === 'choice' || type === 'boss';
+
+  if (hasChoices) {
+    // Collect choices from UI
+    const choiceEls = document.querySelectorAll('.choice-item');
+    const choices = [];
+    choiceEls.forEach(el => {
+      choices.push({
+        label: el.querySelector('.choice-label').value || '',
+        stat: el.querySelector('.choice-stat').value || 'str',
+        dc: parseInt(el.querySelector('.choice-dc').value) || 10,
+        successText: el.querySelector('.choice-success').value || '',
+        failText: el.querySelector('.choice-fail').value || '',
+        successHp: parseInt(el.querySelector('.choice-shp').value) || 0,
+        failHp: parseInt(el.querySelector('.choice-fhp').value) || 0,
+      });
+    });
+    if (choices.length > 0) evt.choices = choices;
+  } else {
+    // Simple event
+    const stat = $('event-stat').value;
+    if (stat) {
+      evt.stat = stat;
+      evt.dc = parseInt($('event-dc').value) || 10;
+    }
+    const successText = $('event-success').value;
+    const failText = $('event-fail').value;
+    if (successText) evt.successText = successText;
+    if (failText) evt.failText = failText;
+    const shp = parseInt($('event-successHp').value) || 0;
+    const fhp = parseInt($('event-failHp').value) || 0;
+    if (shp !== 0) evt.successHp = shp;
+    if (fhp !== 0) evt.failHp = fhp;
+    // Always include successHp for rest/start types
+    if (type === 'rest' || type === 'start') {
+      evt.successHp = shp;
+    }
+  }
+
+  return evt;
+}
 
 function exportJSON() {
   const [sx, sy, sz] = gridSize;
@@ -709,14 +1107,9 @@ function exportJSON() {
     palette: paletteNames,
     fills: [],
     blocks: blocks,
-    lights: [{ pos: [Math.floor(sx / 2), sy - 1, Math.floor(sz / 2)], color: '0xfff5e0', intensity: 3 }],
+    lights: lightsData.length > 0 ? lightsData : [{ pos: [Math.floor(sx / 2), sy - 1, Math.floor(sz / 2)], color: '0xfff5e0', intensity: 3 }],
     spawn: spawnPoint || [Math.floor(sx / 2), 1, sz - 2],
-    event: {
-      type: 'start',
-      description: 'Describe what happens here...',
-      successText: '',
-      successHp: 0
-    }
+    event: collectEventData(),
   };
 
   const blob = new Blob([JSON.stringify(roomData, null, 2)], { type: 'application/json' });
@@ -761,13 +1154,130 @@ function importJSON(data) {
   }
 
   spawnPoint = data.spawn || null;
+
+  // Load event data
+  if (data.event) {
+    const evt = data.event;
+    $('event-type').value = evt.type || 'start';
+    $('event-desc').value = evt.description || '';
+
+    if (evt.triggerPos) {
+      triggerPos = [...evt.triggerPos];
+    } else {
+      triggerPos = null;
+    }
+
+    if (evt.choices) {
+      // Choice/boss event
+      choicesFromData(evt.choices);
+    } else {
+      // Simple event
+      $('event-stat').value = evt.stat || '';
+      $('event-dc').value = evt.dc || 10;
+      $('event-success').value = evt.successText || '';
+      $('event-fail').value = evt.failText || '';
+      $('event-successHp').value = evt.successHp || 0;
+      $('event-failHp').value = evt.failHp || 0;
+    }
+    updateEventUI();
+  }
+
+  // Load lights (or use default)
+  if (data.lights && data.lights.length > 0) {
+    lightsData = data.lights.map(l => ({
+      pos: [...l.pos],
+      color: l.color || '0xffffff',
+      intensity: l.intensity || 3,
+    }));
+  } else {
+    setDefaultLights();
+  }
+  updateLightPreviews();
+
   updateGridHelper();
   updateGroundPlane();
   updateSpawnMarker();
+  updateTriggerMarker();
   queueRebuild();
   undoStack.length = 0;
   redoStack.length = 0;
 }
+
+// Load a room from the rooms/ directory
+async function loadRoomFromServer(roomId) {
+  try {
+    const resp = await fetch(`../rooms/${roomId}.json`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    importJSON(data);
+  } catch (e) {
+    alert(`Failed to load room "${roomId}": ${e.message}`);
+  }
+}
+
+// ══════════════════════════════════════
+//   EVENT EDITOR UI
+// ══════════════════════════════════════
+
+function updateEventUI() {
+  const type = $('event-type').value;
+  const hasChoices = type === 'choice' || type === 'boss';
+  $('simple-event-fields').style.display = hasChoices ? 'none' : '';
+  $('choices-event-fields').style.display = hasChoices ? '' : 'none';
+}
+
+$('event-type').addEventListener('change', updateEventUI);
+
+function choicesFromData(choices) {
+  const list = $('choices-list');
+  list.innerHTML = '';
+  choices.forEach(c => addChoiceUI(c));
+}
+
+function addChoiceUI(data = null) {
+  const list = $('choices-list');
+  const item = document.createElement('div');
+  item.className = 'choice-item';
+  item.innerHTML = `
+    <div class="choice-header">
+      <span>Choice ${list.children.length + 1}</span>
+      <button class="choice-remove">&times;</button>
+    </div>
+    <input type="text" class="choice-label" placeholder="Label (e.g. Attack)" value="${data?.label || ''}">
+    <div class="choice-row">
+      <label>Stat</label>
+      <select class="choice-stat">
+        <option value="str" ${data?.stat === 'str' ? 'selected' : ''}>STR</option>
+        <option value="agi" ${data?.stat === 'agi' ? 'selected' : ''}>AGI</option>
+        <option value="int" ${data?.stat === 'int' ? 'selected' : ''}>INT</option>
+        <option value="lck" ${data?.stat === 'lck' ? 'selected' : ''}>LCK</option>
+      </select>
+      <label>DC</label>
+      <input type="number" class="choice-dc" value="${data?.dc || 10}" min="1" max="25" style="width:44px">
+    </div>
+    <textarea class="choice-success" placeholder="Success text...">${data?.successText || ''}</textarea>
+    <textarea class="choice-fail" placeholder="Fail text...">${data?.failText || ''}</textarea>
+    <div class="choice-row">
+      <label>S.HP</label>
+      <input type="number" class="choice-shp" value="${data?.successHp || 0}" style="width:50px">
+      <label>F.HP</label>
+      <input type="number" class="choice-fhp" value="${data?.failHp || 0}" style="width:50px">
+    </div>
+  `;
+  item.querySelector('.choice-remove').addEventListener('click', () => {
+    item.remove();
+    renumberChoices();
+  });
+  list.appendChild(item);
+}
+
+function renumberChoices() {
+  document.querySelectorAll('.choice-item').forEach((el, i) => {
+    el.querySelector('.choice-header span').textContent = `Choice ${i + 1}`;
+  });
+}
+
+$('btn-add-choice').addEventListener('click', () => addChoiceUI());
 
 // ══════════════════════════════════════
 //   UI WIRING
@@ -779,7 +1289,9 @@ function buildPaletteUI() {
   BLOCK_NAMES.forEach((name, i) => {
     const swatch = document.createElement('div');
     swatch.className = 'swatch' + (i === selectedBlock ? ' active' : '');
-    swatch.style.backgroundColor = BLOCK_TYPES[name].base;
+    swatch.style.backgroundImage = `url(../Assets/Tiles/${getThumbnailFile(name)})`;
+    swatch.style.backgroundSize = 'cover';
+    swatch.style.imageRendering = 'pixelated';
     swatch.title = `${name} [${i + 1}]`;
     swatch.textContent = name.replace('_', ' ');
     swatch.dataset.idx = i;
@@ -801,12 +1313,12 @@ function updatePaletteUI() {
 
 // Tools
 function updateToolUI() {
-  $('tools').querySelectorAll('.tool-btn').forEach(b => {
+  $('toolbar').querySelectorAll('.tool-btn[data-tool]').forEach(b => {
     b.classList.toggle('active', b.dataset.tool === activeTool);
   });
 }
 
-$('tools').querySelectorAll('.tool-btn').forEach(btn => {
+$('toolbar').querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
   btn.addEventListener('click', () => {
     activeTool = btn.dataset.tool;
     updateToolUI();
@@ -815,14 +1327,16 @@ $('tools').querySelectorAll('.tool-btn').forEach(btn => {
 
 // Resize
 $('btn-resize').addEventListener('click', () => {
-  const newSx = parseInt($('size-x').value) || 20;
-  const newSy = parseInt($('size-y').value) || 8;
-  const newSz = parseInt($('size-z').value) || 20;
+  const newSx = parseInt($('size-x').value) || 14;
+  const newSy = parseInt($('size-y').value) || 6;
+  const newSz = parseInt($('size-z').value) || 14;
 
   const oldGrid = grid;
   const [oldSx, oldSy, oldSz] = gridSize;
 
   initGrid(newSx, newSy, newSz);
+  setDefaultLights();
+  updateLightPreviews();
 
   for (let z = 0; z < Math.min(oldSz, newSz); z++)
     for (let y = 0; y < Math.min(oldSy, newSy); y++)
@@ -836,6 +1350,200 @@ $('btn-resize').addEventListener('click', () => {
   queueRebuild();
   undoStack.length = 0;
   redoStack.length = 0;
+});
+
+// ── Templates ──
+
+// Helper: reset all UI / scene state to a clean 14x6x14 grid (does NOT touch grid contents)
+function resetEditorState(name = 'Untitled Room', id = 'untitled') {
+  $('size-x').value = 14;
+  $('size-y').value = 6;
+  $('size-z').value = 14;
+  $('room-id').value = id;
+  $('room-name').value = name;
+  triggerPos = null;
+  $('event-type').value = 'start';
+  $('event-desc').value = '';
+  $('event-stat').value = '';
+  $('event-dc').value = 10;
+  $('event-success').value = '';
+  $('event-fail').value = '';
+  $('event-successHp').value = 0;
+  $('event-failHp').value = 0;
+  $('choices-list').innerHTML = '';
+  $('trigger-val').textContent = '--';
+  $('trigger-display').classList.remove('active');
+  updateEventUI();
+  updateLightPreviews();
+  updateGridHelper();
+  updateGroundPlane();
+  updateSpawnMarker();
+  updateTriggerMarker();
+  queueRebuild();
+  undoStack.length = 0;
+  redoStack.length = 0;
+}
+
+function blockId(name) { return BLOCK_NAMES.indexOf(name); }
+
+function applyEmptyTemplate() {
+  initGrid(14, 6, 14);
+  setDefaultLights();
+  spawnPoint = null;
+  resetEditorState('Untitled Room', 'untitled');
+}
+
+function applyCastleTemplate() {
+  initGrid(14, 6, 14);
+  const floor = blockId('stone_floor');
+  const wall  = blockId('stone_wall');
+  const wood  = blockId('wood');
+  const gold  = blockId('gold');
+
+  // Stone floor
+  for (let x = 0; x < 14; x++)
+    for (let z = 0; z < 14; z++)
+      grid[idx(x, 0, z)] = floor;
+
+  // Walls (perimeter, Y=1..4) — no ceiling
+  for (let y = 1; y <= 4; y++) {
+    for (let x = 0; x < 14; x++) {
+      grid[idx(x, y, 0)] = wall;
+      grid[idx(x, y, 13)] = wall;
+    }
+    for (let z = 0; z < 14; z++) {
+      grid[idx(0, y, z)] = wall;
+      grid[idx(13, y, z)] = wall;
+    }
+  }
+
+  // Doorway on south wall (z=13)
+  for (let y = 1; y <= 3; y++) {
+    grid[idx(6, y, 13)] = -1;
+    grid[idx(7, y, 13)] = -1;
+  }
+
+  // Wood pillars in corners
+  [[3,3],[10,3],[3,10],[10,10]].forEach(([x,z]) => {
+    for (let y = 1; y <= 4; y++) grid[idx(x, y, z)] = wood;
+  });
+
+  // A small gold treasure at center
+  grid[idx(7, 1, 7)] = gold;
+
+  spawnPoint = [7, 1, 12];
+  lightsData = [
+    { pos: [7, 4, 7], color: '0xfff0d0', intensity: 6 },
+    { pos: [3, 3, 3], color: '0xff8833', intensity: 3 },
+    { pos: [10, 3, 10], color: '0xff8833', intensity: 3 },
+  ];
+  resetEditorState('Castle Hall', 'castle_hall');
+}
+
+function applyMeadowTemplate() {
+  initGrid(14, 6, 14);
+  const grass = blockId('grass');
+  const wood  = blockId('wood');
+
+  // Grass floor
+  for (let x = 0; x < 14; x++)
+    for (let z = 0; z < 14; z++)
+      grid[idx(x, 0, z)] = grass;
+
+  // Trees: trunk (wood Y=1..3) + grass canopy (Y=4 cross + Y=5 center)
+  const trees = [[3,3],[10,3],[3,10],[10,10],[6,7]];
+  trees.forEach(([x, z]) => {
+    grid[idx(x, 1, z)] = wood;
+    grid[idx(x, 2, z)] = wood;
+    grid[idx(x, 3, z)] = wood;
+    // Canopy cross at Y=4
+    [[0,0],[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dz]) => {
+      const cx = x + dx, cz = z + dz;
+      if (cx >= 0 && cx < 14 && cz >= 0 && cz < 14)
+        grid[idx(cx, 4, cz)] = grass;
+    });
+    // Top
+    grid[idx(x, 5, z)] = grass;
+  });
+
+  spawnPoint = [7, 1, 12];
+  lightsData = [
+    { pos: [7, 5, 7], color: '0xfff5cc', intensity: 6 },
+  ];
+  resetEditorState('Sunlit Meadow', 'meadow');
+}
+
+function applyLavaTemplate() {
+  initGrid(14, 6, 14);
+  const stone = blockId('stone_floor');
+  const lava  = blockId('lava');
+  const dark  = blockId('dark');
+
+  // Base floor (dark stone)
+  for (let x = 0; x < 14; x++)
+    for (let z = 0; z < 14; z++)
+      grid[idx(x, 0, z)] = stone;
+
+  // Lava patches (rectangular pools)
+  const pools = [
+    [1, 1, 3, 3],
+    [10, 10, 12, 12],
+    [5, 1, 7, 2],
+    [1, 10, 2, 12],
+    [11, 5, 12, 7],
+  ];
+  pools.forEach(([x1, z1, x2, z2]) => {
+    for (let x = x1; x <= x2; x++)
+      for (let z = z1; z <= z2; z++)
+        grid[idx(x, 0, z)] = lava;
+  });
+
+  // Stone mountain peaks (stepped)
+  const peaks = [
+    { x: 4, z: 5, h: 3 },
+    { x: 9, z: 9, h: 4 },
+    { x: 8, z: 4, h: 2 },
+  ];
+  peaks.forEach(({ x, z, h }) => {
+    for (let y = 1; y <= h; y++) grid[idx(x, y, z)] = stone;
+    // Skirt one block lower
+    [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dz]) => {
+      const nx = x+dx, nz = z+dz;
+      if (nx >= 0 && nx < 14 && nz >= 0 && nz < 14) {
+        for (let y = 1; y <= Math.max(1, h - 1); y++) grid[idx(nx, y, nz)] = stone;
+      }
+    });
+  });
+
+  // Dark sky border (a few dark blocks at top corners for atmosphere)
+  spawnPoint = [7, 1, 12];
+  lightsData = [
+    { pos: [7, 5, 7], color: '0xff5522', intensity: 7 },
+    { pos: [3, 3, 3], color: '0xff8833', intensity: 4 },
+    { pos: [11, 4, 11], color: '0xff8833', intensity: 4 },
+  ];
+  resetEditorState('Lava Mountain', 'lava_mountain');
+}
+
+const TEMPLATES = {
+  empty: applyEmptyTemplate,
+  castle: applyCastleTemplate,
+  meadow: applyMeadowTemplate,
+  lava: applyLavaTemplate,
+};
+
+document.querySelectorAll('[data-template]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const fn = TEMPLATES[btn.dataset.template];
+    if (fn) fn();
+  });
+});
+
+// Load room button
+$('btn-load').addEventListener('click', () => {
+  const roomId = $('room-select').value;
+  if (!roomId) return;
+  loadRoomFromServer(roomId);
 });
 
 // Export / Import
@@ -861,6 +1569,14 @@ $('file-input').addEventListener('change', (e) => {
 $('btn-undo').addEventListener('click', undo);
 $('btn-redo').addEventListener('click', redo);
 
+// Cutaway toggle
+$('btn-cull').addEventListener('click', () => {
+  cullWalls = !cullWalls;
+  $('btn-cull').classList.toggle('active', cullWalls);
+  if (cullWalls) cullState = computeCullState();
+  queueRebuild();
+});
+
 // Clear
 $('btn-clear').addEventListener('click', () => {
   if (!confirm('Clear all blocks?')) return;
@@ -879,7 +1595,8 @@ function updateStatus() {
     if (grid[i] >= 0) blockCount++;
   }
   const spawnStr = spawnPoint ? `(${spawnPoint.join(', ')})` : '--';
-  $('status').textContent = `Blocks: ${blockCount} | Spawn: ${spawnStr}`;
+  const trigStr = triggerPos ? `(${triggerPos.join(', ')})` : '--';
+  $('status').textContent = `Blocks: ${blockCount} | Spawn: ${spawnStr} | Trigger: ${trigStr}`;
 }
 
 // ══════════════════════════════════════
@@ -887,8 +1604,8 @@ function updateStatus() {
 // ══════════════════════════════════════
 
 function onResize() {
-  const w = canvas.clientWidth;
-  const h = canvas.clientHeight;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
@@ -898,13 +1615,33 @@ window.addEventListener('resize', onResize);
 function tick() {
   requestAnimationFrame(tick);
   controls.update();
+
+  // Recompute wall culling when camera crosses room center
+  if (cullWalls) {
+    const ns = computeCullState();
+    if (cullStateChanged(cullState, ns)) {
+      cullState = ns;
+      queueRebuild();
+    }
+  }
+
   renderer.render(scene, camera);
 }
 
 // ── Init ──
 buildPaletteUI();
+updateEventUI();
+cullState = computeCullState();
 onResize();
 tick();
+
+// Load from URL param if present (e.g. editor.html?room=entrance)
+const urlParams = new URLSearchParams(window.location.search);
+const roomParam = urlParams.get('room');
+if (roomParam && KNOWN_ROOMS.includes(roomParam)) {
+  $('room-select').value = roomParam;
+  loadRoomFromServer(roomParam);
+}
 </script>
 </body>
 </html>
