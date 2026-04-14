@@ -255,8 +255,12 @@ export function updateFaceCamera(camera, config) {
   const hx = rotationEnabled ? headX * c : headX;
   const hz = rotationEnabled ? headX * s : 0;
 
-  camera.position.set(camX + hx, basePos.y + headY, camZ + hz);
+  // Set rotation from base position (no head offset) so it stays fixed
+  camera.position.set(camX, basePos.y, camZ);
   camera.lookAt(lookTarget);
+
+  // Then shift position only — rotation stays locked
+  camera.position.set(camX + hx, basePos.y + headY, camZ + hz);
 
   if (config.offAxis !== false) {
     // Off-axis projection (for forward-facing scenes)
