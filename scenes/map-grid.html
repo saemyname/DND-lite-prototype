@@ -110,34 +110,50 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
-// ── Box dimensions (3× original test) ──
-const BOX_W = 21, BOX_H = 15, BOX_D = 21;
+// ── Box dimensions ──
+// Opening fills the screen EXACTLY: width = SCREEN_W, height derived from aspect.
+const SCREEN_W = 40;
+const BOX_W = SCREEN_W;
+const BOX_D = 40;
+let boxH = SCREEN_W / (window.innerWidth / window.innerHeight);
 
 // ── Camera ──
-const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 300);
 const BASE_CAM_POS = new THREE.Vector3(0, 0, 24);
-const LOOK_TARGET  = new THREE.Vector3(0, 0, -12);
+const LOOK_TARGET  = new THREE.Vector3(0, 0, -20);
 const SCREEN_DIST  = BASE_CAM_POS.z;
 
 // ── Lighting ──
 // Dim ambient so the grid lines read clearly against dark walls.
 scene.add(new THREE.AmbientLight(0x334455, 0.5));
 
-const insideLight = new THREE.PointLight(0x66aaff, 1.5, 45, 1.5);
-insideLight.position.set(0, 3, -12);
+const insideLight = new THREE.PointLight(0x66aaff, 2.0, 70, 1.5);
+insideLight.position.set(0, 6, -20);
 scene.add(insideLight);
 
-// ── Build the grid box ──
-const boxGroup = new THREE.Group();
-scene.add(boxGroup);
-buildBox(boxGroup, {
-  w: BOX_W, h: BOX_H, d: BOX_D,
-  wallColor: 0x0f1420,
-  frameColor: 0x1a1a2a,
-  withGrid: true,
-  gridColor: 0x66ddff,
-  gridStep: 1.5,
-});
+// ── Build the grid box (rebuilt on resize to match aspect) ──
+let boxGroup = null;
+function rebuildBox() {
+  if (boxGroup) {
+    scene.remove(boxGroup);
+    boxGroup.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material && !Array.isArray(o.material)) o.material.dispose();
+    });
+  }
+  boxH = SCREEN_W / (window.innerWidth / window.innerHeight);
+  boxGroup = new THREE.Group();
+  scene.add(boxGroup);
+  buildBox(boxGroup, {
+    w: BOX_W, h: boxH, d: BOX_D,
+    wallColor: 0x0f1420,
+    frameColor: 0x1a1a2a,
+    withGrid: true,
+    gridColor: 0x66ddff,
+    gridStep: 2.0,
+  });
+}
+rebuildBox();
 
 // ── Face tracking ──
 initFaceCamera();
@@ -148,6 +164,7 @@ window.addEventListener('resize', () => {
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   onResizeFaceCamera(w, h);
+  rebuildBox();
 });
 onResizeFaceCamera(window.innerWidth, window.innerHeight);
 
