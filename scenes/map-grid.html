@@ -174,7 +174,8 @@ const faceCamConfig = {
   lookTarget: LOOK_TARGET,
   screenDist: SCREEN_DIST,
   offAxis: true,
-  strength: 8,   // scaled up for this large test box (default is 2.5)
+  strength: 20,  // horizontal: scaled up for this large test box (default is 2.5)
+  strengthY: 5,  // vertical: keep more restrained — head tilt is noisier
   far: 200,
 };
 
