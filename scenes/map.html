@@ -112,37 +112,39 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
-// ── Box dimensions (3× original test) ──
-const BOX_W = 21, BOX_H = 15, BOX_D = 21;
+// ── Box dimensions ──
+// Sized to exceed the off-axis frustum (SCREEN_W=40 wide at z=0),
+// so the opening fills the entire screen across common aspect ratios.
+const BOX_W = 50, BOX_H = 35, BOX_D = 40;
 
 // ── Camera ──
 // Window (open face) is at z=0. Camera sits in front, looking into the box.
-const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 300);
 const BASE_CAM_POS = new THREE.Vector3(0, 0, 24);
-const LOOK_TARGET  = new THREE.Vector3(0, 0, -12);
+const LOOK_TARGET  = new THREE.Vector3(0, 0, -20);
 const SCREEN_DIST  = BASE_CAM_POS.z;
 
 // ── Lighting ──
 scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
 const keyLight = new THREE.DirectionalLight(0xffeecc, 1.2);
-keyLight.position.set(6, 12, 6);
+keyLight.position.set(12, 24, 10);
 keyLight.castShadow = true;
 keyLight.shadow.mapSize.set(1024, 1024);
-keyLight.shadow.camera.left = -24;
-keyLight.shadow.camera.right = 24;
-keyLight.shadow.camera.top = 24;
-keyLight.shadow.camera.bottom = -24;
+keyLight.shadow.camera.left = -35;
+keyLight.shadow.camera.right = 35;
+keyLight.shadow.camera.top = 35;
+keyLight.shadow.camera.bottom = -35;
 keyLight.shadow.camera.near = 0.5;
-keyLight.shadow.camera.far = 50;
+keyLight.shadow.camera.far = 80;
 scene.add(keyLight);
 
 const fillLight = new THREE.DirectionalLight(0x8899ff, 0.4);
-fillLight.position.set(-9, 6, -6);
+fillLight.position.set(-15, 10, -12);
 scene.add(fillLight);
 
-const insideLight = new THREE.PointLight(0xffaa66, 1.5, 36, 1.5);
-insideLight.position.set(0, 3, -15);
+const insideLight = new THREE.PointLight(0xffaa66, 2.0, 70, 1.5);
+insideLight.position.set(0, 6, -22);
 scene.add(insideLight);
 
 // ── Build the box ──
@@ -175,12 +177,12 @@ function addSphere(x, y, z, r, color) {
 }
 
 const HH = BOX_H / 2;
-addCube(-6.0, -HH + 1.2, -4.2, 2.4, 0xc85a3a);
-addCube( 5.4, -HH + 1.05, -5.4, 2.1, 0x3a8ac8);
-const midSphere = addSphere(0, -HH + 1.8, -10.5, 1.8, 0xd4af37);
-addCube(-4.5, -HH + 1.5, -17.4, 3.0, 0x5ac83a);
-addCube( 5.7, -HH + 1.2, -18.0, 2.7, 0xc83a8a);
-const floater = addSphere(0, 3.6, -9.0, 1.05, 0xffe9a0);
+addCube(-14.0, -HH + 1.6, -6.0, 3.2, 0xc85a3a);
+addCube( 13.0, -HH + 1.3, -8.0, 2.6, 0x3a8ac8);
+const midSphere = addSphere(0, -HH + 2.2, -18.0, 2.2, 0xd4af37);
+addCube(-10.0, -HH + 2.0, -32.0, 4.0, 0x5ac83a);
+addCube( 14.0, -HH + 1.6, -34.0, 3.3, 0xc83a8a);
+const floater = addSphere(0, 4.5, -15.0, 1.3, 0xffe9a0);
 
 // ── Face tracking ──
 initFaceCamera();
@@ -208,7 +210,7 @@ function tick() {
   requestAnimationFrame(tick);
   const t = clock.getElapsedTime();
 
-  floater.position.y = 3.6 + Math.sin(t * 1.2) * 0.9;
+  floater.position.y = 4.5 + Math.sin(t * 1.2) * 1.2;
   midSphere.rotation.y = t * 0.5;
 
   updateFaceCamera(camera, faceCamConfig);
