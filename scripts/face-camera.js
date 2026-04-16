@@ -222,15 +222,17 @@ export async function initFaceCamera() {
  * @param {number}        [config.near]      — override near plane
  * @param {number}        [config.far]       — override far plane
  * @param {number}        [config.strength]  — override head-tracking strength (default FACE_STRENGTH = 2.5)
- * @param {number}        [config.maxHeadY]  — max absolute Y offset (default scales with strength)
+ * @param {number}        [config.strengthY] — override strength for Y axis only (default = strength)
+ * @param {number}        [config.maxHeadY]  — max absolute Y offset (default scales with strengthY)
  */
 export function updateFaceCamera(camera, config) {
   const { basePos, lookTarget, screenDist } = config;
   const near = config.near || NEAR;
   const far  = config.far  || FAR;
-  const strength = config.strength ?? FACE_STRENGTH;
+  const strength  = config.strength  ?? FACE_STRENGTH;
+  const strengthY = config.strengthY ?? strength;
   // Preserve the default ratio (original clamp of 1 at strength 2.5 → factor 0.4)
-  const maxHeadY = config.maxHeadY ?? (strength * 0.4);
+  const maxHeadY = config.maxHeadY ?? (strengthY * 0.4);
 
   // Rotation lerp
   if (rotationEnabled) {
@@ -241,7 +243,7 @@ export function updateFaceCamera(camera, config) {
   smFX += (rawFX - smFX) * SMOOTH;
   smFY += (rawFY - smFY) * SMOOTH;
   const headX = smFX * strength;
-  const headY = Math.max(-maxHeadY, Math.min(maxHeadY, smFY * strength));
+  const headY = Math.max(-maxHeadY, Math.min(maxHeadY, smFY * strengthY));
 
   // Compute orbital position if rotated
   let camX = basePos.x;
