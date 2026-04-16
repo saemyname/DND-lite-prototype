@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Off-Axis — Grid Box</title>
+<title>Off-Axis — Voxel Room</title>
 
 <script type="importmap">
 {
@@ -81,14 +81,14 @@
 <body>
 
 <canvas id="canvas"></canvas>
-<div id="title">Grid Box</div>
+<div id="title">Teenage Room</div>
 <div id="nav">
-  <a href="map.html">Furnished</a>
-  <a href="map-grid.html" class="active">Grid</a>
+  <a href="map.html">Box</a>
+  <a href="map-grid.html" class="active">Room</a>
 </div>
 <div id="info">
-  Grid lines on walls make the parallax effect obvious.<br>
-  Move your head to peek inside.
+  Peek into the room.<br>
+  Board game map on the desk, right side.
 </div>
 
 <div id="webcam-preview" class="hidden">
@@ -99,61 +99,150 @@
 <script type="module">
 import * as THREE from 'three';
 import { initFaceCamera, updateFaceCamera, onResizeFaceCamera } from '../scripts/face-camera.js';
-import { buildBox } from '../scripts/off-axis-box.js';
+import { loadBlockMaterials, buildVoxelGroups, groupToMesh } from '../scripts/voxel-textures.js';
 
 // ── Renderer ──
 const canvas = document.getElementById('canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000000);
-
-// ── Box dimensions ──
-// Opening fills the screen EXACTLY: width = SCREEN_W, height derived from aspect.
-const SCREEN_W = 40;
-const BOX_W = SCREEN_W;
-const BOX_D = 40;
-let boxH = SCREEN_W / (window.innerWidth / window.innerHeight);
+scene.background = new THREE.Color(0x050210);
 
 // ── Camera ──
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 300);
 const BASE_CAM_POS = new THREE.Vector3(0, 0, 24);
-const LOOK_TARGET  = new THREE.Vector3(0, 0, -20);
+const LOOK_TARGET  = new THREE.Vector3(0, 0, -8);
 const SCREEN_DIST  = BASE_CAM_POS.z;
 
 // ── Lighting ──
-// Dim ambient so the grid lines read clearly against dark walls.
-scene.add(new THREE.AmbientLight(0x334455, 0.5));
+scene.add(new THREE.AmbientLight(0xfff0d0, 0.3));
 
-const insideLight = new THREE.PointLight(0x66aaff, 2.0, 70, 1.5);
-insideLight.position.set(0, 6, -20);
-scene.add(insideLight);
+const keyLight = new THREE.DirectionalLight(0xfff0d0, 1.0);
+keyLight.position.set(8, 20, 10);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(1024, 1024);
+keyLight.shadow.camera.left = -30;
+keyLight.shadow.camera.right = 30;
+keyLight.shadow.camera.top = 30;
+keyLight.shadow.camera.bottom = -30;
+keyLight.shadow.camera.far = 60;
+scene.add(keyLight);
 
-// ── Build the grid box (rebuilt on resize to match aspect) ──
-let boxGroup = null;
-function rebuildBox() {
-  if (boxGroup) {
-    scene.remove(boxGroup);
-    boxGroup.traverse(o => {
-      if (o.geometry) o.geometry.dispose();
-      if (o.material && !Array.isArray(o.material)) o.material.dispose();
-    });
+// Warm overhead light (bedroom ceiling light)
+const ceilingLight = new THREE.PointLight(0xffeedd, 5, 50, 1.5);
+ceilingLight.position.set(0, 20, -8);
+scene.add(ceilingLight);
+
+// Desk lamp (right side, warm)
+const deskLamp = new THREE.PointLight(0xffcc88, 3, 20, 1.5);
+deskLamp.position.set(14, 8, -6);
+scene.add(deskLamp);
+
+// Window-ish ambient from front (cool daylight)
+const windowLight = new THREE.DirectionalLight(0xaabbdd, 0.6);
+windowLight.position.set(0, 4, 10);
+scene.add(windowLight);
+
+// ── Voxel room — Teenage bedroom ──
+// Room grid: 20 wide × 14 tall × 8 deep (voxels)
+// Each voxel = 2 world units → 40 × 28 × 16 world units
+const RW = 20, RH = 14, RD = 8;
+const VSCALE = 2;
+
+const palette = [
+  'wood',         // 0 — hardwood floor
+  'brick_red',    // 1 — red brick walls
+  'wood_red',     // 2 — desk / furniture
+  'cotton_blue',  // 3 — bedding
+  'cotton_red',   // 4 — rug / accents
+  'cotton_tan',   // 5 — pillow / cushion
+  'sand',         // 6 — ceiling (light)
+  'trunk_white',  // 7 — white furniture (shelf frame)
+  'gravel_stone', // 8 — grey furniture
+  'gold',         // 9 — board game map pieces
+  'ice',          // 10 — window
+  'brick_grey',   // 11 — grey accents
+  'table',        // 12 — board game map
+];
+const grid = new Int8Array(RW * RH * RD).fill(-1);
+const idx = (x, y, z) => x + y * RW + z * RW * RH;
+
+const FLOOR = 0, WALL = 1, DESK = 2, BED = 3, RUG = 4, PILLOW = 5;
+const CEIL = 6, WHITE = 7, GREY = 8, MAP = 9, ICE = 10, GREY2 = 11;
+
+// ── Floor — grey brick ──
+for (let x = 0; x < RW; x++)
+  for (let z = 0; z < RD; z++)
+    grid[idx(x, 0, z)] = GREY2;
+
+// ── Ceiling — light sand color ──
+for (let x = 0; x < RW; x++)
+  for (let z = 0; z < RD; z++)
+    grid[idx(x, RH - 1, z)] = CEIL;
+
+// ── Walls — red brick ──
+for (let x = 0; x < RW; x++)
+  for (let y = 1; y <= RH - 2; y++)
+    grid[idx(x, y, 0)] = WALL;
+
+for (let z = 0; z < RD; z++)
+  for (let y = 1; y <= RH - 2; y++) {
+    grid[idx(0, y, z)] = WALL;
+    grid[idx(RW - 1, y, z)] = WALL;
   }
-  boxH = SCREEN_W / (window.innerWidth / window.innerHeight);
-  boxGroup = new THREE.Group();
-  scene.add(boxGroup);
-  buildBox(boxGroup, {
-    w: BOX_W, h: boxH, d: BOX_D,
-    wallColor: 0x0f1420,
-    frameColor: 0x1a1a2a,
-    withGrid: true,
-    gridColor: 0x66ddff,
-    gridStep: 2.0,
-  });
+
+// ── Window on back wall (glass blocks) ──
+for (let x = 8; x <= 11; x++)
+  for (let y = 4; y <= 7; y++)
+    grid[idx(x, y, 0)] = ICE;
+
+// ── Table (center of room) — wood with legs ──
+// 4 legs (y=1)
+grid[idx(8, 1, 3)] = FLOOR;
+grid[idx(12, 1, 3)] = FLOOR;
+grid[idx(8, 1, 5)] = FLOOR;
+grid[idx(12, 1, 5)] = FLOOR;
+// Tabletop (y=2)
+for (let x = 8; x <= 12; x++)
+  for (let z = 3; z <= 5; z++)
+    grid[idx(x, 2, z)] = FLOOR;
+
+// Board game map — single table block in center of tabletop
+grid[idx(10, 2, 4)] = 12;
+
+// ── Chairs — one on each side ──
+grid[idx(7, 1, 4)] = FLOOR;   // left chair
+grid[idx(13, 1, 4)] = FLOOR;  // right chair
+
+
+// ── Build voxel meshes ──
+const blockMaterials = loadBlockMaterials('../Assets/Tiles/');
+const groups = buildVoxelGroups(grid, [RW, RH, RD], palette);
+const roomGroup = new THREE.Group();
+
+for (const [key, g] of Object.entries(groups)) {
+  if (g.positions.length === 0) continue;
+  roomGroup.add(groupToMesh(key, g, blockMaterials));
 }
-rebuildBox();
+
+roomGroup.scale.setScalar(VSCALE);
+scene.add(roomGroup);
+
+// Position the room: room origin (0,0,0) maps to bottom-left-back corner
+// Room front (z=RD-1) should be near z=0 (the window plane)
+function repositionRoom() {
+  const HH = (40 / (window.innerWidth / window.innerHeight)) / 2;
+  roomGroup.position.set(
+    -RW * VSCALE / 2,   // center horizontally
+    -HH,                // floor at box bottom
+    -RD * VSCALE         // back wall pushed to -16
+  );
+}
+repositionRoom();
 
 // ── Face tracking ──
 initFaceCamera();
@@ -164,23 +253,29 @@ window.addEventListener('resize', () => {
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   onResizeFaceCamera(w, h);
-  rebuildBox();
+  repositionRoom();
 });
 onResizeFaceCamera(window.innerWidth, window.innerHeight);
 
 // ── Render loop ──
+const clock = new THREE.Clock();
 const faceCamConfig = {
   basePos: BASE_CAM_POS,
   lookTarget: LOOK_TARGET,
   screenDist: SCREEN_DIST,
   offAxis: true,
-  strength: 20,  // horizontal: scaled up for this large test box (default is 2.5)
-  strengthY: 5,  // vertical: keep more restrained — head tilt is noisier
-  far: 200,
+  far: 100,
+  strength: 20,
+  strengthY: 5,
 };
 
 function tick() {
   requestAnimationFrame(tick);
+  const t = clock.getElapsedTime();
+
+  // Gentle light variation (not flickering — steady room light)
+  deskLamp.intensity = 3 + Math.sin(t * 0.8) * 0.3;
+
   updateFaceCamera(camera, faceCamConfig);
   renderer.render(scene, camera);
 }

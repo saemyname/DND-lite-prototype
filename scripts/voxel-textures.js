@@ -21,6 +21,19 @@ export const BLOCK_TYPES = {
   lava:        { textures: 'lava.png', emissive: true, emissiveColor: '#ff6622' },
   gold:        { textures: 'stone_gold.png' },
   dark:        { textures: 'stone_coal.png' },
+  // ── Indoor / modern blocks ──
+  brick_red:   { textures: 'brick_red.png' },
+  brick_grey:  { textures: 'brick_grey.png' },
+  glass:       { textures: 'glass.png' },
+  cotton_blue: { textures: 'cotton_blue.png' },
+  cotton_red:  { textures: 'cotton_red.png' },
+  cotton_tan:  { textures: 'cotton_tan.png' },
+  sand:        { textures: 'sand.png' },
+  ice:         { textures: 'ice.png' },
+  wood_red:    { textures: 'wood_red.png' },
+  gravel_stone:{ textures: 'gravel_stone.png' },
+  table:       { textures: 'table.png' },
+  trunk_white: { textures: { top: 'trunk_white_top.png', side: 'trunk_white_side.png', bottom: 'trunk_white_top.png' } },
 };
 
 export const BLOCK_NAMES = Object.keys(BLOCK_TYPES);

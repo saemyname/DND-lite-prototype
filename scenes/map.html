@@ -76,6 +76,47 @@
     color: rgba(200,169,110,.4);
     line-height: 1.6;
   }
+
+  /* Debug panel */
+  #debug {
+    position: fixed;
+    top: 170px;
+    right: 12px;
+    z-index: 100;
+    width: 200px;
+    background: rgba(0,0,0,.75);
+    border: 1px solid rgba(200,169,110,.2);
+    border-radius: 6px;
+    padding: 10px 12px;
+    backdrop-filter: blur(6px);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: rgba(200,169,110,.7);
+  }
+  #debug label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  #debug .lbl { flex: 0 0 65px; overflow: hidden; }
+  #debug .val { flex: 0 0 24px; text-align: right; font-variant-numeric: tabular-nums; color: #ffe9a0; }
+  #debug input[type=range] {
+    flex: 1; min-width: 0;
+    height: 3px;
+    accent-color: #c8a96e;
+    cursor: pointer;
+  }
+  #debug .sep {
+    border: none;
+    border-top: 1px solid rgba(200,169,110,.15);
+    margin: 2px 0;
+  }
+  #debug label.toggle { cursor: pointer; }
+  #debug input[type=checkbox] { accent-color: #c8a96e; }
 </style>
 </head>
 <body>
@@ -83,12 +124,25 @@
 <canvas id="canvas"></canvas>
 <div id="title">Furnished Box</div>
 <div id="nav">
-  <a href="map.html" class="active">Furnished</a>
-  <a href="map-grid.html">Grid</a>
+  <a href="map.html" class="active">Box</a>
+  <a href="map-grid.html">Room</a>
 </div>
 <div id="info">
   Move your head to peek inside the box.<br>
   The screen acts as a window into the scene.
+</div>
+
+<div id="debug">
+  <label><span class="lbl">FOV</span><input type="range" id="s-camZ" min="10" max="80" step="1" value="36"><span class="val" id="v-camZ">36</span></label>
+  <label><span class="lbl">Cam Y</span><input type="range" id="s-camY" min="-20" max="40" step="1" value="0"><span class="val" id="v-camY">0</span></label>
+  <label><span class="lbl">Box Depth</span><input type="range" id="s-boxD" min="5" max="60" step="1" value="15"><span class="val" id="v-boxD">15</span></label>
+  <hr class="sep">
+  <label><span class="lbl">Pan X str.</span><input type="range" id="s-strX" min="0" max="40" step="1" value="20"><span class="val" id="v-strX">20</span></label>
+  <label><span class="lbl">Pan Y str.</span><input type="range" id="s-strY" min="0" max="20" step="1" value="5"><span class="val" id="v-strY">5</span></label>
+  <hr class="sep">
+  <label class="toggle"><span class="lbl">Off-Axis</span><input type="checkbox" id="t-offaxis" checked></label>
+  <label class="toggle"><span class="lbl">Box Walls</span><input type="checkbox" id="t-box" checked></label>
+  <label class="toggle"><span class="lbl">Objects</span><input type="checkbox" id="t-objs" checked></label>
 </div>
 
 <div id="webcam-preview" class="hidden">
@@ -124,7 +178,7 @@ let boxH = SCREEN_W / (window.innerWidth / window.innerHeight);
 // ── Camera ──
 // Window (open face) is at z=0. Camera sits in front, looking into the box.
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 300);
-const BASE_CAM_POS = new THREE.Vector3(0, 0, 24);
+const BASE_CAM_POS = new THREE.Vector3(0, 0, 36);
 const LOOK_TARGET  = new THREE.Vector3(0, 0, -20);
 const SCREEN_DIST  = BASE_CAM_POS.z;
 
@@ -202,16 +256,9 @@ function repositionFloorObjs() {
 addFloorCube(-14.0, 1.6, -6.0, 3.2, 0xc85a3a);
 // addFloorCube( 13.0, 1.3, -8.0, 2.6, 0x3a8ac8);
 const midSphere = addFloorSphere(0, 2.2, -18.0, 2.2, 0xd4af37);
-// addFloorCube(-10.0, 2.0, -32.0, 4.0, 0x5ac83a);
-// addFloorCube( 14.0, 1.6, -34.0, 3.3, 0xc83a8a);
+addFloorCube(-10.0, 2.0, -32.0, 4.0, 0x5ac83a);
+addFloorCube( 14.0, 1.6, -34.0, 3.3, 0xc83a8a);
 
-// Floater lives mid-box (not floor-attached) — updated every frame.
-const floater = new THREE.Mesh(
-  new THREE.SphereGeometry(1.3, 24, 18),
-  new THREE.MeshStandardMaterial({ color: 0xffe9a0, roughness: 0.4, metalness: 0.3 })
-);
-floater.castShadow = true;
-scene.add(floater);
 
 rebuildBox();
 
@@ -224,7 +271,7 @@ window.addEventListener('resize', () => {
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   onResizeFaceCamera(w, h);
-  rebuildBox();
+  rebuildBoxWithDepth();
 });
 onResizeFaceCamera(window.innerWidth, window.innerHeight);
 
@@ -235,18 +282,75 @@ const faceCamConfig = {
   lookTarget: LOOK_TARGET,
   screenDist: SCREEN_DIST,
   offAxis: true,
-  far: 50, //200
-  strength: 20,   // horizontal: scaled up for this large test box (default is 2.5)
-  strengthY: 5,   // vertical: keep more restrained — head tilt is noisier
+  far: 200,
+  strength: 20,
+  strengthY: 5,
 };
+
+// ── Debug panel wiring ──
+let currentBoxD = BOX_D;
+
+function $(id) { return document.getElementById(id); }
+
+// Slider helper: bind slider → value display + callback
+function bindSlider(id, cb) {
+  const slider = $('s-' + id);
+  const valEl  = $('v-' + id);
+  slider.addEventListener('input', () => {
+    const v = Number(slider.value);
+    valEl.textContent = v;
+    cb(v);
+  });
+}
+
+bindSlider('camZ', v => {
+  BASE_CAM_POS.z = v;
+  faceCamConfig.screenDist = v;
+});
+bindSlider('camY', v => {
+  BASE_CAM_POS.y = v;
+});
+bindSlider('boxD', v => {
+  currentBoxD = v;
+  rebuildBoxWithDepth();
+});
+bindSlider('strX', v => {
+  faceCamConfig.strength = v;
+});
+bindSlider('strY', v => {
+  faceCamConfig.strengthY = v;
+});
+// Toggles
+$('t-offaxis').addEventListener('change', e => {
+  faceCamConfig.offAxis = e.target.checked;
+});
+$('t-box').addEventListener('change', e => {
+  if (boxGroup) boxGroup.visible = e.target.checked;
+});
+$('t-objs').addEventListener('change', e => {
+  floorObjs.forEach(({ mesh }) => mesh.visible = e.target.checked);
+});
+// Rebuild box with new depth (reuses current boxH)
+function rebuildBoxWithDepth() {
+  if (boxGroup) {
+    scene.remove(boxGroup);
+    boxGroup.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material && !Array.isArray(o.material)) o.material.dispose();
+    });
+  }
+  boxH = SCREEN_W / (window.innerWidth / window.innerHeight);
+  boxGroup = new THREE.Group();
+  scene.add(boxGroup);
+  buildBox(boxGroup, { w: BOX_W, h: boxH, d: currentBoxD, wallColor: 0xffffff, frameColor: 0xffffff });
+  boxGroup.visible = $('t-box').checked;
+  repositionFloorObjs();
+}
 
 function tick() {
   requestAnimationFrame(tick);
   const t = clock.getElapsedTime();
 
-  // Floater sits near the ceiling, bobbing — relative to current box height.
-  const HH = boxH / 2;
-  floater.position.set(0, HH - 3 + Math.sin(t * 1.2) * 1.2, -15);
   midSphere.rotation.y = t * 0.5;
 
   updateFaceCamera(camera, faceCamConfig);
