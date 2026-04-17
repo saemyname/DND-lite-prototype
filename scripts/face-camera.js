@@ -245,8 +245,9 @@ export function updateFaceCamera(camera, config) {
   const headX = smFX * strength;
   const headY = Math.max(-maxHeadY, Math.min(maxHeadY, smFY * strengthY));
 
-  // Compute orbital position if rotated
+  // Compute orbital position if rotated (Y-axis rotation buttons)
   let camX = basePos.x;
+  let camY = basePos.y;
   let camZ = basePos.z;
   const dx = basePos.x - lookTarget.x;
   const dz = basePos.z - lookTarget.z;
@@ -258,29 +259,48 @@ export function updateFaceCamera(camera, config) {
     camZ = lookTarget.z + dx * s + dz * c;
   }
 
-  // Add head offset (rotated to match camera orientation)
-  const hx = rotationEnabled ? headX * c : headX;
-  const hz = rotationEnabled ? headX * s : 0;
-
-  // Set rotation from base position (no head offset) so it stays fixed
-  camera.position.set(camX, basePos.y, camZ);
+  // Set camera at base position and compute lookAt rotation.
+  // This gives us the camera's local coordinate frame (right, up, forward)
+  // which we need for camera-local head offset and off-axis projection.
+  camera.position.set(camX, camY, camZ);
   camera.lookAt(lookTarget);
+  camera.updateMatrixWorld();
 
-  // Then shift position only — rotation stays locked
-  camera.position.set(camX + hx, basePos.y + headY, camZ + hz);
+  // Extract camera-local axes from the world matrix
+  // matrixWorld columns: [0-3]=right, [4-7]=up, [8-11]=forward(backward)
+  const me = camera.matrixWorld.elements;
+  const crx = me[0], cry = me[1], crz = me[2];   // camera right
+  const cux = me[4], cuy = me[5], cuz = me[6];   // camera up
+
+  // Apply head offset in camera-local space:
+  // headX → move along camera's right axis
+  // headY → move along camera's up axis
+  camera.position.x += crx * headX + cux * headY;
+  camera.position.y += cry * headX + cuy * headY;
+  camera.position.z += crz * headX + cuz * headY;
 
   if (config.offAxis !== false) {
-    // Off-axis projection (for forward-facing scenes)
-    const totalX = (basePos.x - lookTarget.x) + headX;
-    const totalY = (basePos.y - lookTarget.y) + headY;
-    const left   = (-SCREEN_W / 2 - totalX) * near / screenDist;
-    const right  = ( SCREEN_W / 2 - totalX) * near / screenDist;
-    const top    = (-screenH / 2 - totalY) * near / screenDist;
-    const bottom = ( screenH / 2 - totalY) * near / screenDist;
+    // Off-axis projection — works for any camera angle.
+    // totalX/Y are the offset from screen center in camera-local coordinates.
+    const screenW = config.screenW ?? SCREEN_W;
+    const sH = screenW / (window.innerWidth / window.innerHeight);
+
+    // Base offset in camera-local coords (dot product with right/up)
+    const bx = camX - lookTarget.x, by = camY - lookTarget.y, bz = camZ - lookTarget.z;
+    const baseScreenX = bx * crx + by * cry + bz * crz;
+    const baseScreenY = bx * cux + by * cuy + bz * cuz;
+
+    const totalX = baseScreenX + headX;
+    const totalY = baseScreenY + headY;
+
+    const left   = (-screenW / 2 - totalX) * near / screenDist;
+    const right  = ( screenW / 2 - totalX) * near / screenDist;
+    const top    = (-sH / 2 - totalY) * near / screenDist;
+    const bottom = ( sH / 2 - totalY) * near / screenDist;
     camera.projectionMatrix.makePerspective(left, right, bottom, top, near, far);
     camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
   } else {
-    // Standard perspective (for top-down views like map)
+    // Standard perspective (no frustum distortion)
     camera.updateProjectionMatrix();
   }
 }
