@@ -45,24 +45,10 @@ export function buildBox(group, opts = {}) {
 
   wall(w, h, new THREE.Vector3(0, 0, -d));                                              // back
   wall(w, d, new THREE.Vector3(0, -HH, -d / 2), new THREE.Euler(-Math.PI / 2, 0, 0));   // floor
-  wall(w, d, new THREE.Vector3(0,  HH, -d / 2), new THREE.Euler( Math.PI / 2, 0, 0));   // ceiling
+  // ceiling — omitted so top-down view can see inside
   wall(d, h, new THREE.Vector3(-HW, 0, -d / 2), new THREE.Euler(0,  Math.PI / 2, 0));   // left
   wall(d, h, new THREE.Vector3( HW, 0, -d / 2), new THREE.Euler(0, -Math.PI / 2, 0));   // right
 
-  // Window frame (around open front face)
-  const frameMat = new THREE.MeshStandardMaterial({
-    color: frameColor, roughness: 0.7, metalness: 0.2,
-  });
-  const ft = frameThickness;
-  function frame(fw, fh, pos) {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(fw, fh, ft), frameMat);
-    mesh.position.copy(pos);
-    group.add(mesh);
-  }
-  frame(w + ft * 2, ft, new THREE.Vector3(0,  HH + ft / 2, 0));
-  frame(w + ft * 2, ft, new THREE.Vector3(0, -HH - ft / 2, 0));
-  frame(ft, h,        new THREE.Vector3(-HW - ft / 2, 0, 0));
-  frame(ft, h,        new THREE.Vector3( HW + ft / 2, 0, 0));
 
   // Grid lines inset from walls
   if (withGrid) {
