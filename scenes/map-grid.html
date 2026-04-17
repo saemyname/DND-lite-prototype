@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Off-Axis — Voxel Room</title>
+<title>Off-Axis — GLB Model</title>
 
 <script type="importmap">
 {
@@ -76,20 +76,35 @@
     color: rgba(200,169,110,.4);
     line-height: 1.6;
   }
+
+  #loading {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    letter-spacing: 4px;
+    color: rgba(200,169,110,.5);
+    transition: opacity .6s;
+  }
+  #loading.hidden { opacity: 0; pointer-events: none; }
 </style>
 </head>
 <body>
 
 <canvas id="canvas"></canvas>
-<div id="title">Teenage Room</div>
+<div id="title">Map Room</div>
 <div id="nav">
   <a href="map.html">Box</a>
   <a href="map-grid.html" class="active">Room</a>
 </div>
 <div id="info">
-  Peek into the room.<br>
-  Board game map on the desk, right side.
+  GLB model with off-axis projection.
 </div>
+<div id="loading">Loading model...</div>
 
 <div id="webcam-preview" class="hidden">
   <video id="webcam" autoplay playsinline muted></video>
@@ -98,8 +113,9 @@
 
 <script type="module">
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { initFaceCamera, updateFaceCamera, onResizeFaceCamera } from '../scripts/face-camera.js';
-import { loadBlockMaterials, buildVoxelGroups, groupToMesh } from '../scripts/voxel-textures.js';
 
 // ── Renderer ──
 const canvas = document.getElementById('canvas');
@@ -108,20 +124,22 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x050210);
 
 // ── Camera ──
-const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 300);
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 500);
 const BASE_CAM_POS = new THREE.Vector3(0, 0, 24);
 const LOOK_TARGET  = new THREE.Vector3(0, 0, -8);
 const SCREEN_DIST  = BASE_CAM_POS.z;
 
 // ── Lighting ──
-scene.add(new THREE.AmbientLight(0xfff0d0, 0.3));
+scene.add(new THREE.AmbientLight(0xfff0d0, 0.5));
 
-const keyLight = new THREE.DirectionalLight(0xfff0d0, 1.0);
+const keyLight = new THREE.DirectionalLight(0xfff0d0, 1.5);
 keyLight.position.set(8, 20, 10);
 keyLight.castShadow = true;
 keyLight.shadow.mapSize.set(1024, 1024);
@@ -132,117 +150,62 @@ keyLight.shadow.camera.bottom = -30;
 keyLight.shadow.camera.far = 60;
 scene.add(keyLight);
 
-// Warm overhead light (bedroom ceiling light)
-const ceilingLight = new THREE.PointLight(0xffeedd, 5, 50, 1.5);
-ceilingLight.position.set(0, 20, -8);
-scene.add(ceilingLight);
+const fillLight = new THREE.DirectionalLight(0x8899ff, 0.4);
+fillLight.position.set(-10, 8, -6);
+scene.add(fillLight);
 
-// Desk lamp (right side, warm)
-const deskLamp = new THREE.PointLight(0xffcc88, 3, 20, 1.5);
-deskLamp.position.set(14, 8, -6);
-scene.add(deskLamp);
+const overheadLight = new THREE.PointLight(0xffa552, 3, 50, 1.5);
+overheadLight.position.set(0, 12, -8);
+scene.add(overheadLight);
 
-// Window-ish ambient from front (cool daylight)
-const windowLight = new THREE.DirectionalLight(0xaabbdd, 0.6);
-windowLight.position.set(0, 4, 10);
-scene.add(windowLight);
+// ── Load GLB model ──
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/libs/draco/');
+const gltfLoader = new GLTFLoader();
+gltfLoader.setDRACOLoader(dracoLoader);
 
-// ── Voxel room — Teenage bedroom ──
-// Room grid: 20 wide × 14 tall × 8 deep (voxels)
-// Each voxel = 2 world units → 40 × 28 × 16 world units
-const RW = 20, RH = 14, RD = 8;
-const VSCALE = 2;
+const modelGroup = new THREE.Group();
+scene.add(modelGroup);
 
-const palette = [
-  'wood',         // 0 — hardwood floor
-  'brick_red',    // 1 — red brick walls
-  'wood_red',     // 2 — desk / furniture
-  'cotton_blue',  // 3 — bedding
-  'cotton_red',   // 4 — rug / accents
-  'cotton_tan',   // 5 — pillow / cushion
-  'sand',         // 6 — ceiling (light)
-  'trunk_white',  // 7 — white furniture (shelf frame)
-  'gravel_stone', // 8 — grey furniture
-  'gold',         // 9 — board game map pieces
-  'ice',          // 10 — window
-  'brick_grey',   // 11 — grey accents
-  'table',        // 12 — board game map
-];
-const grid = new Int8Array(RW * RH * RD).fill(-1);
-const idx = (x, y, z) => x + y * RW + z * RW * RH;
+gltfLoader.load('../Assets/dnd_typeshyt-01a.glb', (gltf) => {
+  const model = gltf.scene;
+  model.traverse(child => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
 
-const FLOOR = 0, WALL = 1, DESK = 2, BED = 3, RUG = 4, PILLOW = 5;
-const CEIL = 6, WHITE = 7, GREY = 8, MAP = 9, ICE = 10, GREY2 = 11;
+  // Center and scale the model to fit the off-axis window
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
 
-// ── Floor — grey brick ──
-for (let x = 0; x < RW; x++)
-  for (let z = 0; z < RD; z++)
-    grid[idx(x, 0, z)] = GREY2;
+  // Center the model at origin
+  model.position.sub(center);
 
-// ── Ceiling — light sand color ──
-for (let x = 0; x < RW; x++)
-  for (let z = 0; z < RD; z++)
-    grid[idx(x, RH - 1, z)] = CEIL;
+  // Scale so model fills screen width, compensating for perspective.
+  // Model center sits at z = -depth/2. At that depth, perspective shrinks
+  // width by factor camZ / (camZ + depth/2). So we scale larger to cancel.
+  const baseScale = 40 / size.x;
+  const scaledDepth = size.z * baseScale;
+  const camZ = BASE_CAM_POS.z;
+  const perspCompensation = (camZ + scaledDepth / 2) / camZ;
+  const scale = baseScale * perspCompensation;
+  model.scale.setScalar(scale);
 
-// ── Walls — red brick ──
-for (let x = 0; x < RW; x++)
-  for (let y = 1; y <= RH - 2; y++)
-    grid[idx(x, y, 0)] = WALL;
+  modelGroup.add(model);
 
-for (let z = 0; z < RD; z++)
-  for (let y = 1; y <= RH - 2; y++) {
-    grid[idx(0, y, z)] = WALL;
-    grid[idx(RW - 1, y, z)] = WALL;
-  }
+  // Position so front face is at z=0
+  const finalDepth = size.z * scale;
+  modelGroup.position.set(0, 0, -finalDepth / 2);
 
-// ── Window on back wall (glass blocks) ──
-for (let x = 8; x <= 11; x++)
-  for (let y = 4; y <= 7; y++)
-    grid[idx(x, y, 0)] = ICE;
-
-// ── Table (center of room) — wood with legs ──
-// 4 legs (y=1)
-grid[idx(8, 1, 3)] = FLOOR;
-grid[idx(12, 1, 3)] = FLOOR;
-grid[idx(8, 1, 5)] = FLOOR;
-grid[idx(12, 1, 5)] = FLOOR;
-// Tabletop (y=2)
-for (let x = 8; x <= 12; x++)
-  for (let z = 3; z <= 5; z++)
-    grid[idx(x, 2, z)] = FLOOR;
-
-// Board game map — single table block in center of tabletop
-grid[idx(10, 2, 4)] = 12;
-
-// ── Chairs — one on each side ──
-grid[idx(7, 1, 4)] = FLOOR;   // left chair
-grid[idx(13, 1, 4)] = FLOOR;  // right chair
-
-
-// ── Build voxel meshes ──
-const blockMaterials = loadBlockMaterials('../Assets/Tiles/');
-const groups = buildVoxelGroups(grid, [RW, RH, RD], palette);
-const roomGroup = new THREE.Group();
-
-for (const [key, g] of Object.entries(groups)) {
-  if (g.positions.length === 0) continue;
-  roomGroup.add(groupToMesh(key, g, blockMaterials));
-}
-
-roomGroup.scale.setScalar(VSCALE);
-scene.add(roomGroup);
-
-// Position the room: room origin (0,0,0) maps to bottom-left-back corner
-// Room front (z=RD-1) should be near z=0 (the window plane)
-function repositionRoom() {
-  const HH = (40 / (window.innerWidth / window.innerHeight)) / 2;
-  roomGroup.position.set(
-    -RW * VSCALE / 2,   // center horizontally
-    -HH,                // floor at box bottom
-    -RD * VSCALE         // back wall pushed to -16
-  );
-}
-repositionRoom();
+  document.getElementById('loading').classList.add('hidden');
+  console.log('GLB loaded — size:', size, 'scale:', scale);
+}, undefined, (err) => {
+  console.error('GLB load error:', err);
+  document.getElementById('loading').textContent = 'Load failed';
+});
 
 // ── Face tracking ──
 initFaceCamera();
@@ -253,7 +216,6 @@ window.addEventListener('resize', () => {
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   onResizeFaceCamera(w, h);
-  repositionRoom();
 });
 onResizeFaceCamera(window.innerWidth, window.innerHeight);
 
@@ -264,18 +226,13 @@ const faceCamConfig = {
   lookTarget: LOOK_TARGET,
   screenDist: SCREEN_DIST,
   offAxis: true,
-  far: 100,
+  far: 500,
   strength: 20,
   strengthY: 5,
 };
 
 function tick() {
   requestAnimationFrame(tick);
-  const t = clock.getElapsedTime();
-
-  // Gentle light variation (not flickering — steady room light)
-  deskLamp.intensity = 3 + Math.sin(t * 0.8) * 0.3;
-
   updateFaceCamera(camera, faceCamConfig);
   renderer.render(scene, camera);
 }
