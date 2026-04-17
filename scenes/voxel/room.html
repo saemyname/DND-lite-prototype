@@ -363,7 +363,7 @@
 <canvas id="room-canvas"></canvas>
 <div class="vignette"></div>
 
-<button id="back-to-map" onclick="window.location.href='map.html'">← Map</button>
+<button id="back-to-map" onclick="window.location.href='../map.html'">← Map</button>
 <div id="room-title"></div>
 
 <!-- HUD -->
@@ -439,20 +439,20 @@
 <div id="game-over" class="hidden">
   <div class="go-title">YOU HAVE FALLEN</div>
   <div class="go-text">Your adventure ends here...</div>
-  <button class="event-btn" onclick="window.location.href='../index.html'">Start Over</button>
+  <button class="event-btn" onclick="window.location.href='../../index.html'">Start Over</button>
 </div>
 
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { initFaceCamera, updateFaceCamera, initRotationButtons } from '../scripts/face-camera.js';
-import { loadBlockMaterials, buildVoxelGroups, groupToMesh } from '../scripts/voxel-textures.js';
+import { initFaceCamera, updateFaceCamera, initRotationButtons } from '../../scripts/face-camera.js';
+import { loadBlockMaterials, buildVoxelGroups, groupToMesh } from '../../scripts/voxel-textures.js';
 
 const $ = id => document.getElementById(id);
 
 // ── Character from localStorage ──
 const charData = JSON.parse(localStorage.getItem('dndlite-character') || 'null');
-if (!charData) { window.location.href = '../index.html'; }
+if (!charData) { window.location.href = '../../index.html'; }
 
 const currentRoom = localStorage.getItem('dndlite-currentRoom') || 'entrance';
 
@@ -473,7 +473,7 @@ updateHP();
 //   VOXEL BLOCKS — Kenney textures via shared module
 // ══════════════════════════════════════
 
-const blockMaterials = loadBlockMaterials('../Assets/Tiles/');
+const blockMaterials = loadBlockMaterials('../../Assets/Tiles/');
 
 function parseRoom(data) {
   const [sx, sy, sz] = data.size;
@@ -551,7 +551,7 @@ scene.add(sunLight);
 let roomLights = [];
 
 async function loadRoom() {
-  const resp = await fetch(`../rooms/${currentRoom}.json`);
+  const resp = await fetch(`../../rooms/${currentRoom}.json`);
   const data = await resp.json();
 
   // Lighting per room type
@@ -627,7 +627,7 @@ async function loadRoom() {
     return new Promise((resolve) => {
       const file = MINI_FILES[charData.role];
       if (!file) { resolve(createFallbackToken()); return; }
-      gltfLoader.load('../Assets/' + file, (gltf) => {
+      gltfLoader.load('../../Assets/' + file, (gltf) => {
         const model = gltf.scene;
         model.scale.setScalar(MINI_SCALE);
         model.traverse(c => { if (c.isMesh) c.castShadow = true; });

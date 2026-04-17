@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D&D Lite — World Map</title>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+    "three/": "https://cdn.jsdelivr.net/npm/three@0.176.0/"
+  }
+}
+</script>
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #000;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    font-family: 'Georgia', serif;
+    color: #c8a96e;
+    user-select: none;
+  }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  #title {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    font-size: 14px;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: rgba(200,169,110,.5);
+    pointer-events: none;
+  }
+
+  #nav {
+    position: fixed;
+    top: 24px;
+    left: 24px;
+    z-index: 50;
+    display: flex;
+    gap: 8px;
+  }
+  #nav a {
+    padding: 6px 14px;
+    background: rgba(200,169,110,.06);
+    border: 1px solid rgba(200,169,110,.2);
+    border-radius: 4px;
+    color: rgba(200,169,110,.55);
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    text-decoration: none;
+    transition: all .2s;
+  }
+  #nav a:hover, #nav a.active {
+    background: rgba(200,169,110,.18);
+    border-color: rgba(200,169,110,.5);
+    color: #ffe9a0;
+  }
+
+  #tooltip {
+    position: fixed;
+    z-index: 100;
+    padding: 6px 14px;
+    background: rgba(0,0,0,.85);
+    border: 1px solid rgba(200,169,110,.4);
+    border-radius: 4px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #ffe9a0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .15s;
+    white-space: nowrap;
+  }
+  #tooltip.visible { opacity: 1; }
+
+  #vignette {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    pointer-events: none;
+    box-shadow: inset 0 0 120px 40px rgba(0,0,0,.7);
+  }
+
+  #controls-hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(200,169,110,.3);
+    pointer-events: none;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+<div id="title">3D Interactive map test</div>
+<div id="nav">
+  <a href="map.html">Box</a>
+  <a href="3d-viewer.html">Viewer</a>
+  <a href="world-map.html" class="active">World</a>
+</div>
+<div id="tooltip"></div>
+<div id="vignette"></div>
+<div id="controls-hint">Scroll to zoom</div>
+
+<div id="webcam-preview" class="hidden">
+  <video id="webcam" autoplay playsinline muted></video>
+  <canvas id="face-canvas"></canvas>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { initFaceCamera, updateFaceCamera, onResizeFaceCamera, initRotationButtons } from '../scripts/face-camera.js';
+
+// ══════════════════════════════════════
+//   RENDERER
+// ══════════════════════════════════════
+
+const canvas = document.getElementById('canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.NoToneMapping;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xffffff);
+scene.fog = new THREE.FogExp2(0xffffff, 0.008);
+
+// ══════════════════════════════════════
+//   CAMERA
+// ══════════════════════════════════════
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 300);
+const BASE_CAM_POS = new THREE.Vector3(0, 40, 30);
+const LOOK_TARGET  = new THREE.Vector3(0, 0, 0);
+
+// ══════════════════════════════════════
+//   LIGHTING
+// ══════════════════════════════════════
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+
+const keyLight = new THREE.DirectionalLight(0xffffff, 2.5);
+keyLight.position.set(20, 50, 15);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(2048, 2048);
+keyLight.shadow.camera.left = -40;
+keyLight.shadow.camera.right = 40;
+keyLight.shadow.camera.top = 40;
+keyLight.shadow.camera.bottom = -40;
+keyLight.shadow.camera.near = 1;
+keyLight.shadow.camera.far = 120;
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(0x88aaff, 0.8);
+fillLight.position.set(-15, 20, -10);
+scene.add(fillLight);
+
+// Castle torch glow — positioned after castle placement
+const torchLight = new THREE.PointLight(0xff9944, 3, 30, 1.5);
+torchLight.position.set(0, 6, 2);
+scene.add(torchLight);
+
+// ══════════════════════════════════════
+//   TERRAIN — Heightmap Island
+// ══════════════════════════════════════
+
+const ISLAND_RADIUS = 25;
+const BASE_HEIGHT = 3;
+const AMPLITUDE = 2.5;
+
+function islandHeight(x, z) {
+  const dist = Math.sqrt(x * x + z * z) / ISLAND_RADIUS;
+  if (dist > 1.05) return -1.5;
+  const falloff = smoothstep(1.0, 0.55, dist);
+  const n1 = Math.sin(x * 0.3 + 1.7) * Math.cos(z * 0.25 + 0.3) * 0.6;
+  const n2 = Math.sin(x * 0.7 - 0.5) * Math.sin(z * 0.6 + 2.1) * 0.3;
+  const n3 = Math.cos(x * 0.15 + z * 0.12) * 0.4;
+  const noise = n1 + n2 + n3;
+  // Central hill for castle
+  const centerBump = Math.exp(-(x * x + (z - 2) * (z - 2)) / 40) * 3;
+  return falloff * (BASE_HEIGHT + noise * AMPLITUDE) + centerBump - 1.5;
+}
+
+function smoothstep(edge0, edge1, x) {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+function getTerrainHeight(x, z) {
+  return islandHeight(x, z) + 1.0; // +1.0 matches island.position.y offset
+}
+
+function createIsland() {
+  const seg = 128;
+  const size = 60;
+  const geo = new THREE.PlaneGeometry(size, size, seg, seg);
+  geo.rotateX(-Math.PI / 2);
+
+  const pos = geo.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const h = islandHeight(x, z);
+    pos.setY(i, h);
+
+    // Vertex colors based on height
+    let r, g, b;
+    if (h < -0.3) {
+      // Sand / beach
+      r = 0.76; g = 0.68; b = 0.50;
+    } else if (h < 1.0) {
+      // Low grass
+      r = 0.35; g = 0.50; b = 0.25;
+    } else if (h < 3.0) {
+      // Mid grass
+      r = 0.28; g = 0.42; b = 0.20;
+    } else if (h < 5.0) {
+      // High ground / dirt
+      r = 0.40; g = 0.35; b = 0.25;
+    } else {
+      // Rocky peak
+      r = 0.50; g = 0.48; b = 0.42;
+    }
+    colors[i * 3]     = r;
+    colors[i * 3 + 1] = g;
+    colors[i * 3 + 2] = b;
+  }
+
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.9,
+    metalness: 0.05,
+  });
+
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+const island = createIsland();
+island.position.y = 1.0;
+scene.add(island);
+
+// ══════════════════════════════════════
+//   WATER
+// ══════════════════════════════════════
+
+// Water — circular, around the island
+const WATER_RADIUS = 30;
+const waterGeo = new THREE.CircleGeometry(WATER_RADIUS, 64);
+waterGeo.rotateX(-Math.PI / 2);
+const waterMat = new THREE.MeshStandardMaterial({
+  color: 0x2277bb,
+  roughness: 0.3,
+  metalness: 0.6,
+  transparent: true,
+  opacity: 0.85,
+});
+const water = new THREE.Mesh(waterGeo, waterMat);
+water.position.y = 0.3;
+water.receiveShadow = true;
+scene.add(water);
+
+// Vintage parchment surface (around the water)
+const parchmentMat = new THREE.MeshStandardMaterial({
+  color: 0xd4b896,
+  roughness: 0.95,
+  metalness: 0.0,
+});
+const parchmentGeo = new THREE.PlaneGeometry(80, 80);
+parchmentGeo.rotateX(-Math.PI / 2);
+const parchment = new THREE.Mesh(parchmentGeo, parchmentMat);
+parchment.position.y = 0.0;
+parchment.receiveShadow = true;
+scene.add(parchment);
+
+// Wood table underneath
+const tableGeo = new THREE.PlaneGeometry(200, 200);
+tableGeo.rotateX(-Math.PI / 2);
+const table = new THREE.Mesh(tableGeo, new THREE.MeshStandardMaterial({ color: 0x6b4a32, roughness: 0.9 }));
+table.position.y = -0.05;
+table.receiveShadow = true;
+scene.add(table);
+
+// ══════════════════════════════════════
+//   ASSET FACTORIES
+// ══════════════════════════════════════
+
+const STONE  = () => new THREE.MeshStandardMaterial({ color: 0x7a7a7a, roughness: 0.85 });
+const STONE_DARK = () => new THREE.MeshStandardMaterial({ color: 0x5a5a5a, roughness: 0.9 });
+const WOOD   = () => new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.9 });
+const ROOF_RED = () => new THREE.MeshStandardMaterial({ color: 0x5a2a1a, roughness: 0.8 });
+const GOLD_ACCENT = () => new THREE.MeshStandardMaterial({ color: 0xc8a96e, metalness: 0.6, roughness: 0.4 });
+const LEAF_GREEN  = () => new THREE.MeshStandardMaterial({ color: 0x2d5a1e, roughness: 0.85 });
+const LEAF_DARK   = () => new THREE.MeshStandardMaterial({ color: 0x1e4a14, roughness: 0.85 });
+const TRUNK_BROWN = () => new THREE.MeshStandardMaterial({ color: 0x4a3020, roughness: 0.95 });
+
+function createCastle() {
+  const g = new THREE.Group();
+
+  // Main keep
+  const keep = new THREE.Mesh(new THREE.BoxGeometry(3, 5, 3), STONE());
+  keep.position.y = 2.5;
+  keep.castShadow = true;
+  keep.receiveShadow = true;
+  g.add(keep);
+
+  // Banner on top
+  const banner = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.5, 0.8), GOLD_ACCENT());
+  banner.position.set(0, 5.75, 0);
+  g.add(banner);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2), STONE_DARK());
+  pole.position.set(0, 6, 0);
+  g.add(pole);
+
+  // 4 corner towers
+  const towerPositions = [[-2.2, -2.2], [2.2, -2.2], [-2.2, 2.2], [2.2, 2.2]];
+  towerPositions.forEach(([tx, tz]) => {
+    const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.7, 6, 8), STONE());
+    tower.position.set(tx, 3, tz);
+    tower.castShadow = true;
+    g.add(tower);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.5, 8), ROOF_RED());
+    cap.position.set(tx, 6.75, tz);
+    cap.castShadow = true;
+    g.add(cap);
+  });
+
+  // Connecting walls between towers
+  const wallDefs = [
+    { pos: [0, 1.5, -2.2], size: [4, 3, 0.3] },
+    { pos: [0, 1.5,  2.2], size: [4, 3, 0.3] },
+    { pos: [-2.2, 1.5, 0], size: [0.3, 3, 4] },
+    { pos: [ 2.2, 1.5, 0], size: [0.3, 3, 4] },
+  ];
+  wallDefs.forEach(({ pos, size }) => {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(...size), STONE_DARK());
+    wall.position.set(...pos);
+    wall.castShadow = true;
+    wall.receiveShadow = true;
+    g.add(wall);
+  });
+
+  // Gate (dark opening on front wall)
+  const gate = new THREE.Mesh(
+    new THREE.BoxGeometry(1.2, 2, 0.4),
+    new THREE.MeshStandardMaterial({ color: 0x111111 })
+  );
+  gate.position.set(0, 1, 2.2);
+  g.add(gate);
+
+  return g;
+}
+
+function createHouse(scale = 1) {
+  const g = new THREE.Group();
+
+  const w = 1.5 * scale, h = 1.2 * scale, d = 1.8 * scale;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), WOOD());
+  body.position.y = h / 2;
+  body.castShadow = true;
+  body.receiveShadow = true;
+  g.add(body);
+
+  // Roof — two tilted planes using a box
+  const roofH = 0.7 * scale;
+  const roofGeo = new THREE.ConeGeometry(d * 0.55, roofH, 4);
+  roofGeo.rotateY(Math.PI / 4);
+  const roof = new THREE.Mesh(roofGeo, ROOF_RED());
+  roof.position.y = h + roofH / 2;
+  roof.scale.set(w / d * 1.1, 1, 1);
+  roof.castShadow = true;
+  g.add(roof);
+
+  // Chimney
+  const chimney = new THREE.Mesh(
+    new THREE.BoxGeometry(0.2 * scale, 0.6 * scale, 0.2 * scale),
+    STONE()
+  );
+  chimney.position.set(w * 0.25, h + roofH * 0.5, -d * 0.2);
+  g.add(chimney);
+
+  return g;
+}
+
+function createTree(variant = 'pine') {
+  const g = new THREE.Group();
+
+  const trunkH = variant === 'pine' ? 1.0 : 0.8;
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.1, 0.15, trunkH, 6),
+    TRUNK_BROWN()
+  );
+  trunk.position.y = trunkH / 2;
+  trunk.castShadow = true;
+  g.add(trunk);
+
+  if (variant === 'pine') {
+    // Stacked cones
+    const layers = [
+      { r: 0.7, h: 1.4, y: trunkH + 0.4 },
+      { r: 0.5, h: 1.0, y: trunkH + 1.1 },
+      { r: 0.3, h: 0.7, y: trunkH + 1.6 },
+    ];
+    layers.forEach(({ r, h, y }) => {
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(r, h, 6), LEAF_DARK());
+      cone.position.y = y;
+      cone.castShadow = true;
+      g.add(cone);
+    });
+  } else {
+    // Oak — sphere canopy
+    const canopy = new THREE.Mesh(
+      new THREE.SphereGeometry(0.9, 8, 6),
+      LEAF_GREEN()
+    );
+    canopy.position.y = trunkH + 0.7;
+    canopy.castShadow = true;
+    g.add(canopy);
+  }
+
+  return g;
+}
+
+function createWall(length = 4) {
+  const g = new THREE.Group();
+
+  const wall = new THREE.Mesh(
+    new THREE.BoxGeometry(length, 1.5, 0.4),
+    STONE_DARK()
+  );
+  wall.position.y = 0.75;
+  wall.castShadow = true;
+  wall.receiveShadow = true;
+  g.add(wall);
+
+  // Crenellations
+  const count = Math.floor(length / 0.8);
+  for (let i = 0; i < count; i++) {
+    const merlon = new THREE.Mesh(
+      new THREE.BoxGeometry(0.3, 0.4, 0.5),
+      STONE()
+    );
+    merlon.position.set(-length / 2 + 0.4 + i * 0.8, 1.7, 0);
+    merlon.castShadow = true;
+    g.add(merlon);
+  }
+
+  return g;
+}
+
+function createDock() {
+  const g = new THREE.Group();
+
+  // Planks
+  for (let i = 0; i < 5; i++) {
+    const plank = new THREE.Mesh(
+      new THREE.BoxGeometry(2, 0.1, 0.4),
+      WOOD()
+    );
+    plank.position.set(0, 0.3, -i * 0.5);
+    plank.receiveShadow = true;
+    g.add(plank);
+  }
+
+  // Posts
+  const postPositions = [[-0.8, -0.2], [0.8, -0.2], [-0.8, -2.2], [0.8, -2.2]];
+  postPositions.forEach(([px, pz]) => {
+    const post = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.08, 0.08, 1.5, 6),
+      WOOD()
+    );
+    post.position.set(px, -0.3, pz);
+    g.add(post);
+  });
+
+  return g;
+}
+
+function createWatchtower() {
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 3, 6), STONE());
+  base.position.y = 1.5;
+  base.castShadow = true;
+  g.add(base);
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1, 6), ROOF_RED());
+  cap.position.y = 3.5;
+  cap.castShadow = true;
+  g.add(cap);
+  return g;
+}
+
+// ══════════════════════════════════════
+//   MAP LAYOUT
+// ══════════════════════════════════════
+
+const MAP_LAYOUT = [
+  // Castle — island center hilltop
+  { type: 'castle', pos: [0, 2], rot: 0, name: 'Castle Drakenhold', id: 'castle', order: 0 },
+
+  // Inner walls around castle
+  { type: 'wall', pos: [-4, 2], rot: 0, length: 3, name: 'Inner Wall', id: 'wall_w', order: 1 },
+  { type: 'wall', pos: [4, 2], rot: 0, length: 3, name: 'Inner Wall', id: 'wall_e', order: 1 },
+  { type: 'wall', pos: [0, -2], rot: Math.PI / 2, length: 5, name: 'Inner Wall', id: 'wall_n', order: 1 },
+
+  // Watchtowers
+  { type: 'watchtower', pos: [-6, 0], rot: 0, name: 'West Tower', id: 'tower_w', order: 1 },
+  { type: 'watchtower', pos: [6, 0], rot: 0, name: 'East Tower', id: 'tower_e', order: 1 },
+
+  // Village houses — south of castle
+  { type: 'house', pos: [-3, 6], rot: 0.2, scale: 1.0, name: 'Blacksmith', id: 'house_1', order: 2 },
+  { type: 'house', pos: [-1, 7.5], rot: -0.1, scale: 0.85, name: 'Tavern', id: 'house_2', order: 2 },
+  { type: 'house', pos: [2, 6.5], rot: 0.3, scale: 0.9, name: 'Merchant', id: 'house_3', order: 2 },
+  { type: 'house', pos: [4, 8], rot: -0.2, scale: 0.75, name: 'Cottage', id: 'house_4', order: 2 },
+  { type: 'house', pos: [-5, 8], rot: 0.1, scale: 0.8, name: 'Chapel', id: 'house_5', order: 2 },
+
+  // Dock — south beach
+  { type: 'dock', pos: [1, 14], rot: 0, name: 'Harbor', id: 'dock', order: 2 },
+
+  // Trees — scattered forest
+  { type: 'tree', pos: [-10, -3], variant: 'pine', order: 3 },
+  { type: 'tree', pos: [-12, -1], variant: 'pine', order: 3 },
+  { type: 'tree', pos: [-11, 2], variant: 'oak', order: 3 },
+  { type: 'tree', pos: [-9, 5], variant: 'pine', order: 3 },
+  { type: 'tree', pos: [-13, 4], variant: 'pine', order: 3 },
+  { type: 'tree', pos: [-8, -6], variant: 'oak', order: 3 },
+  { type: 'tree', pos: [9, -5], variant: 'pine', order: 3 },
+  { type: 'tree', pos: [10, -2], variant: 'oak', order: 3 },
+  { type: 'tree', pos: [11, 1], variant: 'pine', order: 3 },
+  { type: 'tree', pos: [8, 4], variant: 'pine', order: 3 },
+  { type: 'tree', pos: [12, 3], variant: 'oak', order: 3 },
+  { type: 'tree', pos: [-7, -9], variant: 'pine', order: 3 },
+  { type: 'tree', pos: [5, -8], variant: 'pine', order: 3 },
+  { type: 'tree', pos: [7, -7], variant: 'oak', order: 3 },
+  { type: 'tree', pos: [-3, -8], variant: 'pine', order: 3 },
+  { type: 'tree', pos: [0, -10], variant: 'oak', order: 3 },
+  { type: 'tree', pos: [-14, -2], variant: 'pine', order: 3 },
+  { type: 'tree', pos: [13, -1], variant: 'pine', order: 3 },
+  { type: 'tree', pos: [-6, 11], variant: 'oak', order: 3 },
+  { type: 'tree', pos: [7, 10], variant: 'pine', order: 3 },
+  { type: 'tree', pos: [-10, 8], variant: 'pine', order: 3 },
+  { type: 'tree', pos: [10, 7], variant: 'oak', order: 3 },
+];
+
+// ══════════════════════════════════════
+//   PLACE ASSETS + RISE ANIMATION
+// ══════════════════════════════════════
+
+const FACTORY = {
+  castle: () => createCastle(),
+  house: (item) => createHouse(item.scale || 1),
+  tree: (item) => createTree(item.variant || 'pine'),
+  wall: (item) => createWall(item.length || 4),
+  dock: () => createDock(),
+  watchtower: () => createWatchtower(),
+};
+
+const animatables = [];
+const clickables = [];
+
+MAP_LAYOUT.forEach((item) => {
+  const factory = FACTORY[item.type];
+  if (!factory) return;
+
+  const group = factory(item);
+  const [px, pz] = item.pos;
+  const terrainY = getTerrainHeight(px, pz);
+  const targetY = Math.max(terrainY, -0.2);
+  group.position.set(px, targetY, pz);
+  if (item.rot) group.rotation.y = item.rot;
+
+  // Tag for raycasting
+  if (item.name) {
+    group.userData.locationName = item.name;
+    group.userData.locationId = item.id;
+    group.traverse(child => {
+      if (child.isMesh) {
+        child.userData.locationName = item.name;
+        child.userData.locationId = item.id;
+        clickables.push(child);
+      }
+    });
+  }
+
+  scene.add(group);
+
+  // Rise animation setup
+  const startY = targetY - 8;
+  group.position.y = startY;
+  group.visible = false;
+
+  const order = item.order ?? 3;
+  const delay = 0.3 + order * 0.6 + Math.random() * 0.3;
+
+  animatables.push({
+    group,
+    startY,
+    targetY,
+    delay,
+    duration: 1.8,
+    started: false,
+    done: false,
+  });
+});
+
+// Move torch light to castle position
+torchLight.position.set(0, 6, 2);
+
+// ══════════════════════════════════════
+//   ZOOM + ROTATION
+// ══════════════════════════════════════
+
+let zoomLevel = 0;
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  zoomLevel += e.deltaY * 0.03;
+  zoomLevel = Math.max(-20, Math.min(30, zoomLevel));
+}, { passive: false });
+
+// 90-degree rotation buttons (from face-camera.js)
+initRotationButtons();
+
+// ══════════════════════════════════════
+//   RAYCASTER + TOOLTIP
+// ══════════════════════════════════════
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const tooltipEl = document.getElementById('tooltip');
+
+canvas.addEventListener('pointermove', e => {
+  mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(clickables, false);
+
+  if (hits.length > 0 && hits[0].object.userData.locationName) {
+    tooltipEl.textContent = hits[0].object.userData.locationName;
+    tooltipEl.style.left = (e.clientX + 16) + 'px';
+    tooltipEl.style.top = (e.clientY - 10) + 'px';
+    tooltipEl.classList.add('visible');
+    canvas.style.cursor = 'pointer';
+  } else {
+    tooltipEl.classList.remove('visible');
+    canvas.style.cursor = 'default';
+  }
+});
+
+canvas.addEventListener('click', e => {
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(clickables, false);
+  if (hits.length > 0 && hits[0].object.userData.locationId) {
+    console.log('Clicked:', hits[0].object.userData.locationId, hits[0].object.userData.locationName);
+  }
+});
+
+// ══════════════════════════════════════
+//   FACE CAMERA
+// ══════════════════════════════════════
+
+initFaceCamera();
+
+const faceCamConfig = {
+  basePos: BASE_CAM_POS.clone(),
+  lookTarget: LOOK_TARGET.clone(),
+  screenDist: 30,
+  offAxis: true,
+  far: 300,
+  strength: 8,
+  strengthY: 4,
+};
+
+window.addEventListener('resize', () => {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  onResizeFaceCamera(w, h);
+});
+onResizeFaceCamera(window.innerWidth, window.innerHeight);
+
+// ══════════════════════════════════════
+//   RENDER LOOP
+// ══════════════════════════════════════
+
+const clock = new THREE.Clock();
+
+function tick() {
+  requestAnimationFrame(tick);
+  const t = clock.getElapsedTime();
+
+  // Update face camera config with zoom
+  faceCamConfig.basePos.copy(BASE_CAM_POS);
+  faceCamConfig.basePos.y = BASE_CAM_POS.y + zoomLevel;
+  faceCamConfig.screenDist = BASE_CAM_POS.y + zoomLevel;
+
+  // Rise animations
+  for (const a of animatables) {
+    if (a.done) continue;
+    if (t < a.delay) continue;
+    if (!a.started) { a.started = true; a.group.visible = true; }
+    const progress = Math.min((t - a.delay) / a.duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+    a.group.position.y = a.startY + (a.targetY - a.startY) * eased;
+    if (progress >= 1) a.done = true;
+  }
+
+  // Water animation
+  const waterPos = waterGeo.attributes.position;
+  for (let i = 0; i < waterPos.count; i++) {
+    const x = waterPos.getX(i);
+    const z = waterPos.getZ(i);
+    waterPos.setY(i,
+      Math.sin(t * 0.8 + x * 0.3) * 0.12 +
+      Math.sin(t * 0.5 + z * 0.2) * 0.08
+    );
+  }
+  waterPos.needsUpdate = true;
+
+  updateFaceCamera(camera, faceCamConfig);
+  renderer.render(scene, camera);
+}
+tick();
+</script>
+</body>
+</html>

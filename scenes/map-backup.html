@@ -209,7 +209,7 @@
 <canvas id="map-canvas"></canvas>
 
 <div id="location-title">Dungeon Map</div>
-<a id="btn-editor" href="editor.html">Room Editor</a>
+<a id="btn-editor" href="voxel/editor.html">Room Editor</a>
 
 <div id="tooltip">
   <div id="tooltip-name"></div>
@@ -649,7 +649,7 @@ function moveToRoom(roomId) {
   // Save current room, then navigate to viewer after token arrives
   localStorage.setItem('dndlite-currentRoom', roomId);
   setTimeout(() => {
-    window.location.href = roomId === 'corridor' ? 'viewer.html' : 'room.html';
+    window.location.href = roomId === 'corridor' ? 'viewer.html' : 'voxel/room.html';
   }, 1200);
 }
 
