@@ -357,7 +357,7 @@
 <body>
 
 <div id="sidebar">
-  <h2>Room Editor <a href="map.html">&larr; Map</a></h2>
+  <h2>Room Editor <a href="../map.html">&larr; Map</a></h2>
 
   <div class="section-label">New from Template</div>
   <div class="template-grid">
@@ -471,7 +471,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import {
   BLOCK_TYPES, BLOCK_NAMES, FACES,
   getThumbnailFile, loadBlockMaterials, buildVoxelGroups, groupToMesh,
-} from '../scripts/voxel-textures.js';
+} from '../../scripts/voxel-textures.js';
 
 const $ = id => document.getElementById(id);
 
@@ -494,7 +494,7 @@ KNOWN_ROOMS.forEach(id => {
 //   BLOCK MATERIALS (loaded from voxel-textures.js)
 // ══════════════════════════════════════
 
-const blockMaterials = loadBlockMaterials('../Assets/Tiles/');
+const blockMaterials = loadBlockMaterials('../../Assets/Tiles/');
 
 // ══════════════════════════════════════
 //   EDITOR STATE
@@ -1206,7 +1206,7 @@ function importJSON(data) {
 // Load a room from the rooms/ directory
 async function loadRoomFromServer(roomId) {
   try {
-    const resp = await fetch(`../rooms/${roomId}.json`);
+    const resp = await fetch(`../../rooms/${roomId}.json`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     importJSON(data);
@@ -1289,7 +1289,7 @@ function buildPaletteUI() {
   BLOCK_NAMES.forEach((name, i) => {
     const swatch = document.createElement('div');
     swatch.className = 'swatch' + (i === selectedBlock ? ' active' : '');
-    swatch.style.backgroundImage = `url(../Assets/Tiles/${getThumbnailFile(name)})`;
+    swatch.style.backgroundImage = `url(../../Assets/Tiles/${getThumbnailFile(name)})`;
     swatch.style.backgroundSize = 'cover';
     swatch.style.imageRendering = 'pixelated';
     swatch.title = `${name} [${i + 1}]`;
