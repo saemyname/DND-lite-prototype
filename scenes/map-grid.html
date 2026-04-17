@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Off-Axis — GLB Model</title>
+<title>Off-Axis — GLB Viewer</title>
 
 <script type="importmap">
 {
@@ -46,9 +46,11 @@
     left: 24px;
     z-index: 50;
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
+    max-width: 200px;
   }
-  #nav a {
+  #nav a, #nav label {
     padding: 6px 14px;
     background: rgba(200,169,110,.06);
     border: 1px solid rgba(200,169,110,.2);
@@ -59,11 +61,28 @@
     text-transform: uppercase;
     text-decoration: none;
     transition: all .2s;
+    cursor: pointer;
   }
-  #nav a:hover, #nav a.active {
+  #nav a:hover, #nav a.active, #nav label:hover {
     background: rgba(200,169,110,.18);
     border-color: rgba(200,169,110,.5);
     color: #ffe9a0;
+  }
+  #file-input { display: none; }
+  #nav label { width: 100%; text-align: center; }
+
+  #model-name {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(200,169,110,.4);
+    pointer-events: none;
+    transition: opacity .3s;
   }
 
   #info {
@@ -91,20 +110,89 @@
     transition: opacity .6s;
   }
   #loading.hidden { opacity: 0; pointer-events: none; }
+
+  /* Environment panel */
+  #env-panel {
+    position: fixed;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    z-index: 100;
+    width: 190px;
+    background: rgba(0,0,0,.75);
+    border: 1px solid rgba(200,169,110,.2);
+    border-radius: 6px;
+    padding: 10px 12px;
+    backdrop-filter: blur(6px);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: rgba(200,169,110,.7);
+  }
+  #env-panel label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  #env-panel .lbl { flex: 0 0 60px; }
+  #env-panel .val { flex: 0 0 24px; text-align: right; font-variant-numeric: tabular-nums; color: #ffe9a0; }
+  #env-panel input[type=range] { flex: 1; min-width: 0; height: 3px; accent-color: #c8a96e; cursor: pointer; }
+  #env-panel .sep { border: none; border-top: 1px solid rgba(200,169,110,.15); margin: 2px 0; }
+  #env-panel .section-title { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: rgba(200,169,110,.4); margin-top: 2px; }
+  #env-panel select {
+    flex: 1; min-width: 0;
+    background: rgba(200,169,110,.1);
+    border: 1px solid rgba(200,169,110,.2);
+    border-radius: 3px;
+    color: #c8a96e;
+    font-size: 10px;
+    padding: 2px 4px;
+    cursor: pointer;
+  }
+
+  /* Drop zone overlay */
+  #dropzone {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: rgba(200,169,110,.08);
+    border: 3px dashed rgba(200,169,110,.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    letter-spacing: 5px;
+    color: rgba(200,169,110,.6);
+  }
+  #dropzone.visible { display: flex; }
 </style>
 </head>
 <body>
 
 <canvas id="canvas"></canvas>
-<div id="title">Map Room</div>
+<div id="title">GLB Viewer</div>
 <div id="nav">
   <a href="map.html">Box</a>
-  <a href="map-grid.html" class="active">Room</a>
+  <a href="map-grid.html" class="active">Viewer</a>
+  <label for="file-input">Upload GLB</label>
+  <input type="file" id="file-input" accept=".glb,.gltf">
 </div>
+<div id="model-name"></div>
 <div id="info">
-  GLB model with off-axis projection.
+  Drop a .glb file or click Upload.
 </div>
 <div id="loading">Loading model...</div>
+<div id="env-panel">
+  <div class="section-title">Lighting</div>
+  <label><span class="lbl">Ambient</span><input type="range" id="e-ambient" min="0" max="2" step="0.05" value="0.5"><span class="val" id="ev-ambient">0.5</span></label>
+  <label><span class="lbl">Key</span><input type="range" id="e-key" min="0" max="4" step="0.1" value="1.5"><span class="val" id="ev-key">1.5</span></label>
+  <label><span class="lbl">Fill</span><input type="range" id="e-fill" min="0" max="2" step="0.05" value="0.4"><span class="val" id="ev-fill">0.4</span></label>
+  <label><span class="lbl">Overhead</span><input type="range" id="e-overhead" min="0" max="8" step="0.2" value="3"><span class="val" id="ev-overhead">3</span></label>
+</div>
+
+<div id="dropzone">Drop .glb file here</div>
 
 <div id="webcam-preview" class="hidden">
   <video id="webcam" autoplay playsinline muted></video>
@@ -124,8 +212,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1;
+renderer.toneMapping = THREE.NoToneMapping;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x050210);
@@ -158,17 +245,33 @@ const overheadLight = new THREE.PointLight(0xffa552, 3, 50, 1.5);
 overheadLight.position.set(0, 12, -8);
 scene.add(overheadLight);
 
-// ── Load GLB model ──
+// ── GLB loader setup ──
 const dracoLoader = new DRACOLoader();
 dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/libs/draco/');
 const gltfLoader = new GLTFLoader();
 gltfLoader.setDRACOLoader(dracoLoader);
 
-const modelGroup = new THREE.Group();
-scene.add(modelGroup);
+// ── Model management ──
+let currentModel = null;
 
-gltfLoader.load('../Assets/dnd_typeshyt-02a.glb', (gltf) => {
-  const model = gltf.scene;
+function clearModel() {
+  if (currentModel) {
+    scene.remove(currentModel);
+    currentModel.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) {
+        if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+        else o.material.dispose();
+      }
+    });
+    currentModel = null;
+  }
+}
+
+function placeModel(gltfScene, name) {
+  clearModel();
+
+  const model = gltfScene;
   model.traverse(child => {
     if (child.isMesh) {
       child.castShadow = true;
@@ -176,36 +279,113 @@ gltfLoader.load('../Assets/dnd_typeshyt-02a.glb', (gltf) => {
     }
   });
 
-  // Center and scale the model to fit the off-axis window
+  // Center at origin
   const box = new THREE.Box3().setFromObject(model);
   const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3());
-
-  // Center the model at origin
   model.position.sub(center);
 
-  // Scale so model fills screen width, compensating for perspective.
-  // Model center sits at z = -depth/2. At that depth, perspective shrinks
-  // width by factor camZ / (camZ + depth/2). So we scale larger to cancel.
-  const baseScale = 40 / size.x;
+  // Scale to fill screen width (SCREEN_W=40), with perspective compensation
+  const baseScale = 40 / Math.max(size.x, 0.01);
   const scaledDepth = size.z * baseScale;
   const camZ = BASE_CAM_POS.z;
-  const perspCompensation = (camZ + scaledDepth / 2) / camZ;
-  const scale = baseScale * perspCompensation;
+  const perspComp = (camZ + scaledDepth / 2) / camZ;
+  const scale = baseScale * perspComp;
   model.scale.setScalar(scale);
 
-  modelGroup.add(model);
-
-  // Position so front face is at z=0
+  // Wrap in group and position so front face is at z=0
+  const group = new THREE.Group();
+  group.add(model);
   const finalDepth = size.z * scale;
-  modelGroup.position.set(0, 0, -finalDepth / 2);
+  group.position.set(0, 0, -finalDepth / 2);
 
+  scene.add(group);
+  currentModel = group;
+
+  // Show model name
+  document.getElementById('model-name').textContent = name || 'untitled';
   document.getElementById('loading').classList.add('hidden');
-  console.log('GLB loaded — size:', size, 'scale:', scale);
-}, undefined, (err) => {
-  console.error('GLB load error:', err);
-  document.getElementById('loading').textContent = 'Load failed';
+
+  console.log('Model loaded:', name, '— size:', size, 'scale:', scale.toFixed(3));
+}
+
+// ── Load from URL ──
+function loadFromURL(url, name) {
+  document.getElementById('loading').textContent = 'Loading model...';
+  document.getElementById('loading').classList.remove('hidden');
+
+  gltfLoader.load(url, (gltf) => {
+    placeModel(gltf.scene, name);
+  }, undefined, (err) => {
+    console.error('GLB load error:', err);
+    document.getElementById('loading').textContent = 'Load failed';
+  });
+}
+
+// ── Load from File (upload or drop) ──
+function loadFromFile(file) {
+  if (!file || !file.name.match(/\.(glb|gltf)$/i)) return;
+
+  document.getElementById('loading').textContent = 'Loading ' + file.name + '...';
+  document.getElementById('loading').classList.remove('hidden');
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const buffer = e.target.result;
+    const blob = new Blob([buffer]);
+    const url = URL.createObjectURL(blob);
+
+    gltfLoader.load(url, (gltf) => {
+      placeModel(gltf.scene, file.name);
+      URL.revokeObjectURL(url);
+    }, undefined, (err) => {
+      console.error('GLB load error:', err);
+      document.getElementById('loading').textContent = 'Load failed: ' + file.name;
+      URL.revokeObjectURL(url);
+    });
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── File input (button) ──
+document.getElementById('file-input').addEventListener('change', (e) => {
+  if (e.target.files.length > 0) {
+    loadFromFile(e.target.files[0]);
+    e.target.value = ''; // reset so same file can be re-uploaded
+  }
 });
+
+// ── Drag & drop ──
+const dropzone = document.getElementById('dropzone');
+let dragCounter = 0;
+
+document.addEventListener('dragenter', (e) => {
+  e.preventDefault();
+  dragCounter++;
+  dropzone.classList.add('visible');
+});
+document.addEventListener('dragleave', (e) => {
+  e.preventDefault();
+  dragCounter--;
+  if (dragCounter <= 0) {
+    dragCounter = 0;
+    dropzone.classList.remove('visible');
+  }
+});
+document.addEventListener('dragover', (e) => {
+  e.preventDefault();
+});
+document.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dragCounter = 0;
+  dropzone.classList.remove('visible');
+
+  const file = e.dataTransfer.files[0];
+  if (file) loadFromFile(file);
+});
+
+// ── Load default model ──
+loadFromURL('../Assets/dnd_typeshyt-02a.glb', 'dnd_typeshyt-02a.glb');
 
 // ── Face tracking ──
 initFaceCamera();
@@ -220,7 +400,6 @@ window.addEventListener('resize', () => {
 onResizeFaceCamera(window.innerWidth, window.innerHeight);
 
 // ── Render loop ──
-const clock = new THREE.Clock();
 const faceCamConfig = {
   basePos: BASE_CAM_POS,
   lookTarget: LOOK_TARGET,
@@ -230,6 +409,26 @@ const faceCamConfig = {
   strength: 20,
   strengthY: 5,
 };
+
+// ── Environment panel wiring ──
+function bindEnv(id, cb) {
+  const el = document.getElementById('e-' + id);
+  const val = document.getElementById('ev-' + id);
+  if (!el) return;
+  el.addEventListener('input', () => {
+    const v = Number(el.value);
+    if (val) val.textContent = v;
+    cb(v);
+  });
+}
+
+// Find ambient light (first child of scene that's AmbientLight)
+const ambientLight = scene.children.find(c => c.isAmbientLight);
+
+bindEnv('ambient', v => { if (ambientLight) ambientLight.intensity = v; });
+bindEnv('key', v => { keyLight.intensity = v; });
+bindEnv('fill', v => { fillLight.intensity = v; });
+bindEnv('overhead', v => { overheadLight.intensity = v; });
 
 function tick() {
   requestAnimationFrame(tick);
