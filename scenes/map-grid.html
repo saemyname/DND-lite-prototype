@@ -167,7 +167,7 @@ gltfLoader.setDRACOLoader(dracoLoader);
 const modelGroup = new THREE.Group();
 scene.add(modelGroup);
 
-gltfLoader.load('../Assets/dnd_typeshyt-01a.glb', (gltf) => {
+gltfLoader.load('../Assets/dnd_typeshyt-02a.glb', (gltf) => {
   const model = gltf.scene;
   model.traverse(child => {
     if (child.isMesh) {
