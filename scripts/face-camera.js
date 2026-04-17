@@ -22,9 +22,6 @@ const NEAR          = 0.1;
 const FAR           = 100;
 const SCREEN_W      = 40;
 
-// Reusable temp vector (avoids per-frame allocation)
-const _v = new THREE.Vector3();
-
 // ── State ──
 let rawFX = 0, rawFY = 0, rawFZ = 0;
 let smFX  = 0, smFY  = 0;
@@ -251,36 +248,31 @@ export function updateFaceCamera(camera, config) {
   // Compute orbital position if rotated
   let camX = basePos.x;
   let camZ = basePos.z;
+  const dx = basePos.x - lookTarget.x;
+  const dz = basePos.z - lookTarget.z;
+  const c = Math.cos(currentAngleY);
+  const s = Math.sin(currentAngleY);
 
   if (rotationEnabled && Math.abs(currentAngleY) > 0.0001) {
-    const dx = basePos.x - lookTarget.x;
-    const dz = basePos.z - lookTarget.z;
-    const c = Math.cos(currentAngleY);
-    const s = Math.sin(currentAngleY);
     camX = lookTarget.x + dx * c - dz * s;
     camZ = lookTarget.z + dx * s + dz * c;
   }
 
+  // Add head offset (rotated to match camera orientation)
+  const hx = rotationEnabled ? headX * c : headX;
+  const hz = rotationEnabled ? headX * s : 0;
+
   // Set rotation from base position (no head offset) so it stays fixed
   camera.position.set(camX, basePos.y, camZ);
   camera.lookAt(lookTarget);
-  camera.updateMatrixWorld(true);
 
-  // Extract camera-local axes (works for any camera angle)
-  const camRight = new THREE.Vector3();
-  const camUp    = new THREE.Vector3();
-  const camFwd   = new THREE.Vector3();
-  camera.matrixWorld.extractBasis(camRight, camUp, camFwd);
-
-  // Shift position along camera-local axes — rotation stays locked
-  camera.position.addScaledVector(camRight, headX);
-  camera.position.addScaledVector(camUp, headY);
+  // Then shift position only — rotation stays locked
+  camera.position.set(camX + hx, basePos.y + headY, camZ + hz);
 
   if (config.offAxis !== false) {
-    // Off-axis projection — compute eye offset from lookTarget in screen-local coords
-    const toEye = _v.subVectors(camera.position, lookTarget);
-    const totalX = toEye.dot(camRight);
-    const totalY = toEye.dot(camUp);
+    // Off-axis projection (for forward-facing scenes)
+    const totalX = (basePos.x - lookTarget.x) + headX;
+    const totalY = (basePos.y - lookTarget.y) + headY;
     const left   = (-SCREEN_W / 2 - totalX) * near / screenDist;
     const right  = ( SCREEN_W / 2 - totalX) * near / screenDist;
     const top    = (-screenH / 2 - totalY) * near / screenDist;
@@ -288,7 +280,7 @@ export function updateFaceCamera(camera, config) {
     camera.projectionMatrix.makePerspective(left, right, bottom, top, near, far);
     camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
   } else {
-    // Standard perspective
+    // Standard perspective (for top-down views like map)
     camera.updateProjectionMatrix();
   }
 }
