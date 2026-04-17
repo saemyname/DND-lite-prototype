@@ -111,47 +111,6 @@
   }
   #loading.hidden { opacity: 0; pointer-events: none; }
 
-  /* Environment panel */
-  #env-panel {
-    position: fixed;
-    top: 50%;
-    right: 12px;
-    transform: translateY(-50%);
-    z-index: 100;
-    width: 190px;
-    background: rgba(0,0,0,.75);
-    border: 1px solid rgba(200,169,110,.2);
-    border-radius: 6px;
-    padding: 10px 12px;
-    backdrop-filter: blur(6px);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    font-size: 10px;
-    letter-spacing: 1px;
-    color: rgba(200,169,110,.7);
-  }
-  #env-panel label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  #env-panel .lbl { flex: 0 0 60px; }
-  #env-panel .val { flex: 0 0 24px; text-align: right; font-variant-numeric: tabular-nums; color: #ffe9a0; }
-  #env-panel input[type=range] { flex: 1; min-width: 0; height: 3px; accent-color: #c8a96e; cursor: pointer; }
-  #env-panel .sep { border: none; border-top: 1px solid rgba(200,169,110,.15); margin: 2px 0; }
-  #env-panel .section-title { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: rgba(200,169,110,.4); margin-top: 2px; }
-  #env-panel select {
-    flex: 1; min-width: 0;
-    background: rgba(200,169,110,.1);
-    border: 1px solid rgba(200,169,110,.2);
-    border-radius: 3px;
-    color: #c8a96e;
-    font-size: 10px;
-    padding: 2px 4px;
-    cursor: pointer;
-  }
-
   /* Drop zone overlay */
   #dropzone {
     position: fixed;
@@ -184,13 +143,6 @@
   Drop a .glb file or click Upload.
 </div>
 <div id="loading">Loading model...</div>
-<div id="env-panel">
-  <div class="section-title">Lighting</div>
-  <label><span class="lbl">Ambient</span><input type="range" id="e-ambient" min="0" max="2" step="0.05" value="0.5"><span class="val" id="ev-ambient">0.5</span></label>
-  <label><span class="lbl">Key</span><input type="range" id="e-key" min="0" max="4" step="0.1" value="1.5"><span class="val" id="ev-key">1.5</span></label>
-  <label><span class="lbl">Fill</span><input type="range" id="e-fill" min="0" max="2" step="0.05" value="0.4"><span class="val" id="ev-fill">0.4</span></label>
-  <label><span class="lbl">Overhead</span><input type="range" id="e-overhead" min="0" max="8" step="0.2" value="3"><span class="val" id="ev-overhead">3</span></label>
-</div>
 
 <div id="dropzone">Drop .glb file here</div>
 
@@ -409,26 +361,6 @@ const faceCamConfig = {
   strength: 20,
   strengthY: 5,
 };
-
-// ── Environment panel wiring ──
-function bindEnv(id, cb) {
-  const el = document.getElementById('e-' + id);
-  const val = document.getElementById('ev-' + id);
-  if (!el) return;
-  el.addEventListener('input', () => {
-    const v = Number(el.value);
-    if (val) val.textContent = v;
-    cb(v);
-  });
-}
-
-// Find ambient light (first child of scene that's AmbientLight)
-const ambientLight = scene.children.find(c => c.isAmbientLight);
-
-bindEnv('ambient', v => { if (ambientLight) ambientLight.intensity = v; });
-bindEnv('key', v => { keyLight.intensity = v; });
-bindEnv('fill', v => { fillLight.intensity = v; });
-bindEnv('overhead', v => { overheadLight.intensity = v; });
 
 function tick() {
   requestAnimationFrame(tick);
