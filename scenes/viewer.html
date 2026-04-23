@@ -643,11 +643,22 @@
   <div id="scene-bar">
     <label>SCENE</label>
     <div class="scene-presets">
-      <button class="preset-btn active" onclick="loadPreset('garden')">Garden</button>
-      <button class="preset-btn"        onclick="loadPreset('treehill')">Treehill</button>
+      <button class="preset-btn active" onclick="loadPreset('dnd')">DND</button>
+      <button class="preset-btn"        onclick="loadPreset('dnd2')">DND2</button>
+      <button class="preset-btn"        onclick="loadPreset('garden')">Garden</button>
     </div>
     <input id="splat-url" type="text" placeholder="Or enter a .splat / .ply URL directly..." style="display:none">
     <button class="btn" onclick="loadCustomUrl()" style="display:none">Load</button>
+  </div>
+
+  <div id="dnd2-debug" style="display:none; position:fixed; top:60px; left:12px; z-index:300; width:210px; background:rgba(0,0,0,.75); border:1px solid rgba(200,169,110,.2); border-radius:6px; padding:10px 12px; font-size:10px; letter-spacing:1px; color:rgba(200,169,110,.7); backdrop-filter:blur(6px);">
+    <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px"><span style="flex:0 0 50px">Pos X</span><input type="range" id="d2-px" min="-10" max="10" step="0.1" value="2" style="flex:1;accent-color:#c8a96e"><span id="d2-px-v" style="flex:0 0 30px;text-align:right;color:#ffe9a0">2</span></label>
+    <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px"><span style="flex:0 0 50px">Pos Y</span><input type="range" id="d2-py" min="-10" max="10" step="0.1" value="0" style="flex:1;accent-color:#c8a96e"><span id="d2-py-v" style="flex:0 0 30px;text-align:right;color:#ffe9a0">0</span></label>
+    <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px"><span style="flex:0 0 50px">Pos Z</span><input type="range" id="d2-pz" min="-10" max="10" step="0.5" value="0" style="flex:1;accent-color:#c8a96e"><span id="d2-pz-v" style="flex:0 0 30px;text-align:right;color:#ffe9a0">0</span></label>
+    <hr style="border:none;border-top:1px solid rgba(200,169,110,.15);margin:4px 0">
+    <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px"><span style="flex:0 0 50px">Look X</span><input type="range" id="d2-lx" min="-10" max="10" step="0.1" value="0" style="flex:1;accent-color:#c8a96e"><span id="d2-lx-v" style="flex:0 0 30px;text-align:right;color:#ffe9a0">0</span></label>
+    <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px"><span style="flex:0 0 50px">Look Y</span><input type="range" id="d2-ly" min="-10" max="10" step="0.1" value="0" style="flex:1;accent-color:#c8a96e"><span id="d2-ly-v" style="flex:0 0 30px;text-align:right;color:#ffe9a0">0</span></label>
+    <label style="display:flex;align-items:center;justify-content:space-between;gap:6px"><span style="flex:0 0 50px">Look Z</span><input type="range" id="d2-lz" min="-10" max="10" step="0.1" value="0" style="flex:1;accent-color:#c8a96e"><span id="d2-lz-v" style="flex:0 0 30px;text-align:right;color:#ffe9a0">0</span></label>
   </div>
 
   <div id="splat-container"></div>
@@ -795,13 +806,15 @@ function switchMode(mode) {
 <script type="module">
 
 const PRESETS = {
+  dnd:      '../Assets/DND_TypeShit_Test_01a.ply',
+  dnd2:     '../Assets/Screenshot 2026-04-20 125439.ply',  // TODO: replace with actual file
   garden:   'https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/garden/garden-7k.splat',
-  treehill: 'https://huggingface.co/cakewalk/splat-data/resolve/main/treehill.splat',
 };
 
 const CAMERA_PRESETS = {
+  dnd:      { pos: [0, 0, 0.5], lookAt: [0, 0, 0] },
+  dnd2:     { pos: [0, 0, 6], lookAt: [0, 0, 0] },
   garden:   { pos: [0, -2, 6], lookAt: [0, 0, 0] },
-  treehill: { pos: [0, -8, 6], lookAt: [0, 0, 0] },
 };
 
 import { initFaceCamera, getFaceData, onResizeFaceCamera } from '../scripts/face-camera.js';
@@ -810,7 +823,7 @@ let viewer        = null;
 let baseCamPos    = null;
 let lookAtPos     = { x: 0, y: 0, z: 0 };
 let splatScreenDist = 6;
-let currentPreset = 'garden';
+let currentPreset = 'dnd';
 let smFX = 0, smFY = 0;
 
 const $ = id => document.getElementById(id);
@@ -886,7 +899,7 @@ async function initSplat() {
       $('splat-container').innerHTML = '';
     }
 
-    const camCfg = CAMERA_PRESETS[preset] || CAMERA_PRESETS.garden;
+    const camCfg = CAMERA_PRESETS[preset] || CAMERA_PRESETS.dnd;
     lookAtPos = { x: camCfg.lookAt[0], y: camCfg.lookAt[1], z: camCfg.lookAt[2] };
 
     try {
@@ -900,7 +913,10 @@ async function initSplat() {
 
       setProgress(60, 'Downloading scene... (may be tens of MB, please wait)');
 
-      await viewer.addSplatScene(url, { showLoadingUI: false });
+      const sceneOpts = { showLoadingUI: false };
+      // 180-degree Y rotation for DND scene (quaternion: [x, y, z, w])
+      if (preset === 'dnd' || preset === 'dnd2') sceneOpts.rotation = [0, 1, 0, 0];
+      await viewer.addSplatScene(url, sceneOpts);
 
       if (viewer.controls) viewer.controls.enabled = false;
       baseCamPos = viewer.camera.position.clone();
@@ -951,13 +967,15 @@ async function initSplat() {
       smFY += (ft.rawFY - smFY) * SM;
 
       // Head offset (negated for Gaussian's flipped Y-up)
+      // X:Y ratio matches map.html (4:1)
       const headX = -smFX * FS;
-      const headY = Math.max(-1, Math.min(1, -smFY * FS));
+      const headY = Math.max(-0.25, Math.min(0.25, -smFY * (FS * 0.25)));
 
       // Camera position follows head
       viewer.camera.position.x = baseCamPos.x + headX;
       viewer.camera.position.y = baseCamPos.y + headY;
-      viewer.camera.rotation.set(0, 0, 0);
+      viewer.camera.position.z = baseCamPos.z;
+      viewer.camera.lookAt(lookAtPos.x, lookAtPos.y, lookAtPos.z);
 
       // Off-axis projection
       const totalX = baseCamPos.x + headX - lookAtPos.x;
@@ -985,11 +1003,30 @@ async function initSplat() {
     tick();
   }
 
+  // DND2 debug sliders
+  const d2Debug = $('dnd2-debug');
+  ['px','py','pz','lx','ly','lz'].forEach(id => {
+    const slider = $('d2-' + id);
+    const valEl = $('d2-' + id + '-v');
+    slider.addEventListener('input', () => {
+      valEl.textContent = slider.value;
+      if (currentPreset !== 'dnd2' || !viewer?.camera || !baseCamPos) return;
+      baseCamPos.x = Number($('d2-px').value);
+      baseCamPos.y = Number($('d2-py').value);
+      baseCamPos.z = Number($('d2-pz').value);
+      lookAtPos.x = Number($('d2-lx').value);
+      lookAtPos.y = Number($('d2-ly').value);
+      lookAtPos.z = Number($('d2-lz').value);
+      splatScreenDist = baseCamPos.z - lookAtPos.z;
+    });
+  });
+
   // Expose to non-module scope
   window.loadPreset = (key) => {
     currentPreset = key;
     document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
     event.target.classList.add('active');
+    d2Debug.style.display = (key === 'dnd2') ? 'block' : 'none';
     loadScene(PRESETS[key], key);
   };
 
@@ -1007,7 +1044,7 @@ async function initSplat() {
 
   window.initSplat = initSplat;
 
-  loadScene(PRESETS.garden, 'garden');
+  loadScene(PRESETS[currentPreset], currentPreset);
 }
 
 window.initSplat = initSplat;
