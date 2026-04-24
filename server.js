@@ -44,13 +44,17 @@ wss.on('connection', (ws) => {
         sess = { dm: ws, players: new Map(), unlockedStages: new Set(['stage_01']) };
         sessions.set(code, sess);
         role = 'dm';
+        console.log(`[dm_create] session=${code}`);
         send(ws, { type: 'session_created', code });
         break;
       }
 
       case 'dm_rejoin': {
         const rejoinSess = sessions.get(msg.code);
-        if (!rejoinSess) { send(ws, { type: 'error', message: 'Session not found' }); return; }
+        if (!rejoinSess) {
+          console.log(`[dm_rejoin] FAIL — session not found: ${msg.code}`);
+          send(ws, { type: 'error', message: 'Session not found' }); return;
+        }
         rejoinSess.dm = ws;
         sess = rejoinSess;
         code = msg.code;
@@ -58,6 +62,7 @@ wss.on('connection', (ws) => {
         const playerList = [...rejoinSess.players.entries()].map(([id, p]) => ({
           playerId: id, name: p.name, role: p.role, location: p.location,
         }));
+        console.log(`[dm_rejoin] session=${code}, players=${playerList.length}`);
         send(ws, { type: 'dm_rejoined', players: playerList, unlockedStages: [...rejoinSess.unlockedStages] });
         break;
       }
@@ -70,23 +75,37 @@ wss.on('connection', (ws) => {
         pid  = `p${Date.now()}`;
         role = 'player';
         sess.players.set(pid, { ws, name: msg.name, role: msg.role, location: 'world-map' });
+        console.log(`[player_join] session=${msg.code}, pid=${pid}, name=${msg.name}`);
         send(ws, { type: 'joined', playerId: pid, unlockedStages: [...sess.unlockedStages] });
         send(sess.dm, { type: 'player_joined', playerId: pid, name: msg.name, role: msg.role });
         break;
       }
 
       case 'stage_unlock': {
-        if (role !== 'dm' || !sess) return;
+        if (role !== 'dm' || !sess) {
+          console.log(`[stage_unlock] REJECTED — role=${role}, sess=${!!sess}`);
+          return;
+        }
         sess.unlockedStages.add(msg.stageKey);
+        const activeWs = [...sess.players.values()].filter(p => p.ws?.readyState === 1).length;
+        console.log(`[stage_unlock] key=${msg.stageKey}, players_with_open_ws=${activeWs}/${sess.players.size}`);
         broadcastPlayers(sess, { type: 'stage_unlock', stageKey: msg.stageKey });
         send(ws, { type: 'stage_unlock_ack', stageKey: msg.stageKey });
         break;
       }
 
       case 'player_redirect': {
-        if (role !== 'dm' || !sess) return;
+        if (role !== 'dm' || !sess) {
+          console.log(`[player_redirect] REJECTED — role=${role}, sess=${!!sess}`);
+          return;
+        }
         const url = String(msg.url ?? '');
-        if (!url || url.includes('..') || /^[a-z][a-z0-9+.-]*:/i.test(url)) return;
+        if (!url || url.includes('..') || /^[a-z][a-z0-9+.-]*:/i.test(url)) {
+          console.log(`[player_redirect] URL rejected: ${url}`);
+          return;
+        }
+        const activeWs2 = [...sess.players.values()].filter(p => p.ws?.readyState === 1).length;
+        console.log(`[player_redirect] url=${url}, players_with_open_ws=${activeWs2}/${sess.players.size}`);
         broadcastPlayers(sess, { type: 'player_redirect', url });
         break;
       }
@@ -99,15 +118,22 @@ wss.on('connection', (ws) => {
 
       case 'player_rejoin': {
         const rs = sessions.get(msg.code);
-        if (!rs) return;
+        if (!rs) {
+          console.log(`[player_rejoin] FAIL — session not found: ${msg.code}`);
+          return;
+        }
         const ep = rs.players.get(msg.playerId);
-        if (!ep) return;
+        if (!ep) {
+          console.log(`[player_rejoin] FAIL — player not found: ${msg.playerId} in session ${msg.code}`);
+          return;
+        }
         ep.ws = ws;
         sess = rs;
         code = msg.code;
         pid  = msg.playerId;
         role = 'player';
         if (msg.location) ep.location = msg.location;
+        console.log(`[player_rejoin] session=${code}, pid=${pid}, dm_present=${!!sess.dm}`);
         if (sess.dm) send(sess.dm, { type: 'player_location', playerId: pid, location: ep.location });
         break;
       }
