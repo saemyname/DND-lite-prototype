@@ -209,10 +209,28 @@ on('stage_unlock_ack', (msg) => {
   if (btn) btn.classList.add('active');
 });
 
+on('dm_rejoined', (msg) => {
+  players.clear();
+  for (const p of msg.players) {
+    players.set(p.playerId, { name: p.name, role: p.role, location: p.location });
+  }
+  renderPlayers();
+  for (const stageKey of msg.unlockedStages) {
+    const btn = [...document.querySelectorAll('[data-stage]')]
+      .find(el => el.dataset.stage === stageKey);
+    if (btn) btn.classList.add('active');
+  }
+});
+
 on('_disconnect', () => { statusEl.textContent = 'Disconnected'; });
 
 connect(() => {
-  statusEl.textContent = `Connected · session ${code}`;
+  if (code) {
+    send({ type: 'dm_rejoin', code });
+    statusEl.textContent = `Connected · session ${code}`;
+  } else {
+    statusEl.textContent = 'No session code — go back to lobby';
+  }
 });
 
 document.querySelectorAll('button.dm-btn').forEach(btn => {

@@ -48,6 +48,20 @@ wss.on('connection', (ws) => {
         break;
       }
 
+      case 'dm_rejoin': {
+        const rejoinSess = sessions.get(msg.code);
+        if (!rejoinSess) { send(ws, { type: 'error', message: 'Session not found' }); return; }
+        rejoinSess.dm = ws;
+        sess = rejoinSess;
+        code = msg.code;
+        role = 'dm';
+        const playerList = [...rejoinSess.players.entries()].map(([id, p]) => ({
+          playerId: id, name: p.name, role: p.role, location: p.location,
+        }));
+        send(ws, { type: 'dm_rejoined', players: playerList, unlockedStages: [...rejoinSess.unlockedStages] });
+        break;
+      }
+
       case 'player_join': {
         sess = sessions.get(msg.code);
         if (!sess)                  { send(ws, { type: 'error', message: 'Invalid code' }); return; }
@@ -96,9 +110,8 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     if (!sess) return;
     if (role === 'dm') {
-      sessions.delete(code);
       sess.dm = null;
-      broadcastPlayers(sess, { type: 'dm_disconnected' });
+      // Keep session alive so DM can rejoin from session.html
     } else if (role === 'player' && pid) {
       sess.players.delete(pid);
       if (sess.dm) send(sess.dm, { type: 'player_left', playerId: pid });
