@@ -31,6 +31,7 @@ wss.on('connection', (ws) => {
   let sess = null;
   let role = null; // 'dm' | 'player'
   let pid  = null;
+  let code = null;
 
   ws.on('message', (raw) => {
     let msg;
@@ -39,7 +40,7 @@ wss.on('connection', (ws) => {
     switch (msg.type) {
 
       case 'dm_create': {
-        const code = makeCode();
+        code = makeCode();
         sess = { dm: ws, players: new Map(), unlockedStages: new Set(['stage_01']) };
         sessions.set(code, sess);
         role = 'dm';
@@ -50,6 +51,7 @@ wss.on('connection', (ws) => {
       case 'player_join': {
         sess = sessions.get(msg.code);
         if (!sess)                  { send(ws, { type: 'error', message: 'Invalid code' }); return; }
+        if (ws === sess.dm) { send(ws, { type: 'error', message: 'DM cannot join as player' }); return; }
         if (sess.players.size >= 4) { send(ws, { type: 'error', message: 'Session full' });  return; }
         pid  = `p${Date.now()}`;
         role = 'player';
@@ -69,7 +71,9 @@ wss.on('connection', (ws) => {
 
       case 'player_redirect': {
         if (role !== 'dm' || !sess) return;
-        broadcastPlayers(sess, { type: 'player_redirect', url: msg.url });
+        const url = String(msg.url ?? '');
+        if (!url || url.includes('..') || /^[a-z][a-z0-9+.-]*:/i.test(url)) return;
+        broadcastPlayers(sess, { type: 'player_redirect', url });
         break;
       }
 
@@ -80,7 +84,7 @@ wss.on('connection', (ws) => {
       }
 
       case 'player_location': {
-        if (role !== 'player' || !sess) return;
+        if (role !== 'player' || !sess || !sess.dm) return;
         const p = sess.players.get(pid);
         if (p) p.location = msg.location;
         send(sess.dm, { type: 'player_location', playerId: pid, location: msg.location });
@@ -92,11 +96,12 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     if (!sess) return;
     if (role === 'dm') {
+      sessions.delete(code);
       sess.dm = null;
       broadcastPlayers(sess, { type: 'dm_disconnected' });
     } else if (role === 'player' && pid) {
       sess.players.delete(pid);
-      send(sess.dm, { type: 'player_left', playerId: pid });
+      if (sess.dm) send(sess.dm, { type: 'player_left', playerId: pid });
     }
   });
 });
