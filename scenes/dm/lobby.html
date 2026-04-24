@@ -71,7 +71,7 @@
     color: rgba(200,169,110,.4);
     text-transform: uppercase;
   }
-  btn {
+  button {
     display: block;
     padding: 10px 28px;
     background: rgba(200,169,110,.08);
@@ -85,7 +85,7 @@
     font-family: 'Georgia', serif;
     transition: all .2s;
   }
-  btn:hover { background: rgba(200,169,110,.18); color: #ffe9a0; }
+  button:hover { background: rgba(200,169,110,.18); color: #ffe9a0; }
   #btn-create { margin-bottom: 12px; }
   #btn-start  { display: none; }
   #status {
@@ -109,8 +109,8 @@
   <div id="player-rows"></div>
 </div>
 
-<btn id="btn-create">Create Session</btn>
-<btn id="btn-start">Start Session →</btn>
+<button id="btn-create">Create Session</button>
+<button id="btn-start">Start Session →</button>
 <div id="status">Not connected</div>
 
 <script type="module">
@@ -133,7 +133,12 @@ function renderPlayers() {
   for (const [id, p] of players) {
     const row = document.createElement('div');
     row.className = 'player-row';
-    row.innerHTML = `<span>${p.name}</span><span class="player-role">${p.role}</span>`;
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = p.name;
+    const roleSpan = document.createElement('span');
+    roleSpan.className = 'player-role';
+    roleSpan.textContent = p.role;
+    row.append(nameSpan, roleSpan);
     playerRows.appendChild(row);
   }
 }
@@ -172,7 +177,7 @@ btnCreate.addEventListener('click', () => {
 });
 
 btnStart.addEventListener('click', () => {
-  window.location.href = `session.html?code=${sessionCode}`;
+  window.location.href = `session.html?code=${encodeURIComponent(sessionCode)}`;
 });
 </script>
 </body>
