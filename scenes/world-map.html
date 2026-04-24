@@ -119,6 +119,7 @@
 <div id="vignette"></div>
 <div id="controls-hint">Scroll to zoom</div>
 
+
 <div id="webcam-preview" class="hidden">
   <video id="webcam" autoplay playsinline muted></video>
   <canvas id="face-canvas"></canvas>
@@ -186,32 +187,230 @@ const gltfLoader = new GLTFLoader();
 gltfLoader.setDRACOLoader(dracoLoader);
 
 let mapModel = null;
+let mapScale = 1;
+let mapOffset = new THREE.Vector3();
 const clickables = [];
 
-gltfLoader.load('../Assets/dnd_map_02a.glb', (gltf) => {
+// ── Stage system ──
+const stages = {};       // { 'stage_01': { mesh, worldPos } }
+let currentStage = null;
+let miniature = null;
+let miniTargetPos = null; // lerp target for movement
+let miniMoving = false;
+let miniBottomOffset = 0;
+const MINI_SPEED = 0.04;  // lerp factor
+const clearedStages = new Set(['stage_01']); // start cleared
+
+// Character data
+const charData = JSON.parse(localStorage.getItem('dndlite-character') || 'null');
+const charRole = charData?.role?.toLowerCase() || 'warrior';
+
+gltfLoader.load('../Assets/dnd_map_05a.glb', (gltf) => {
   mapModel = gltf.scene;
+
+  // Center and scale
+  const box = new THREE.Box3().setFromObject(mapModel);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  mapModel.position.sub(center);
+  mapOffset.copy(center).negate();
+
+  mapScale = 60 / Math.max(size.x, size.z, 0.01);
+  mapModel.scale.setScalar(mapScale);
+
+  // Add to scene and update world matrices BEFORE reading positions
+  scene.add(mapModel);
+  mapModel.updateMatrixWorld(true);
+
+  // Find stages and tag meshes
   mapModel.traverse(child => {
     if (child.isMesh) {
       child.castShadow = true;
       child.receiveShadow = true;
       clickables.push(child);
     }
+    // Match stage/button objects by name (case insensitive)
+    const name = (child.name || '').toLowerCase().replace(/[\s._-]+/g, '_');
+    if (name.includes('stage') || name.includes('button')) {
+      const stageBox = new THREE.Box3().setFromObject(child);
+      const stageCenter = stageBox.getCenter(new THREE.Vector3());
+      // Use center XZ but top Y (so miniature sits on top surface)
+      const worldPos = new THREE.Vector3(stageCenter.x, stageBox.max.y, stageCenter.z);
+      // Tag for click detection
+      child.traverse(c => {
+        if (c.isMesh) {
+          c.userData.stageId = name;
+          c.userData.locationName = child.name;
+        }
+      });
+      if (child.isMesh) {
+        child.userData.stageId = name;
+        child.userData.locationName = child.name;
+      }
+      stages[name] = { object: child, worldPos };
+      console.log('Stage found:', name, 'at', worldPos.x.toFixed(1), worldPos.y.toFixed(1), worldPos.z.toFixed(1));
+    }
   });
 
-  // Center and scale to fill view (same approach as 3d-viewer.html)
-  const box = new THREE.Box3().setFromObject(mapModel);
-  const center = box.getCenter(new THREE.Vector3());
-  const size = box.getSize(new THREE.Vector3());
-  mapModel.position.sub(center);
+  console.log('Map loaded — size:', size, 'scale:', mapScale.toFixed(3));
+  console.log('Stages:', Object.keys(stages));
 
-  const scale = 60 / Math.max(size.x, size.z, 0.01);
-  mapModel.scale.setScalar(scale);
+  // Log all object names for debugging
+  mapModel.traverse(child => {
+    if (child.name) console.log('  obj:', child.name);
+  });
 
-  scene.add(mapModel);
-  console.log('Map loaded — size:', size, 'scale:', scale.toFixed(3));
+  // Clear fog around stage_01
+  const s01 = Object.values(stages).find(s => s.object.name.toLowerCase().includes('01'));
+  if (s01) {
+    revealFog(s01.worldPos.x, s01.worldPos.z);
+    currentStage = s01;
+  } else {
+    // Fallback: clear center
+    revealFog(0, 0);
+  }
+
+  // Load miniature
+  loadMiniature();
 }, undefined, (err) => {
   console.error('Map load error:', err);
 });
+
+// ── Miniature loading ──
+function loadMiniature() {
+  const modelFile = `../Assets/${charRole}.glb`;
+  gltfLoader.load(modelFile, (gltf) => {
+    miniature = gltf.scene;
+    miniature.traverse(child => {
+      if (child.isMesh) {
+        child.castShadow = true;
+      }
+    });
+
+    // Scale miniature to fit on stage
+    const miniBox = new THREE.Box3().setFromObject(miniature);
+    const miniSize = miniBox.getSize(new THREE.Vector3());
+    const miniScale = 3 / Math.max(miniSize.x, miniSize.y, miniSize.z, 0.01);
+    miniature.scale.setScalar(miniScale);
+
+    // Offset so bottom of miniature sits at position Y
+    const scaledBox = new THREE.Box3().setFromObject(miniature);
+    miniBottomOffset = scaledBox.min.y;
+
+    // Place on current stage
+    if (currentStage) {
+      const p = currentStage.worldPos;
+      miniature.position.set(p.x, p.y - miniBottomOffset, p.z);
+    }
+
+    scene.add(miniature);
+    console.log('Miniature loaded:', charRole);
+  }, undefined, (err) => {
+    console.error('Miniature load error:', err);
+  });
+}
+
+// ── Move miniature to a stage ──
+function moveToStage(stageKey) {
+  const stage = stages[stageKey];
+  if (!stage || !miniature) return;
+
+  miniTargetPos = stage.worldPos.clone();
+  miniTargetPos.y -= miniBottomOffset;
+  miniMoving = true;
+  currentStage = stage;
+
+  // Clear fog at destination
+  revealFog(stage.worldPos.x, stage.worldPos.z);
+
+  // Mark as cleared
+  clearedStages.add(stageKey);
+  console.log('Moving to:', stageKey);
+}
+
+// ══════════════════════════════════════
+//   FOG OF WAR (particle cloud)
+// ══════════════════════════════════════
+
+const FOG_COUNT = 3000;
+const FOG_SPREAD = 35;  // XZ spread radius
+const FOG_Y_MIN = 1;
+const FOG_Y_MAX = 3;
+const FOG_PARTICLE_SIZE = 12;
+const FOG_REVEAL_RADIUS = 10; // world units
+
+// Soft circle sprite texture
+const spriteCanvas = document.createElement('canvas');
+spriteCanvas.width = 64;
+spriteCanvas.height = 64;
+const sCtx = spriteCanvas.getContext('2d');
+const grad = sCtx.createRadialGradient(32, 32, 0, 32, 32, 32);
+grad.addColorStop(0, 'rgba(255,255,255,0.6)');
+grad.addColorStop(0.4, 'rgba(255,255,255,0.3)');
+grad.addColorStop(1, 'rgba(255,255,255,0)');
+sCtx.fillStyle = grad;
+sCtx.fillRect(0, 0, 64, 64);
+const spriteTexture = new THREE.CanvasTexture(spriteCanvas);
+
+// Particle positions + base opacity
+const fogPositions = new Float32Array(FOG_COUNT * 3);
+const fogOpacities = new Float32Array(FOG_COUNT); // per-particle opacity
+const fogBasePositions = []; // store original positions for reveal check
+
+for (let i = 0; i < FOG_COUNT; i++) {
+  const angle = Math.random() * Math.PI * 2;
+  const dist = 4 + Math.random() * FOG_SPREAD;
+  const x = Math.cos(angle) * dist;
+  const z = Math.sin(angle) * dist;
+  const y = FOG_Y_MIN + Math.random() * (FOG_Y_MAX - FOG_Y_MIN);
+  fogPositions[i * 3]     = x;
+  fogPositions[i * 3 + 1] = y;
+  fogPositions[i * 3 + 2] = z;
+  fogOpacities[i] = 1.0;
+  fogBasePositions.push({ x, z });
+}
+
+// Per-particle animation state: 'idle' | 'dispersing' | 'gone'
+const fogState = [];
+for (let i = 0; i < FOG_COUNT; i++) {
+  fogState.push({ state: 'idle', vx: 0, vz: 0, progress: 0 });
+}
+
+const fogGeo = new THREE.BufferGeometry();
+fogGeo.setAttribute('position', new THREE.BufferAttribute(fogPositions, 3));
+
+const fogMat = new THREE.PointsMaterial({
+  map: spriteTexture,
+  size: FOG_PARTICLE_SIZE,
+  transparent: true,
+  opacity: 0.5,
+  depthWrite: false,
+  blending: THREE.NormalBlending,
+  sizeAttenuation: true,
+  color: 0xdddddd,
+});
+
+const fogPoints = new THREE.Points(fogGeo, fogMat);
+fogPoints.renderOrder = 900;
+scene.add(fogPoints);
+
+function revealFog(worldX, worldZ) {
+  for (let i = 0; i < FOG_COUNT; i++) {
+    if (fogState[i].state !== 'idle') continue;
+    const bp = fogBasePositions[i];
+    const dx = bp.x - worldX;
+    const dz = bp.z - worldZ;
+    const dist2 = dx * dx + dz * dz;
+    if (dist2 < FOG_REVEAL_RADIUS * FOG_REVEAL_RADIUS) {
+      const dist = Math.sqrt(dist2) || 0.1;
+      const speed = 4 + Math.random() * 5;
+      fogState[i].state = 'dispersing';
+      fogState[i].vx = (dx / dist) * speed;
+      fogState[i].vz = (dz / dist) * speed;
+      fogState[i].progress = 0;
+    }
+  }
+}
 
 // ══════════════════════════════════════
 //   ZOOM + ROTATION
@@ -255,11 +454,37 @@ canvas.addEventListener('pointermove', e => {
   }
 });
 
+// Ground plane for raycasting (catches clicks on fog areas)
+const groundPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(200, 200),
+  new THREE.MeshBasicMaterial({ color: 0x000000, opacity: 0, transparent: true })
+);
+groundPlane.rotation.x = -Math.PI / 2;
+groundPlane.position.y = 0;
+scene.add(groundPlane);
+
 canvas.addEventListener('click', e => {
+  mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObjects(clickables, false);
-  if (hits.length > 0 && hits[0].object.userData.locationId) {
-    console.log('Clicked:', hits[0].object.userData.locationId, hits[0].object.userData.locationName);
+  const hits = raycaster.intersectObjects([...clickables, groundPlane], false);
+  if (hits.length > 0) {
+    const hit = hits[0];
+    const stageId = hit.object.userData.stageId;
+    if (stageId && !miniMoving) {
+      // Check if this stage is reachable (adjacent to current cleared stages)
+      // For now: allow if the previous stage number is cleared
+      const num = parseInt(stageId.replace(/\D/g, ''));
+      const prevKey = Object.keys(stages).find(k => k.includes(String(num - 1).padStart(2, '0')));
+      if (num === 1 || clearedStages.has(prevKey)) {
+        moveToStage(stageId);
+      } else {
+        console.log('Stage locked:', stageId, '— clear previous first');
+      }
+    } else {
+      // Generic click — reveal fog
+      revealFog(hit.point.x, hit.point.z);
+    }
   }
 });
 
@@ -292,14 +517,59 @@ onResizeFaceCamera(window.innerWidth, window.innerHeight);
 //   RENDER LOOP
 // ══════════════════════════════════════
 
+const clock = new THREE.Clock();
+let lastTime = 0;
+
 function tick() {
   requestAnimationFrame(tick);
+  const t = clock.getElapsedTime();
+  const dt = t - lastTime;
+  lastTime = t;
+
+  // Fog particle animation
+  const fogPos = fogGeo.attributes.position;
+  for (let i = 0; i < FOG_COUNT; i++) {
+    const s = fogState[i];
+    if (s.state === 'gone') continue;
+    if (s.state === 'dispersing') {
+      s.progress += dt * 1.5;
+      // Scatter outward on XZ plane
+      fogPos.setX(i, fogPos.getX(i) + s.vx * dt);
+      fogPos.setZ(i, fogPos.getZ(i) + s.vz * dt);
+      if (s.progress >= 1) {
+        s.state = 'gone';
+        fogPos.setY(i, -999);
+      }
+    } else {
+      // Idle drift
+      const bp = fogBasePositions[i];
+      fogPos.setX(i, bp.x + Math.sin(t * 0.3 + i * 0.7) * 1.5);
+      fogPos.setZ(i, bp.z + Math.cos(t * 0.25 + i * 0.5) * 1.5);
+    }
+  }
+  fogPos.needsUpdate = true;
+
+  // Miniature movement animation
+  if (miniature && miniMoving && miniTargetPos) {
+    miniature.position.x += (miniTargetPos.x - miniature.position.x) * MINI_SPEED;
+    miniature.position.z += (miniTargetPos.z - miniature.position.z) * MINI_SPEED;
+    const dx = miniTargetPos.x - miniature.position.x;
+    const dz = miniTargetPos.z - miniature.position.z;
+    if (Math.sqrt(dx * dx + dz * dz) < 0.1) {
+      miniature.position.x = miniTargetPos.x;
+      miniature.position.z = miniTargetPos.z;
+      miniMoving = false;
+    }
+  }
 
   // Update face camera config with zoom
   // zoomLevel: -20 (max zoom in / top view) to +30 (max zoom out / front view)
   const zoomRatio = 1 - (zoomLevel + 20) / 50; // 0 = zoom in (top), 1 = zoom out (front)
-  faceCamConfig.basePos.set(0, 40 + zoomLevel, zoomRatio * 30);
-  faceCamConfig.screenDist = 40 + zoomLevel;
+  const camY = 40 + zoomRatio * (10 - 40);  // in:40 → out:10
+  const camZ = 5 + zoomRatio * (50 - 5);    // in:5  → out:50
+  BASE_CAM_POS.set(0, camY, camZ);
+  faceCamConfig.basePos.copy(BASE_CAM_POS);
+  faceCamConfig.screenDist = Math.sqrt(camY * camY + camZ * camZ);
 
   // Fog density: thicker when zoomed out, clear when zoomed in
   scene.fog.density = 0.001 + zoomRatio * 0.008;
