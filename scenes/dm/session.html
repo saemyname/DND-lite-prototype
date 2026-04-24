@@ -169,7 +169,7 @@ function renderPlayers() {
     const roleSpan = document.createElement('span');
     roleSpan.style.cssText = 'opacity:.4;font-size:9px';
     roleSpan.textContent = p.role;
-    nameDiv.textContent = p.name + ' ';
+    nameDiv.appendChild(document.createTextNode(p.name + ' '));
     nameDiv.appendChild(roleSpan);
 
     const locDiv = document.createElement('div');
@@ -204,7 +204,8 @@ on('player_location', (msg) => {
 });
 
 on('stage_unlock_ack', (msg) => {
-  const btn = document.querySelector(`[data-stage="${msg.stageKey}"]`);
+  const btn = [...document.querySelectorAll('[data-stage]')]
+    .find(el => el.dataset.stage === msg.stageKey);
   if (btn) btn.classList.add('active');
 });
 
