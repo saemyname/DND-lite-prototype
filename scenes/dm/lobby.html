@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D&D Lite — DM Lobby</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0a;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Georgia', serif;
+    color: #c8a96e;
+  }
+  h1 {
+    font-size: 13px;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: rgba(200,169,110,.4);
+    margin-bottom: 48px;
+  }
+  .code-box {
+    font-size: 72px;
+    letter-spacing: 24px;
+    color: #ffe9a0;
+    border: 1px solid rgba(200,169,110,.3);
+    padding: 24px 40px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    background: rgba(200,169,110,.04);
+    display: none;
+  }
+  .code-hint {
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: rgba(200,169,110,.35);
+    margin-bottom: 48px;
+    text-transform: uppercase;
+    display: none;
+  }
+  .player-list {
+    width: 320px;
+    margin-bottom: 40px;
+    min-height: 80px;
+  }
+  .player-list h2 {
+    font-size: 10px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: rgba(200,169,110,.4);
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(200,169,110,.15);
+    padding-bottom: 8px;
+  }
+  .player-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: rgba(200,169,110,.8);
+    border-bottom: 1px solid rgba(200,169,110,.08);
+  }
+  .player-role {
+    font-size: 10px;
+    color: rgba(200,169,110,.4);
+    text-transform: uppercase;
+  }
+  btn {
+    display: block;
+    padding: 10px 28px;
+    background: rgba(200,169,110,.08);
+    border: 1px solid rgba(200,169,110,.3);
+    border-radius: 4px;
+    color: #c8a96e;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: 'Georgia', serif;
+    transition: all .2s;
+  }
+  btn:hover { background: rgba(200,169,110,.18); color: #ffe9a0; }
+  #btn-create { margin-bottom: 12px; }
+  #btn-start  { display: none; }
+  #status {
+    margin-top: 24px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(200,169,110,.3);
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<h1>Dungeon Master — Lobby</h1>
+
+<div class="code-box" id="code-display"></div>
+<div class="code-hint" id="code-hint">Share this code with players</div>
+
+<div class="player-list">
+  <h2>Players (<span id="player-count">0</span>/4)</h2>
+  <div id="player-rows"></div>
+</div>
+
+<btn id="btn-create">Create Session</btn>
+<btn id="btn-start">Start Session →</btn>
+<div id="status">Not connected</div>
+
+<script type="module">
+import { connect, send, on } from '../../scripts/game-socket.js';
+
+let sessionCode = null;
+const players = new Map();
+
+const btnCreate = document.getElementById('btn-create');
+const btnStart  = document.getElementById('btn-start');
+const codeDisplay = document.getElementById('code-display');
+const codeHint    = document.getElementById('code-hint');
+const statusEl    = document.getElementById('status');
+const playerRows  = document.getElementById('player-rows');
+const playerCount = document.getElementById('player-count');
+
+function renderPlayers() {
+  playerRows.innerHTML = '';
+  playerCount.textContent = players.size;
+  for (const [id, p] of players) {
+    const row = document.createElement('div');
+    row.className = 'player-row';
+    row.innerHTML = `<span>${p.name}</span><span class="player-role">${p.role}</span>`;
+    playerRows.appendChild(row);
+  }
+}
+
+on('session_created', (msg) => {
+  sessionCode = msg.code;
+  localStorage.setItem('dm-session-code', sessionCode);
+  codeDisplay.textContent = sessionCode;
+  codeDisplay.style.display = 'block';
+  codeHint.style.display = 'block';
+  btnCreate.style.display = 'none';
+  btnStart.style.display = 'block';
+  statusEl.textContent = 'Session active — waiting for players';
+});
+
+on('player_joined', (msg) => {
+  players.set(msg.playerId, { name: msg.name, role: msg.role });
+  renderPlayers();
+});
+
+on('player_left', (msg) => {
+  players.delete(msg.playerId);
+  renderPlayers();
+});
+
+on('_disconnect', () => {
+  statusEl.textContent = 'Disconnected from server';
+});
+
+connect(() => {
+  statusEl.textContent = 'Connected to server';
+});
+
+btnCreate.addEventListener('click', () => {
+  send({ type: 'dm_create' });
+});
+
+btnStart.addEventListener('click', () => {
+  window.location.href = `session.html?code=${sessionCode}`;
+});
+</script>
+</body>
+</html>
