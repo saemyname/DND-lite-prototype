@@ -104,6 +104,83 @@
     pointer-events: none;
     text-transform: uppercase;
   }
+
+  #debug-panel {
+    position: fixed;
+    top: 70px;
+    right: 16px;
+    z-index: 200;
+    background: rgba(0,0,0,.85);
+    border: 1px solid rgba(200,169,110,.35);
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-family: monospace;
+    font-size: 11px;
+    color: #c8a96e;
+    min-width: 240px;
+    display: none;
+  }
+  #debug-panel.visible { display: block; }
+  #debug-panel h3 {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(200,169,110,.6);
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(200,169,110,.2);
+    padding-bottom: 6px;
+  }
+  #debug-panel .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 7px;
+  }
+  #debug-panel label {
+    width: 110px;
+    font-size: 10px;
+    color: rgba(200,169,110,.7);
+    flex-shrink: 0;
+  }
+  #debug-panel input[type=range] {
+    flex: 1;
+    accent-color: #c8a96e;
+    height: 3px;
+  }
+  #debug-panel .val {
+    width: 36px;
+    text-align: right;
+    font-size: 10px;
+    color: #ffe9a0;
+  }
+  #debug-panel .stat {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    font-size: 10px;
+  }
+  #debug-panel .stat span:last-child { color: #ffe9a0; }
+  #debug-panel .section { margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(200,169,110,.15); }
+
+  #debug-toggle {
+    position: fixed;
+    top: 70px;
+    right: 16px;
+    z-index: 201;
+    padding: 5px 10px;
+    background: rgba(200,169,110,.08);
+    border: 1px solid rgba(200,169,110,.3);
+    border-radius: 4px;
+    color: rgba(200,169,110,.6);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: 'Georgia', serif;
+  }
+  #debug-toggle:hover { background: rgba(200,169,110,.18); color: #ffe9a0; }
+  #debug-panel.visible ~ #debug-toggle,
+  #debug-toggle.panel-open { top: auto; bottom: 70px; right: 16px; }
 </style>
 </head>
 <body>
@@ -117,19 +194,65 @@
 </div>
 <div id="tooltip"></div>
 <div id="vignette"></div>
-<div id="controls-hint">Scroll to zoom</div>
+<div id="controls-hint">Scroll to zoom · D = debug</div>
 
+<button id="debug-toggle">Debug</button>
+<div id="debug-panel">
+  <h3>Camera Debug</h3>
 
-<div id="webcam-preview" class="hidden">
-  <video id="webcam" autoplay playsinline muted></video>
-  <canvas id="face-canvas"></canvas>
+  <div class="stat"><span>zoomLevel</span><span id="db-zoom">0</span></div>
+  <div class="stat"><span>zoomRatio</span><span id="db-ratio">0.00</span></div>
+  <div class="stat"><span>cam.position</span><span id="db-pos">—</span></div>
+  <div class="stat"><span>basePos (Y,Z)</span><span id="db-base">—</span></div>
+
+  <div class="section">
+    <div class="row">
+      <label>lookTarget X</label>
+      <input type="range" id="sl-lx" min="-40" max="40" step="0.5" value="0">
+      <span class="val" id="vl-lx">0</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="row">
+      <label>zoomIn camY</label>
+      <input type="range" id="sl-inY" min="-10" max="80" step="0.5" value="13">
+      <span class="val" id="vl-inY">13</span>
+    </div>
+    <div class="row">
+      <label>zoomOut camY</label>
+      <input type="range" id="sl-outY" min="-10" max="80" step="0.5" value="7">
+      <span class="val" id="vl-outY">7</span>
+    </div>
+    <div class="row">
+      <label>zoomIn camZ</label>
+      <input type="range" id="sl-inZ" min="-20" max="60" step="0.5" value="13">
+      <span class="val" id="vl-inZ">13</span>
+    </div>
+    <div class="row">
+      <label>zoomOut camZ</label>
+      <input type="range" id="sl-outZ" min="-20" max="60" step="0.5" value="18">
+      <span class="val" id="vl-outZ">18</span>
+    </div>
+    <div class="row">
+      <label>zoom min</label>
+      <input type="range" id="sl-zmin" min="-60" max="0" step="1" value="-20">
+      <span class="val" id="vl-zmin">-20</span>
+    </div>
+    <div class="row">
+      <label>zoom max</label>
+      <input type="range" id="sl-zmax" min="0" max="80" step="1" value="30">
+      <span class="val" id="vl-zmax">30</span>
+    </div>
+  </div>
 </div>
+
 
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
-import { initFaceCamera, updateFaceCamera, onResizeFaceCamera, initRotationButtons } from '../scripts/face-camera.js';
+import { connect, send, on } from '../scripts/game-socket.js';
 
 // ══════════════════════════════════════
 //   RENDERER
@@ -153,7 +276,7 @@ scene.fog = new THREE.FogExp2(0xffffff, 0.003);
 
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 300);
 const BASE_CAM_POS = new THREE.Vector3(0, 40, 0);
-const LOOK_TARGET  = new THREE.Vector3(0, 0, 0);
+const LOOK_TARGET  = new THREE.Vector3(0, 0, 5);
 
 // ══════════════════════════════════════
 //   LIGHTING
@@ -197,6 +320,7 @@ let currentStage = null;
 let miniature = null;
 let miniTargetPos = null; // lerp target for movement
 let miniMoving = false;
+let miniArrivalCallback = null;
 let miniBottomOffset = 0;
 const MINI_SPEED = 0.04;  // lerp factor
 const clearedStages = new Set(['stage_01']); // start cleared
@@ -205,7 +329,7 @@ const clearedStages = new Set(['stage_01']); // start cleared
 const charData = JSON.parse(localStorage.getItem('dndlite-character') || 'null');
 const charRole = charData?.role?.toLowerCase() || 'warrior';
 
-gltfLoader.load('../Assets/dnd_map_05a.glb', (gltf) => {
+gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
   mapModel = gltf.scene;
 
   // Center and scale
@@ -270,6 +394,9 @@ gltfLoader.load('../Assets/dnd_map_05a.glb', (gltf) => {
     revealFog(0, 0);
   }
 
+  // Build hit planes + highlight lights for each stage
+  buildStageHitAreas();
+
   // Load miniature
   loadMiniature();
 }, undefined, (err) => {
@@ -290,7 +417,7 @@ function loadMiniature() {
     // Scale miniature to fit on stage
     const miniBox = new THREE.Box3().setFromObject(miniature);
     const miniSize = miniBox.getSize(new THREE.Vector3());
-    const miniScale = 3 / Math.max(miniSize.x, miniSize.y, miniSize.z, 0.01);
+    const miniScale = 1.5 / Math.max(miniSize.x, miniSize.y, miniSize.z, 0.01);
     miniature.scale.setScalar(miniScale);
 
     // Offset so bottom of miniature sits at position Y
@@ -310,6 +437,32 @@ function loadMiniature() {
   });
 }
 
+// ── Stage hit planes + highlight lights ──
+const stageHitMeshes = [];
+
+function buildStageHitAreas() {
+  for (const [key, stage] of Object.entries(stages)) {
+    // Invisible hit plane (horizontal) — large hit area regardless of mesh shape
+    const hitMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(2, 2),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })
+    );
+    hitMesh.rotation.x = -Math.PI / 2;
+    hitMesh.position.set(stage.worldPos.x, stage.worldPos.y + 0.05, stage.worldPos.z);
+    hitMesh.userData.stageId  = key;
+    hitMesh.userData.locationName = stage.object.name;
+    scene.add(hitMesh);
+    stageHitMeshes.push(hitMesh);
+
+  }
+}
+
+// ── Stage key → page URL ──
+function getStageURL(stageKey) {
+  const num = stageKey.replace(/\D/g, '');
+  return `stage${num.padStart(2, '0')}.html`;
+}
+
 // ── Move miniature to a stage ──
 function moveToStage(stageKey) {
   const stage = stages[stageKey];
@@ -319,6 +472,9 @@ function moveToStage(stageKey) {
   miniTargetPos.y -= miniBottomOffset;
   miniMoving = true;
   currentStage = stage;
+  miniArrivalCallback = () => {
+    window.location.href = getStageURL(stageKey);
+  };
 
   // Clear fog at destination
   revealFog(stage.worldPos.x, stage.worldPos.z);
@@ -413,19 +569,90 @@ function revealFog(worldX, worldZ) {
 }
 
 // ══════════════════════════════════════
+//   MULTIPLAYER SYNC
+// ══════════════════════════════════════
+
+const serverUnlocked = new Set(
+  JSON.parse(localStorage.getItem('unlocked-stages') || '["stage_01"]')
+);
+
+if (localStorage.getItem('session-code')) {
+  connect(() => {
+    send({ type: 'player_location', location: 'world-map' });
+  });
+
+  on('stage_unlock', (msg) => {
+    serverUnlocked.add(msg.stageKey);
+    localStorage.setItem('unlocked-stages', JSON.stringify([...serverUnlocked]));
+    console.log('[ws] Stage unlocked:', msg.stageKey);
+  });
+
+  on('fog_reveal', (msg) => {
+    revealFog(msg.x, msg.z);
+  });
+
+  on('player_redirect', (msg) => {
+    window.location.href = msg.url;
+  });
+}
+
+// ══════════════════════════════════════
 //   ZOOM + ROTATION
 // ══════════════════════════════════════
 
 let zoomLevel = 0;
 
+// Zoom camera params (editable via debug panel)
+const zoomParams = {
+  min: -20,
+  max: 30,
+  inY: 13,   // camY when fully zoomed in
+  outY: 7,   // camY when fully zoomed out
+  inZ: 13,   // camZ when fully zoomed in
+  outZ: 18,  // camZ when fully zoomed out
+};
+
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
   zoomLevel -= e.deltaY * 0.03;
-  zoomLevel = Math.max(-20, Math.min(30, zoomLevel));
+  zoomLevel = Math.max(zoomParams.min, Math.min(zoomParams.max, zoomLevel));
 }, { passive: false });
 
-// 90-degree rotation buttons (from face-camera.js)
-initRotationButtons();
+// ── Debug panel ──
+const debugPanel = document.getElementById('debug-panel');
+const debugToggle = document.getElementById('debug-toggle');
+
+function toggleDebug() {
+  const visible = debugPanel.classList.toggle('visible');
+  debugToggle.textContent = visible ? 'Close' : 'Debug';
+}
+debugToggle.addEventListener('click', toggleDebug);
+document.addEventListener('keydown', e => { if (e.key === 'd' || e.key === 'D') toggleDebug(); });
+
+// Wire sliders
+function wireSlider(id, valId, paramKey) {
+  const sl = document.getElementById(id);
+  const vl = document.getElementById(valId);
+  sl.addEventListener('input', () => {
+    zoomParams[paramKey] = parseFloat(sl.value);
+    vl.textContent = sl.value;
+    // Clamp zoomLevel when limits change
+    zoomLevel = Math.max(zoomParams.min, Math.min(zoomParams.max, zoomLevel));
+  });
+}
+wireSlider('sl-inY',  'vl-inY',  'inY');
+wireSlider('sl-outY', 'vl-outY', 'outY');
+wireSlider('sl-inZ',  'vl-inZ',  'inZ');
+wireSlider('sl-outZ', 'vl-outZ', 'outZ');
+wireSlider('sl-zmin', 'vl-zmin', 'min');
+wireSlider('sl-zmax', 'vl-zmax', 'max');
+
+// lookTarget sliders
+document.getElementById('sl-lx').addEventListener('input', e => {
+  LOOK_TARGET.x = parseFloat(e.target.value);
+  document.getElementById('vl-lx').textContent = e.target.value;
+});
+
 
 // ══════════════════════════════════════
 //   RAYCASTER + TOOLTIP
@@ -435,15 +662,51 @@ const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 const tooltipEl = document.getElementById('tooltip');
 
+let hoveredStageKey = null;
+
+function setStageHover(stageKey, hover) {
+  const stage = stages[stageKey];
+  if (!stage) return;
+
+  stage.object.traverse(c => {
+    if (!c.isMesh) return;
+    // Clone material once per mesh to isolate shared instances
+    if (!c.userData._matCloned) {
+      c.material = Array.isArray(c.material)
+        ? c.material.map(m => m.clone())
+        : c.material.clone();
+      c.userData._matCloned = true;
+    }
+    const mats = Array.isArray(c.material) ? c.material : [c.material];
+    mats.forEach(m => {
+      if (m.emissive) {
+        m.emissive.setRGB(hover ? 1 : 0, 0, 0);
+        m.emissiveIntensity = hover ? 1 : 0;
+      }
+    });
+  });
+
+  stage.object.scale.setScalar(hover ? 1.5 : 1.0);
+}
+
 canvas.addEventListener('pointermove', e => {
   mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
 
   raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObjects(clickables, false);
+  const hits = raycaster.intersectObjects(stageHitMeshes, false);
 
-  if (hits.length > 0 && hits[0].object.userData.locationName) {
-    tooltipEl.textContent = hits[0].object.userData.locationName;
+  const hit = hits.length > 0 ? hits[0] : null;
+  const stageKey = hit?.object.userData.stageId || null;
+
+  if (stageKey !== hoveredStageKey) {
+    if (hoveredStageKey) setStageHover(hoveredStageKey, false);
+    hoveredStageKey = stageKey;
+    if (hoveredStageKey) setStageHover(hoveredStageKey, true);
+  }
+
+  if (hit?.object.userData.locationName) {
+    tooltipEl.textContent = hit.object.userData.locationName;
     tooltipEl.style.left = (e.clientX + 16) + 'px';
     tooltipEl.style.top = (e.clientY - 10) + 'px';
     tooltipEl.classList.add('visible');
@@ -467,7 +730,7 @@ canvas.addEventListener('click', e => {
   mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObjects([...clickables, groundPlane], false);
+  const hits = raycaster.intersectObjects([...stageHitMeshes, groundPlane], false);
   if (hits.length > 0) {
     const hit = hits[0];
     const stageId = hit.object.userData.stageId;
@@ -476,7 +739,7 @@ canvas.addEventListener('click', e => {
       // For now: allow if the previous stage number is cleared
       const num = parseInt(stageId.replace(/\D/g, ''));
       const prevKey = Object.keys(stages).find(k => k.includes(String(num - 1).padStart(2, '0')));
-      if (num === 1 || clearedStages.has(prevKey)) {
+      if (num === 1 || clearedStages.has(prevKey) || serverUnlocked.has(stageId)) {
         moveToStage(stageId);
       } else {
         console.log('Stage locked:', stageId, '— clear previous first');
@@ -488,30 +751,12 @@ canvas.addEventListener('click', e => {
   }
 });
 
-// ══════════════════════════════════════
-//   FACE CAMERA
-// ══════════════════════════════════════
-
-initFaceCamera();
-
-const faceCamConfig = {
-  basePos: BASE_CAM_POS.clone(),
-  lookTarget: LOOK_TARGET.clone(),
-  screenDist: 30,
-  offAxis: true,
-  far: 300,
-  strength: 8,
-  strengthY: 4,
-};
-
 window.addEventListener('resize', () => {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  onResizeFaceCamera(w, h);
 });
-onResizeFaceCamera(window.innerWidth, window.innerHeight);
 
 // ══════════════════════════════════════
 //   RENDER LOOP
@@ -559,22 +804,36 @@ function tick() {
       miniature.position.x = miniTargetPos.x;
       miniature.position.z = miniTargetPos.z;
       miniMoving = false;
+      if (miniArrivalCallback) {
+        const cb = miniArrivalCallback;
+        miniArrivalCallback = null;
+        cb();
+      }
     }
   }
 
   // Update face camera config with zoom
-  // zoomLevel: -20 (max zoom in / top view) to +30 (max zoom out / front view)
-  const zoomRatio = 1 - (zoomLevel + 20) / 50; // 0 = zoom in (top), 1 = zoom out (front)
-  const camY = 40 + zoomRatio * (10 - 40);  // in:40 → out:10
-  const camZ = 5 + zoomRatio * (50 - 5);    // in:5  → out:50
+  const zoomRange = zoomParams.max - zoomParams.min || 1;
+  const zoomRatio = 1 - (zoomLevel - zoomParams.min) / zoomRange; // 0 = zoom in, 1 = zoom out
+  const camY = zoomParams.inY + zoomRatio * (zoomParams.outY - zoomParams.inY);
+  const camZ = zoomParams.inZ + zoomRatio * (zoomParams.outZ - zoomParams.inZ);
   BASE_CAM_POS.set(0, camY, camZ);
-  faceCamConfig.basePos.copy(BASE_CAM_POS);
-  faceCamConfig.screenDist = Math.sqrt(camY * camY + camZ * camZ);
 
+  // Update debug panel stats
+  if (debugPanel.classList.contains('visible')) {
+    document.getElementById('db-zoom').textContent  = zoomLevel.toFixed(1);
+    document.getElementById('db-ratio').textContent = zoomRatio.toFixed(3);
+    document.getElementById('db-pos').textContent   =
+      `${camera.position.x.toFixed(1)}, ${camera.position.y.toFixed(1)}, ${camera.position.z.toFixed(1)}`;
+    document.getElementById('db-base').textContent  =
+      `${camY.toFixed(1)}, ${camZ.toFixed(1)}`;
+  }
   // Fog density: thicker when zoomed out, clear when zoomed in
   scene.fog.density = 0.001 + zoomRatio * 0.008;
 
-  updateFaceCamera(camera, faceCamConfig);
+  // Simple camera: position from zoom params, look at map center
+  camera.position.copy(BASE_CAM_POS);
+  camera.lookAt(LOOK_TARGET);
   renderer.render(scene, camera);
 }
 tick();
