@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D&D Lite — Stage 01</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #000;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    font-family: 'Georgia', serif;
+    color: #c8a96e;
+    user-select: none;
+  }
+
+  #nav {
+    position: fixed;
+    top: 24px;
+    left: 24px;
+    z-index: 50;
+    display: flex;
+    gap: 8px;
+  }
+  #nav a {
+    padding: 6px 14px;
+    background: rgba(200,169,110,.06);
+    border: 1px solid rgba(200,169,110,.2);
+    border-radius: 4px;
+    color: rgba(200,169,110,.55);
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    text-decoration: none;
+    transition: all .2s;
+  }
+  #nav a:hover {
+    background: rgba(200,169,110,.18);
+    border-color: rgba(200,169,110,.5);
+    color: #ffe9a0;
+  }
+
+  #title {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    font-size: 14px;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: rgba(200,169,110,.5);
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<div id="nav">
+  <a href="world-map.html">← World</a>
+</div>
+<div id="title">Stage 01</div>
+
+
+<script type="module" src="../scripts/player-session.js"></script>
+</body>
+</html>
