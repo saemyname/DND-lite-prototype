@@ -578,7 +578,11 @@ const serverUnlocked = new Set(
 
 if (localStorage.getItem('session-code')) {
   connect(() => {
-    send({ type: 'player_location', location: 'world-map' });
+    const playerId = localStorage.getItem('player-id');
+    const sessionCode = localStorage.getItem('session-code');
+    if (playerId) {
+      send({ type: 'player_rejoin', code: sessionCode, playerId, location: 'world-map' });
+    }
   });
 
   on('stage_unlock', (msg) => {

@@ -12,7 +12,7 @@ const wss = new WebSocketServer({ server });
 app.use(express.static(path.join(__dirname)));
 
 // sessions: Map<code, { dm: WebSocket|null, players: Map<id, PlayerEntry>, unlockedStages: Set }>
-// PlayerEntry: { ws, name, role, location }
+// PlayerEntry: { ws: WebSocket|null, name, role, location }
 const sessions = new Map();
 
 function makeCode() {
@@ -97,6 +97,21 @@ wss.on('connection', (ws) => {
         break;
       }
 
+      case 'player_rejoin': {
+        const rs = sessions.get(msg.code);
+        if (!rs) return;
+        const ep = rs.players.get(msg.playerId);
+        if (!ep) return;
+        ep.ws = ws;
+        sess = rs;
+        code = msg.code;
+        pid  = msg.playerId;
+        role = 'player';
+        if (msg.location) ep.location = msg.location;
+        if (sess.dm) send(sess.dm, { type: 'player_location', playerId: pid, location: ep.location });
+        break;
+      }
+
       case 'player_location': {
         if (role !== 'player' || !sess || !sess.dm) return;
         const p = sess.players.get(pid);
@@ -110,11 +125,11 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     if (!sess) return;
     if (role === 'dm') {
-      sess.dm = null;
+      if (sess.dm === ws) sess.dm = null; // don't wipe if session.html already took over
       // Keep session alive so DM can rejoin from session.html
     } else if (role === 'player' && pid) {
-      sess.players.delete(pid);
-      if (sess.dm) send(sess.dm, { type: 'player_left', playerId: pid });
+      const p = sess.players.get(pid);
+      if (p) p.ws = null; // keep player in session across page navigation
     }
   });
 });
