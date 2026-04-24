@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D&D Lite — DM Session</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0a;
+    min-height: 100vh;
+    font-family: 'Georgia', serif;
+    color: #c8a96e;
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    grid-template-rows: 56px 1fr;
+  }
+  header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    border-bottom: 1px solid rgba(200,169,110,.12);
+    gap: 16px;
+  }
+  header h1 {
+    font-size: 11px;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: rgba(200,169,110,.5);
+  }
+  .code-badge {
+    font-size: 18px;
+    letter-spacing: 6px;
+    color: #ffe9a0;
+    font-family: monospace;
+    border: 1px solid rgba(200,169,110,.2);
+    padding: 2px 12px;
+    border-radius: 4px;
+  }
+  #status {
+    margin-left: auto;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(200,169,110,.3);
+    text-transform: uppercase;
+  }
+
+  aside {
+    border-right: 1px solid rgba(200,169,110,.1);
+    padding: 20px 16px;
+    overflow-y: auto;
+  }
+  aside h2 {
+    font-size: 10px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: rgba(200,169,110,.35);
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(200,169,110,.1);
+  }
+  .player-row {
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(200,169,110,.07);
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
+  .player-row .name { color: rgba(200,169,110,.9); }
+  .player-row .loc  { font-size: 10px; color: rgba(200,169,110,.3); margin-top: 2px; }
+  #no-players { font-size: 10px; color: rgba(200,169,110,.25); letter-spacing: 1px; }
+
+  main {
+    padding: 24px;
+    overflow-y: auto;
+  }
+  section { margin-bottom: 32px; }
+  section h2 {
+    font-size: 10px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: rgba(200,169,110,.35);
+    margin-bottom: 14px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(200,169,110,.1);
+  }
+  .btn-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  button.dm-btn {
+    display: inline-block;
+    padding: 8px 18px;
+    background: rgba(200,169,110,.07);
+    border: 1px solid rgba(200,169,110,.25);
+    border-radius: 4px;
+    color: rgba(200,169,110,.7);
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: 'Georgia', serif;
+    transition: all .2s;
+  }
+  button.dm-btn:hover { background: rgba(200,169,110,.18); color: #ffe9a0; border-color: rgba(200,169,110,.5); }
+  button.dm-btn.active { background: rgba(200,169,110,.25); color: #ffe9a0; border-color: rgba(200,169,110,.7); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>DM Control</h1>
+  <span class="code-badge" id="code-badge">----</span>
+  <span id="status">Connecting…</span>
+</header>
+
+<aside>
+  <h2>Players</h2>
+  <div id="player-list"><span id="no-players">None connected</span></div>
+</aside>
+
+<main>
+  <section>
+    <h2>Stage Control</h2>
+    <div class="btn-grid" id="stage-btns">
+      <button class="dm-btn" data-action="unlock" data-stage="stage_01">Unlock Stage 01</button>
+      <button class="dm-btn" data-action="unlock" data-stage="stage_02">Unlock Stage 02</button>
+      <button class="dm-btn" data-action="unlock" data-stage="stage_03">Unlock Stage 03</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Navigate Players To</h2>
+    <div class="btn-grid">
+      <button class="dm-btn" data-action="redirect" data-url="world-map.html">World Map</button>
+      <button class="dm-btn" data-action="redirect" data-url="stage01.html">Stage 01</button>
+      <button class="dm-btn" data-action="redirect" data-url="stage02.html">Stage 02</button>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+import { connect, send, on } from '../../scripts/game-socket.js';
+
+const params = new URLSearchParams(location.search);
+const code = params.get('code') || localStorage.getItem('dm-session-code');
+
+document.getElementById('code-badge').textContent = code || '----';
+
+const players = new Map();
+const playerList = document.getElementById('player-list');
+const noPlayers  = document.getElementById('no-players');
+const statusEl   = document.getElementById('status');
+
+function renderPlayers() {
+  playerList.innerHTML = '';
+  if (players.size === 0) {
+    playerList.appendChild(noPlayers);
+    return;
+  }
+  for (const [id, p] of players) {
+    const div = document.createElement('div');
+    div.className = 'player-row';
+    div.id = `player-${id}`;
+
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'name';
+    const roleSpan = document.createElement('span');
+    roleSpan.style.cssText = 'opacity:.4;font-size:9px';
+    roleSpan.textContent = p.role;
+    nameDiv.textContent = p.name + ' ';
+    nameDiv.appendChild(roleSpan);
+
+    const locDiv = document.createElement('div');
+    locDiv.className = 'loc';
+    locDiv.id = `loc-${id}`;
+    locDiv.textContent = p.location;
+
+    div.append(nameDiv, locDiv);
+    playerList.appendChild(div);
+  }
+}
+
+on('session_created', () => {});
+
+on('player_joined', (msg) => {
+  players.set(msg.playerId, { name: msg.name, role: msg.role, location: 'world-map' });
+  renderPlayers();
+});
+
+on('player_left', (msg) => {
+  players.delete(msg.playerId);
+  renderPlayers();
+});
+
+on('player_location', (msg) => {
+  const p = players.get(msg.playerId);
+  if (p) {
+    p.location = msg.location;
+    const locEl = document.getElementById(`loc-${msg.playerId}`);
+    if (locEl) locEl.textContent = msg.location;
+  }
+});
+
+on('stage_unlock_ack', (msg) => {
+  const btn = document.querySelector(`[data-stage="${msg.stageKey}"]`);
+  if (btn) btn.classList.add('active');
+});
+
+on('_disconnect', () => { statusEl.textContent = 'Disconnected'; });
+
+connect(() => {
+  statusEl.textContent = `Connected · session ${code}`;
+});
+
+document.querySelectorAll('button.dm-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const action = btn.dataset.action;
+    if (action === 'unlock') {
+      send({ type: 'stage_unlock', stageKey: btn.dataset.stage });
+    } else if (action === 'redirect') {
+      send({ type: 'player_redirect', url: btn.dataset.url });
+    }
+  });
+});
+</script>
+</body>
+</html>
