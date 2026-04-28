@@ -1,3 +1,5 @@
+// Drop-in WebSocket reconnect for any player-facing page.
+// Import this module on any page that a player might be redirected to.
 import { connect, send, on } from './game-socket.js';
 
 const sessionCode = localStorage.getItem('session-code');
