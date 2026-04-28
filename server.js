@@ -153,7 +153,7 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     if (!sess) return;
     if (role === 'dm') {
-      if (sess.dm === ws) {
+      if (sess.dm === ws) { // don't wipe if session.html already took over (dm_rejoin sets sess.dm first)
         broadcastPlayers(sess, { type: 'dm_disconnected' });
         sess.dm = null;
       }
