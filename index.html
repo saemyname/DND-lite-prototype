@@ -176,7 +176,7 @@
   </div>
   <div class="field">
     <label>Session Code</label>
-    <input id="code-input" maxlength="4" placeholder="ABCD" autocomplete="off" spellcheck="false">
+    <input id="code-input" type="text" maxlength="4" placeholder="ABCD" autocomplete="off" spellcheck="false">
   </div>
   <button id="btn-join" disabled>Join Session</button>
   <div class="divider"><hr><span>or</span><hr></div>
@@ -218,6 +218,7 @@ document.getElementById('btn-player').addEventListener('click', () => {
   document.getElementById('btn-dm').classList.remove('active');
   document.getElementById('dm-section').classList.remove('visible');
   document.getElementById('player-section').classList.add('visible');
+  statusEl.textContent = '';
 });
 
 function updateJoinBtn() {
@@ -250,10 +251,11 @@ on('joined', (msg) => {
 
 on('error', (msg) => {
   statusEl.textContent = msg.message;
-  btnJoin.disabled = false;
+  updateJoinBtn();
 });
 
 on('_disconnect', () => {
+  connected = false;
   statusEl.textContent = 'Server not reachable';
 });
 
