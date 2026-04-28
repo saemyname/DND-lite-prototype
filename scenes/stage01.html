@@ -4,6 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>D&D Lite — Stage 01</title>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+    "three/": "https://cdn.jsdelivr.net/npm/three@0.176.0/"
+  }
+}
+</script>
+
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -14,6 +24,20 @@
     font-family: 'Georgia', serif;
     color: #c8a96e;
     user-select: none;
+  }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  #title {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    font-size: 14px;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: rgba(200,169,110,.5);
+    pointer-events: none;
   }
 
   #nav {
@@ -42,27 +66,175 @@
     color: #ffe9a0;
   }
 
-  #title {
+  #loading {
     position: fixed;
-    top: 24px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 50;
-    font-size: 14px;
-    letter-spacing: 5px;
-    text-transform: uppercase;
+    inset: 0;
+    z-index: 200;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    letter-spacing: 4px;
     color: rgba(200,169,110,.5);
-    pointer-events: none;
+    transition: opacity .6s;
   }
+  #loading.hidden { opacity: 0; pointer-events: none; }
 </style>
 </head>
 <body>
 
+<canvas id="canvas"></canvas>
+<div id="title">Stage 01</div>
 <div id="nav">
   <a href="world-map.html">← World</a>
 </div>
-<div id="title">Stage 01</div>
+<div id="loading">Loading...</div>
 
+<div id="webcam-preview" class="hidden">
+  <video id="webcam" autoplay playsinline muted></video>
+  <canvas id="face-canvas"></canvas>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { initFaceCamera, updateFaceCamera, onResizeFaceCamera, initRotationButtons } from '../scripts/face-camera.js';
+
+// ── Renderer ──
+const canvas = document.getElementById('canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.NoToneMapping;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x050210);
+
+// ── Camera ──
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 500);
+const BASE_CAM_POS = new THREE.Vector3(0, 0, 24);
+const LOOK_TARGET  = new THREE.Vector3(0, 0, -8);
+const SCREEN_DIST  = BASE_CAM_POS.z;
+
+// ── Lighting ──
+scene.add(new THREE.AmbientLight(0xfff0d0, 0.5));
+
+const keyLight = new THREE.DirectionalLight(0xfff0d0, 1.5);
+keyLight.position.set(8, 20, 10);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(1024, 1024);
+keyLight.shadow.camera.left = -30;
+keyLight.shadow.camera.right = 30;
+keyLight.shadow.camera.top = 30;
+keyLight.shadow.camera.bottom = -30;
+keyLight.shadow.camera.far = 60;
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(0x8899ff, 0.4);
+fillLight.position.set(-10, 8, -6);
+scene.add(fillLight);
+
+const overheadLight = new THREE.PointLight(0xffa552, 3, 50, 1.5);
+overheadLight.position.set(0, 12, -8);
+scene.add(overheadLight);
+
+// ── GLB loader ──
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/libs/draco/');
+const gltfLoader = new GLTFLoader();
+gltfLoader.setDRACOLoader(dracoLoader);
+
+// ── Model loading ──
+let currentModel = null;
+
+function placeModel(gltfScene) {
+  if (currentModel) {
+    scene.remove(currentModel);
+    currentModel.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) {
+        if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+        else o.material.dispose();
+      }
+    });
+    currentModel = null;
+  }
+
+  const model = gltfScene;
+  model.traverse(child => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  model.position.sub(center);
+
+  const baseScale = 40 / Math.max(size.x, 0.01);
+  const scaledDepth = size.z * baseScale;
+  const camZ = BASE_CAM_POS.z;
+  const perspComp = (camZ + scaledDepth / 2) / camZ;
+  const scale = baseScale * perspComp;
+  model.scale.setScalar(scale);
+
+  const group = new THREE.Group();
+  group.add(model);
+  const finalDepth = size.z * scale;
+  group.position.set(0, 0, -finalDepth / 2);
+
+  scene.add(group);
+  currentModel = group;
+
+  LOOK_TARGET.set(0, 0, -finalDepth / 2);
+
+  document.getElementById('loading').classList.add('hidden');
+}
+
+gltfLoader.load('../Assets/dnd_typeshyt-01a.glb', (gltf) => {
+  placeModel(gltf.scene);
+}, undefined, (err) => {
+  console.error('GLB load error:', err);
+  document.getElementById('loading').textContent = 'Load failed';
+});
+
+// ── Face tracking + rotation buttons ──
+initFaceCamera();
+initRotationButtons();
+
+window.addEventListener('resize', () => {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  onResizeFaceCamera(w, h);
+});
+onResizeFaceCamera(window.innerWidth, window.innerHeight);
+
+// ── Render loop ──
+const faceCamConfig = {
+  basePos: BASE_CAM_POS,
+  lookTarget: LOOK_TARGET,
+  screenDist: SCREEN_DIST,
+  offAxis: true,
+  far: 500,
+  strength: 20,
+  strengthY: 5,
+};
+
+function tick() {
+  requestAnimationFrame(tick);
+  updateFaceCamera(camera, faceCamConfig);
+  renderer.render(scene, camera);
+}
+tick();
+</script>
 
 <script type="module" src="../scripts/player-session.js"></script>
 </body>
