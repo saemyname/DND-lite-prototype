@@ -563,14 +563,6 @@ const serverUnlocked = new Set(
 );
 
 if (localStorage.getItem('session-code')) {
-  connect(() => {
-    const playerId = localStorage.getItem('player-id');
-    const sessionCode = localStorage.getItem('session-code');
-    if (playerId) {
-      send({ type: 'player_rejoin', code: sessionCode, playerId, location: 'world-map' });
-    }
-  });
-
   on('stage_unlock', (msg) => {
     serverUnlocked.add(msg.stageKey);
     localStorage.setItem('unlocked-stages', JSON.stringify([...serverUnlocked]));
@@ -579,10 +571,6 @@ if (localStorage.getItem('session-code')) {
 
   on('fog_reveal', (msg) => {
     revealFog(msg.x, msg.z);
-  });
-
-  on('player_redirect', (msg) => {
-    window.location.href = msg.url;
   });
 }
 
@@ -831,5 +819,6 @@ function tick() {
 }
 tick();
 </script>
+<script type="module" src="../scripts/player-session.js"></script>
 </body>
 </html>
