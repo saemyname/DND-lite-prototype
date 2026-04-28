@@ -4,331 +4,274 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>D&D Lite</title>
-
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-
   body {
-    background: #050210;
-    overflow: hidden;
-    width: 100vw;
-    height: 100vh;
-    font-family: 'Georgia', serif;
-    color: #c8a96e;
-    user-select: none;
-  }
-
-  /* ════════════════════════════
-     CHARACTER CREATION
-  ════════════════════════════ */
-  #char-create {
-    position: fixed;
-    inset: 0;
-    z-index: 900;
-    background: #050210;
+    background: #0a0a0a;
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0;
+    font-family: 'Georgia', serif;
+    color: #c8a96e;
   }
-
-  .cc-title {
+  h1 {
     font-size: 13px;
-    letter-spacing: 8px;
+    letter-spacing: 6px;
     text-transform: uppercase;
     color: rgba(200,169,110,.4);
-    margin-bottom: 6px;
-  }
-  .cc-heading {
-    font-size: 36px;
-    color: #ffe9a0;
-    letter-spacing: 3px;
     margin-bottom: 48px;
-    text-shadow: 0 0 40px rgba(200,169,110,.3);
   }
-
-  /* Role cards */
-  .cc-roles {
+  #role-picker {
     display: flex;
-    gap: 24px;
-    margin-bottom: 40px;
-  }
-  .cc-role-card {
-    width: 220px;
-    padding: 28px 24px 24px;
-    background: rgba(200,169,110,.04);
-    border: 1px solid rgba(200,169,110,.12);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all .3s ease;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    position: relative;
-  }
-  .cc-role-card:hover {
-    background: rgba(200,169,110,.08);
-    border-color: rgba(200,169,110,.3);
-    transform: translateY(-4px);
-  }
-  .cc-role-card.selected {
-    background: rgba(200,169,110,.12);
-    border-color: rgba(200,169,110,.6);
-    box-shadow: 0 0 30px rgba(200,169,110,.15), inset 0 0 20px rgba(200,169,110,.05);
-  }
-  .cc-role-icon {
-    font-size: 48px;
-    line-height: 1;
-    filter: grayscale(.3);
-    transition: filter .3s;
-  }
-  .cc-role-card.selected .cc-role-icon { filter: grayscale(0); }
-  .cc-role-name {
-    font-size: 18px;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: #ffe9a0;
-  }
-  .cc-role-desc {
-    font-size: 11px;
-    letter-spacing: 1px;
-    color: rgba(200,169,110,.5);
-    text-align: center;
-    line-height: 1.6;
-    margin-bottom: 8px;
-  }
-
-  /* Stat bars inside cards */
-  .cc-card-stats {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    border-top: 1px solid rgba(200,169,110,.1);
-    padding-top: 12px;
-  }
-  .cc-card-stat {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .cc-card-stat-name {
-    font-size: 9px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: rgba(200,169,110,.4);
-    width: 32px;
-    text-align: right;
-  }
-  .cc-card-stat-bar {
-    flex: 1;
-    height: 3px;
-    background: rgba(200,169,110,.1);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  .cc-card-stat-fill {
-    height: 100%;
-    border-radius: 2px;
-    transition: width .4s ease;
-  }
-  .cc-card-stat-fill.stat-fill { background: linear-gradient(to right, #c8a96e, #ffe9a0); }
-  .cc-card-stat-fill.hp-fill   { background: linear-gradient(to right, #c45050, #e85d5d); }
-  .cc-card-stat-val {
-    font-size: 11px;
-    color: rgba(200,169,110,.6);
-    width: 18px;
-    text-align: right;
-  }
-  .cc-card-stat-val.hp-val { color: #e85d5d; }
-
-  /* Name input */
-  .cc-name-row {
-    display: flex;
-    align-items: center;
     gap: 16px;
     margin-bottom: 40px;
-    opacity: 0;
-    transform: translateY(10px);
-    transition: all .4s ease .1s;
   }
-  .cc-name-row.visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  .cc-name-label {
-    font-size: 11px;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: rgba(200,169,110,.4);
-  }
-  .cc-name-input {
-    background: rgba(0,0,0,.4);
+  .role-btn {
+    padding: 14px 40px;
+    background: rgba(200,169,110,.06);
     border: 1px solid rgba(200,169,110,.2);
     border-radius: 4px;
-    padding: 10px 16px;
-    font-size: 18px;
-    font-family: 'Georgia', serif;
-    color: #ffe9a0;
-    letter-spacing: 2px;
-    outline: none;
-    width: 280px;
-    transition: border-color .3s;
-  }
-  .cc-name-input::placeholder { color: rgba(200,169,110,.2); }
-  .cc-name-input:focus { border-color: rgba(200,169,110,.5); }
-
-  /* Begin button */
-  .cc-begin {
-    padding: 14px 48px;
-    background: rgba(200,169,110,.08);
-    border: 1px solid rgba(200,169,110,.25);
-    border-radius: 4px;
-    color: #c8a96e;
-    font-family: 'Georgia', serif;
-    font-size: 14px;
-    letter-spacing: 5px;
+    color: rgba(200,169,110,.55);
+    font-size: 13px;
+    letter-spacing: 4px;
     text-transform: uppercase;
     cursor: pointer;
-    transition: all .3s;
-    opacity: 0;
-    transform: translateY(10px);
-    pointer-events: none;
+    font-family: 'Georgia', serif;
+    transition: all .2s;
   }
-  .cc-begin.visible {
-    opacity: 1;
-    transform: translateY(0);
-    pointer-events: all;
-  }
-  .cc-begin:hover {
+  .role-btn:hover, .role-btn.active {
     background: rgba(200,169,110,.18);
     border-color: rgba(200,169,110,.5);
     color: #ffe9a0;
-    box-shadow: 0 0 30px rgba(200,169,110,.15);
   }
-
-  /* Decorative corner marks */
-  .cc-corner {
-    position: absolute;
-    width: 40px;
-    height: 40px;
-    border-color: rgba(200,169,110,.1);
-    border-style: solid;
-    border-width: 0;
+  .section { display: none; }
+  .section.visible { display: flex; flex-direction: column; align-items: center; }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+    width: 260px;
   }
-  .cc-corner.tl { top: 60px; left: 60px; border-top-width: 1px; border-left-width: 1px; }
-  .cc-corner.tr { top: 60px; right: 60px; border-top-width: 1px; border-right-width: 1px; }
-  .cc-corner.bl { bottom: 60px; left: 60px; border-bottom-width: 1px; border-left-width: 1px; }
-  .cc-corner.br { bottom: 60px; right: 60px; border-bottom-width: 1px; border-right-width: 1px; }
+  label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(200,169,110,.4);
+  }
+  input, select {
+    background: rgba(200,169,110,.06);
+    border: 1px solid rgba(200,169,110,.25);
+    border-radius: 4px;
+    padding: 10px 14px;
+    color: #ffe9a0;
+    font-size: 16px;
+    letter-spacing: 2px;
+    font-family: 'Georgia', serif;
+    width: 100%;
+  }
+  input:focus, select:focus { outline: none; border-color: rgba(200,169,110,.6); }
+  input::placeholder { color: rgba(200,169,110,.2); letter-spacing: 2px; }
+  select option { background: #1a1a1a; color: #c8a96e; }
+  #code-input {
+    font-size: 24px;
+    letter-spacing: 8px;
+    text-align: center;
+    text-transform: uppercase;
+    font-family: monospace;
+  }
+  #code-input::placeholder { font-size: 14px; letter-spacing: 4px; }
+  button {
+    display: block;
+    width: 260px;
+    padding: 12px;
+    background: rgba(200,169,110,.08);
+    border: 1px solid rgba(200,169,110,.3);
+    border-radius: 4px;
+    color: #c8a96e;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: 'Georgia', serif;
+    transition: all .2s;
+    text-align: center;
+    margin-top: 8px;
+  }
+  button:hover { background: rgba(200,169,110,.18); color: #ffe9a0; }
+  button:disabled { opacity: .35; cursor: default; }
+  .divider {
+    width: 260px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 16px 0 8px;
+  }
+  .divider hr { flex: 1; border: none; border-top: 1px solid rgba(200,169,110,.12); }
+  .divider span { font-size: 10px; letter-spacing: 3px; color: rgba(200,169,110,.25); text-transform: uppercase; }
+  #btn-solo {
+    background: transparent;
+    border-color: rgba(200,169,110,.15);
+    color: rgba(200,169,110,.4);
+  }
+  #btn-solo:hover { background: rgba(200,169,110,.08); color: rgba(200,169,110,.8); border-color: rgba(200,169,110,.3); }
+  #status {
+    margin-top: 20px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(200,169,110,.35);
+    text-transform: uppercase;
+    height: 16px;
+  }
+  #dm-section a {
+    display: block;
+    width: 260px;
+    padding: 14px;
+    background: rgba(200,169,110,.08);
+    border: 1px solid rgba(200,169,110,.3);
+    border-radius: 4px;
+    color: #c8a96e;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    text-align: center;
+    text-decoration: none;
+    transition: all .2s;
+  }
+  #dm-section a:hover { background: rgba(200,169,110,.18); color: #ffe9a0; }
+  .dm-note {
+    margin-top: 16px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(200,169,110,.3);
+    text-transform: uppercase;
+  }
 </style>
 </head>
 <body>
 
-<div id="char-create">
-  <div class="cc-corner tl"></div>
-  <div class="cc-corner tr"></div>
-  <div class="cc-corner bl"></div>
-  <div class="cc-corner br"></div>
+<h1>D&D Lite</h1>
 
-  <div class="cc-title">Choose Your Path</div>
-  <div class="cc-heading">Create Your Character</div>
-
-  <div class="cc-roles" id="cc-roles">
-    <div class="cc-role-card" onclick="selectRole('warrior')">
-      <div class="cc-role-icon">⚔️</div>
-      <div class="cc-role-name">Warrior</div>
-      <div class="cc-role-desc">Brute force and iron will. Survives what others cannot.</div>
-      <div class="cc-card-stats"></div>
-    </div>
-    <div class="cc-role-card" onclick="selectRole('rogue')">
-      <div class="cc-role-icon">🏹</div>
-      <div class="cc-role-name">Rogue</div>
-      <div class="cc-role-desc">Swift and silent. Strikes before you blink.</div>
-      <div class="cc-card-stats"></div>
-    </div>
-    <div class="cc-role-card" onclick="selectRole('mage')">
-      <div class="cc-role-icon">🔮</div>
-      <div class="cc-role-name">Mage</div>
-      <div class="cc-role-desc">Arcane knowledge and power. Bends reality itself.</div>
-      <div class="cc-card-stats"></div>
-    </div>
-  </div>
-
-  <div class="cc-name-row" id="cc-name-row">
-    <span class="cc-name-label">Name</span>
-    <input class="cc-name-input" id="cc-name" type="text" placeholder="William Kang" maxlength="24">
-  </div>
-
-  <button class="cc-begin" id="cc-begin" onclick="beginAdventure()">Begin Adventure</button>
+<div id="role-picker">
+  <button class="role-btn" id="btn-dm">DM</button>
+  <button class="role-btn" id="btn-player">Player</button>
 </div>
 
-<script>
-const ROLE_STATS = {
-  warrior: { str: 14, agi: 10, int:  8, lck: 10, hp: 20 },
-  rogue:   { str:  8, agi: 14, int: 10, lck: 12, hp: 14 },
-  mage:    { str:  6, agi:  8, int: 14, lck: 12, hp: 12 },
-};
+<div id="player-section" class="section">
+  <div class="field">
+    <label>Name</label>
+    <input id="name-input" type="text" placeholder="Your name" maxlength="24" autocomplete="off">
+  </div>
+  <div class="field">
+    <label>Class</label>
+    <select id="role-select">
+      <option value="warrior">Warrior</option>
+      <option value="mage">Mage</option>
+      <option value="rogue">Rogue</option>
+      <option value="cleric">Cleric</option>
+      <option value="ranger">Ranger</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>Session Code</label>
+    <input id="code-input" maxlength="4" placeholder="ABCD" autocomplete="off" spellcheck="false">
+  </div>
+  <button id="btn-join" disabled>Join Session</button>
+  <div class="divider"><hr><span>or</span><hr></div>
+  <button id="btn-solo">Play Solo</button>
+  <div id="status"></div>
+</div>
 
-const STAT_LABELS = [
-  { key: 'str', label: 'STR', max: 20 },
-  { key: 'agi', label: 'AGI', max: 20 },
-  { key: 'int', label: 'INT', max: 20 },
-  { key: 'lck', label: 'LCK', max: 20 },
-  { key: 'hp',  label: 'HP',  max: 20 },
-];
+<div id="dm-section" class="section">
+  <a href="scenes/dm/lobby.html">Open DM Lobby →</a>
+  <p class="dm-note">Create a session · share the code with players</p>
+</div>
 
-// Populate stat bars inside each card on load
-const ROLES = ['warrior', 'rogue', 'mage'];
-document.querySelectorAll('.cc-card-stats').forEach((container, i) => {
-  const stats = ROLE_STATS[ROLES[i]];
-  container.innerHTML = STAT_LABELS.map(s => {
-    const isHp = s.key === 'hp';
-    const pct = (stats[s.key] / s.max * 100);
-    return `<div class="cc-card-stat">
-      <span class="cc-card-stat-name">${s.label}</span>
-      <div class="cc-card-stat-bar"><div class="cc-card-stat-fill ${isHp ? 'hp-fill' : 'stat-fill'}" style="width:${pct}%"></div></div>
-      <span class="cc-card-stat-val ${isHp ? 'hp-val' : ''}">${stats[s.key]}</span>
-    </div>`;
-  }).join('');
+<script type="module">
+import { connect, send, on } from './scripts/game-socket.js';
+
+const nameInput  = document.getElementById('name-input');
+const roleSelect = document.getElementById('role-select');
+const codeInput  = document.getElementById('code-input');
+const btnJoin    = document.getElementById('btn-join');
+const statusEl   = document.getElementById('status');
+
+// Pre-fill from saved character
+const existing = JSON.parse(localStorage.getItem('dndlite-character') || 'null');
+if (existing) {
+  nameInput.value = existing.name || '';
+  roleSelect.value = existing.role || 'warrior';
+}
+
+// Role picker
+document.getElementById('btn-dm').addEventListener('click', () => {
+  document.getElementById('btn-dm').classList.add('active');
+  document.getElementById('btn-player').classList.remove('active');
+  document.getElementById('player-section').classList.remove('visible');
+  document.getElementById('dm-section').classList.add('visible');
 });
 
-let selectedRole = null;
+document.getElementById('btn-player').addEventListener('click', () => {
+  document.getElementById('btn-player').classList.add('active');
+  document.getElementById('btn-dm').classList.remove('active');
+  document.getElementById('dm-section').classList.remove('visible');
+  document.getElementById('player-section').classList.add('visible');
+});
 
-function selectRole(role) {
-  selectedRole = role;
+function updateJoinBtn() {
+  btnJoin.disabled = nameInput.value.trim().length === 0 || codeInput.value.length !== 4;
+}
+nameInput.addEventListener('input', updateJoinBtn);
+codeInput.addEventListener('input', () => {
+  codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  updateJoinBtn();
+});
 
-  document.querySelectorAll('.cc-role-card').forEach((card, i) => {
-    card.classList.toggle('selected', ROLES[i] === role);
-  });
-
-  document.getElementById('cc-name-row').classList.add('visible');
-  document.getElementById('cc-begin').classList.add('visible');
+function saveCharacter() {
+  localStorage.setItem('dndlite-character', JSON.stringify({
+    name: nameInput.value.trim(),
+    role: roleSelect.value,
+  }));
 }
 
-function beginAdventure() {
-  if (!selectedRole) return;
+let connected = false;
+connect(() => { connected = true; statusEl.textContent = 'Connected'; });
 
-  const stats = ROLE_STATS[selectedRole];
-  const nameInput = document.getElementById('cc-name');
-  const name = nameInput.value.trim() || nameInput.placeholder;
+on('joined', (msg) => {
+  saveCharacter();
+  localStorage.setItem('player-id', msg.playerId);
+  localStorage.setItem('session-code', codeInput.value);
+  localStorage.setItem('unlocked-stages', JSON.stringify(msg.unlockedStages));
+  statusEl.textContent = 'Joined! Entering world…';
+  setTimeout(() => { window.location.href = 'scenes/world-map.html'; }, 600);
+});
 
-  const character = {
-    name: name,
-    role: selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1),
-    ...stats,
-  };
+on('error', (msg) => {
+  statusEl.textContent = msg.message;
+  btnJoin.disabled = false;
+});
 
-  // Reset all game state
-  localStorage.setItem('dndlite-character', JSON.stringify(character));
-  localStorage.setItem('dndlite-currentRoom', 'entrance');
-  localStorage.removeItem('dndlite-clearedEvents');
+on('_disconnect', () => {
+  statusEl.textContent = 'Server not reachable';
+});
 
-  // Navigate to map scene
-  window.location.href = 'scenes/map.html';
-}
+btnJoin.addEventListener('click', () => {
+  if (!connected || !nameInput.value.trim()) return;
+  btnJoin.disabled = true;
+  statusEl.textContent = 'Joining…';
+  send({ type: 'player_join', code: codeInput.value, name: nameInput.value.trim(), role: roleSelect.value });
+});
+
+document.getElementById('btn-solo').addEventListener('click', () => {
+  if (!nameInput.value.trim()) { statusEl.textContent = 'Enter your name first'; return; }
+  saveCharacter();
+  localStorage.removeItem('session-code');
+  localStorage.removeItem('player-id');
+  localStorage.setItem('unlocked-stages', JSON.stringify(['stage_01', 'stage_02', 'stage_03']));
+  window.location.href = 'scenes/world-map.html';
+});
 </script>
-
 </body>
 </html>
