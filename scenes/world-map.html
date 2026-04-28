@@ -188,9 +188,7 @@
 <canvas id="canvas"></canvas>
 <div id="title">3D Interactive map test</div>
 <div id="nav">
-  <a href="map.html">Box</a>
-  <a href="3d-viewer.html">Viewer</a>
-  <a href="world-map.html" class="active">World</a>
+  <a href="../index.html">← Home</a>
 </div>
 <div id="tooltip"></div>
 <div id="vignette"></div>
@@ -357,9 +355,10 @@ gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
     const name = (child.name || '').toLowerCase().replace(/[\s._-]+/g, '_');
     if (name.includes('stage') || name.includes('button')) {
       const stageBox = new THREE.Box3().setFromObject(child);
-      const stageCenter = stageBox.getCenter(new THREE.Vector3());
-      // Use center XZ but top Y (so miniature sits on top surface)
-      const worldPos = new THREE.Vector3(stageCenter.x, stageBox.max.y, stageCenter.z);
+      // Use object pivot XZ (more accurate than bounding box center), bounding box max Y for miniature placement
+      const pivotPos = new THREE.Vector3();
+      child.getWorldPosition(pivotPos);
+      const worldPos = new THREE.Vector3(pivotPos.x, stageBox.max.y, pivotPos.z);
       // Tag for click detection
       child.traverse(c => {
         if (c.isMesh) {
@@ -394,8 +393,12 @@ gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
     revealFog(0, 0);
   }
 
-  // Build hit planes + highlight lights for each stage
-  buildStageHitAreas();
+  // Collect stage meshes for raycasting (direct hit on model geometry)
+  mapModel.traverse(c => {
+    if (c.isMesh && c.userData.stageId && !stageClickables.includes(c)) {
+      stageClickables.push(c);
+    }
+  });
 
   // Load miniature
   loadMiniature();
@@ -437,25 +440,8 @@ function loadMiniature() {
   });
 }
 
-// ── Stage hit planes + highlight lights ──
-const stageHitMeshes = [];
-
-function buildStageHitAreas() {
-  for (const [key, stage] of Object.entries(stages)) {
-    // Invisible hit plane (horizontal) — large hit area regardless of mesh shape
-    const hitMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(2, 2),
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })
-    );
-    hitMesh.rotation.x = -Math.PI / 2;
-    hitMesh.position.set(stage.worldPos.x, stage.worldPos.y + 0.05, stage.worldPos.z);
-    hitMesh.userData.stageId  = key;
-    hitMesh.userData.locationName = stage.object.name;
-    scene.add(hitMesh);
-    stageHitMeshes.push(hitMesh);
-
-  }
-}
+// ── Stage clickable meshes (direct hit on model geometry) ──
+const stageClickables = [];
 
 // ── Stage key → page URL ──
 function getStageURL(stageKey) {
@@ -693,15 +679,23 @@ function setStageHover(stageKey, hover) {
   stage.object.scale.setScalar(hover ? 1.5 : 1.0);
 }
 
+const STAGE_HIT_PX = 55; // screen-space pixel radius for hover/click
+const _stageProj = new THREE.Vector3();
+
+function nearestStageKey(clientX, clientY) {
+  let bestKey = null, bestDist = STAGE_HIT_PX;
+  for (const [key, stage] of Object.entries(stages)) {
+    _stageProj.copy(stage.worldPos).project(camera);
+    const sx = ( _stageProj.x * 0.5 + 0.5) * window.innerWidth;
+    const sy = (1 - (_stageProj.y * 0.5 + 0.5)) * window.innerHeight;
+    const d = Math.hypot(sx - clientX, sy - clientY);
+    if (d < bestDist) { bestDist = d; bestKey = key; }
+  }
+  return bestKey;
+}
+
 canvas.addEventListener('pointermove', e => {
-  mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
-  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-
-  raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObjects(stageHitMeshes, false);
-
-  const hit = hits.length > 0 ? hits[0] : null;
-  const stageKey = hit?.object.userData.stageId || null;
+  const stageKey = nearestStageKey(e.clientX, e.clientY);
 
   if (stageKey !== hoveredStageKey) {
     if (hoveredStageKey) setStageHover(hoveredStageKey, false);
@@ -709,8 +703,8 @@ canvas.addEventListener('pointermove', e => {
     if (hoveredStageKey) setStageHover(hoveredStageKey, true);
   }
 
-  if (hit?.object.userData.locationName) {
-    tooltipEl.textContent = hit.object.userData.locationName;
+  if (stageKey) {
+    tooltipEl.textContent = stages[stageKey].object.name;
     tooltipEl.style.left = (e.clientX + 16) + 'px';
     tooltipEl.style.top = (e.clientY - 10) + 'px';
     tooltipEl.classList.add('visible');
@@ -731,27 +725,22 @@ groundPlane.position.y = 0;
 scene.add(groundPlane);
 
 canvas.addEventListener('click', e => {
-  mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
-  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-  raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObjects([...stageHitMeshes, groundPlane], false);
-  if (hits.length > 0) {
-    const hit = hits[0];
-    const stageId = hit.object.userData.stageId;
-    if (stageId && !miniMoving) {
-      // Check if this stage is reachable (adjacent to current cleared stages)
-      // For now: allow if the previous stage number is cleared
-      const num = parseInt(stageId.replace(/\D/g, ''));
-      const prevKey = Object.keys(stages).find(k => k.includes(String(num - 1).padStart(2, '0')));
-      if (num === 1 || clearedStages.has(prevKey) || serverUnlocked.has(stageId)) {
-        moveToStage(stageId);
-      } else {
-        console.log('Stage locked:', stageId, '— clear previous first');
-      }
+  const stageId = nearestStageKey(e.clientX, e.clientY);
+  if (stageId && !miniMoving) {
+    const num = parseInt(stageId.replace(/\D/g, ''));
+    const prevKey = Object.keys(stages).find(k => k.includes(String(num - 1).padStart(2, '0')));
+    if (num === 1 || clearedStages.has(prevKey) || serverUnlocked.has(stageId)) {
+      moveToStage(stageId);
     } else {
-      // Generic click — reveal fog
-      revealFog(hit.point.x, hit.point.z);
+      console.log('Stage locked:', stageId, '— clear previous first');
     }
+  } else {
+    // Fog reveal on ground
+    mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects([groundPlane], false);
+    if (hits.length > 0) revealFog(hits[0].point.x, hits[0].point.z);
   }
 });
 
