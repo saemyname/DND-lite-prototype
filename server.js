@@ -64,6 +64,8 @@ wss.on('connection', (ws) => {
         }));
         console.log(`[dm_rejoin] session=${code}, players=${playerList.length}`);
         send(ws, { type: 'dm_rejoined', players: playerList, unlockedStages: [...rejoinSess.unlockedStages] });
+        broadcastPlayers(sess, { type: 'dm_reconnected' });
+        console.log(`[dm_rejoin] notified ${sess.players.size} players of dm_reconnected`);
         break;
       }
 
@@ -151,11 +153,13 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     if (!sess) return;
     if (role === 'dm') {
-      if (sess.dm === ws) sess.dm = null; // don't wipe if session.html already took over
-      // Keep session alive so DM can rejoin from session.html
+      if (sess.dm === ws) {
+        broadcastPlayers(sess, { type: 'dm_disconnected' });
+        sess.dm = null;
+      }
     } else if (role === 'player' && pid) {
       const p = sess.players.get(pid);
-      if (p) p.ws = null; // keep player in session across page navigation
+      if (p) p.ws = null;
     }
   });
 });
@@ -172,5 +176,4 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`DND-lite server:`);
   console.log(`  Local:   http://localhost:${PORT}/`);
   console.log(`  Network: http://${localIP}:${PORT}/`);
-  console.log(`  DM:      http://${localIP}:${PORT}/`);
 });
