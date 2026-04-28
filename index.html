@@ -15,6 +15,7 @@
     justify-content: center;
     font-family: 'Georgia', serif;
     color: #c8a96e;
+    padding: 40px 16px;
   }
   h1 {
     font-size: 13px;
@@ -40,6 +41,7 @@
     cursor: pointer;
     font-family: 'Georgia', serif;
     transition: all .2s;
+    width: auto;
   }
   .role-btn:hover, .role-btn.active {
     background: rgba(200,169,110,.18);
@@ -48,6 +50,94 @@
   }
   .section { display: none; }
   .section.visible { display: flex; flex-direction: column; align-items: center; }
+
+  /* Class cards */
+  .cc-roles {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .cc-role-card {
+    width: 160px;
+    padding: 16px 14px;
+    background: rgba(200,169,110,.04);
+    border: 1px solid rgba(200,169,110,.15);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all .2s;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .cc-role-card:hover {
+    background: rgba(200,169,110,.09);
+    border-color: rgba(200,169,110,.35);
+  }
+  .cc-role-card.selected {
+    background: rgba(200,169,110,.12);
+    border-color: rgba(200,169,110,.6);
+  }
+  .cc-role-icon {
+    font-size: 22px;
+    filter: grayscale(1);
+    transition: filter .2s;
+    margin-bottom: 2px;
+  }
+  .cc-role-card.selected .cc-role-icon { filter: grayscale(0); }
+  .cc-role-name {
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #c8a96e;
+  }
+  .cc-role-desc {
+    font-size: 10px;
+    color: rgba(200,169,110,.4);
+    line-height: 1.5;
+    letter-spacing: .5px;
+  }
+  .cc-card-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    border-top: 1px solid rgba(200,169,110,.1);
+    padding-top: 10px;
+    margin-top: 4px;
+  }
+  .cc-card-stat { display: flex; align-items: center; gap: 6px; }
+  .cc-card-stat-name {
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(200,169,110,.4);
+    width: 26px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .cc-card-stat-bar {
+    flex: 1;
+    height: 3px;
+    background: rgba(200,169,110,.1);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .cc-card-stat-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width .4s ease;
+  }
+  .cc-card-stat-fill.stat-fill { background: linear-gradient(to right, #c8a96e, #ffe9a0); }
+  .cc-card-stat-fill.hp-fill   { background: linear-gradient(to right, #c45050, #e85d5d); }
+  .cc-card-stat-val {
+    font-size: 10px;
+    color: rgba(200,169,110,.6);
+    width: 16px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .cc-card-stat-val.hp-val { color: #e85d5d; }
+
+  /* Text fields */
   .field {
     display: flex;
     flex-direction: column;
@@ -61,7 +151,7 @@
     text-transform: uppercase;
     color: rgba(200,169,110,.4);
   }
-  input, select {
+  input {
     background: rgba(200,169,110,.06);
     border: 1px solid rgba(200,169,110,.25);
     border-radius: 4px;
@@ -72,9 +162,8 @@
     font-family: 'Georgia', serif;
     width: 100%;
   }
-  input:focus, select:focus { outline: none; border-color: rgba(200,169,110,.6); }
+  input:focus { outline: none; border-color: rgba(200,169,110,.6); }
   input::placeholder { color: rgba(200,169,110,.2); letter-spacing: 2px; }
-  select option { background: #1a1a1a; color: #c8a96e; }
   #code-input {
     font-size: 24px;
     letter-spacing: 8px;
@@ -99,6 +188,8 @@
     transition: all .2s;
     text-align: center;
     margin-top: 8px;
+    width: auto;
+    min-width: 260px;
   }
   button:hover { background: rgba(200,169,110,.18); color: #ffe9a0; }
   button:disabled { opacity: .35; cursor: default; }
@@ -160,19 +251,31 @@
 </div>
 
 <div id="player-section" class="section visible">
+
+  <div class="cc-roles" id="cc-roles">
+    <div class="cc-role-card" data-role="warrior">
+      <div class="cc-role-icon">⚔️</div>
+      <div class="cc-role-name">Warrior</div>
+      <div class="cc-role-desc">Brute force and iron will. Survives what others cannot.</div>
+      <div class="cc-card-stats"></div>
+    </div>
+    <div class="cc-role-card" data-role="rogue">
+      <div class="cc-role-icon">🏹</div>
+      <div class="cc-role-name">Rogue</div>
+      <div class="cc-role-desc">Swift and silent. Strikes before you blink.</div>
+      <div class="cc-card-stats"></div>
+    </div>
+    <div class="cc-role-card" data-role="mage">
+      <div class="cc-role-icon">🔮</div>
+      <div class="cc-role-name">Mage</div>
+      <div class="cc-role-desc">Arcane knowledge and power. Bends reality itself.</div>
+      <div class="cc-card-stats"></div>
+    </div>
+  </div>
+
   <div class="field">
     <label>Name</label>
     <input id="name-input" type="text" placeholder="Your name" maxlength="24" autocomplete="off">
-  </div>
-  <div class="field">
-    <label>Class</label>
-    <select id="role-select">
-      <option value="warrior">Warrior</option>
-      <option value="mage">Mage</option>
-      <option value="rogue">Rogue</option>
-      <option value="cleric">Cleric</option>
-      <option value="ranger">Ranger</option>
-    </select>
   </div>
   <div class="field">
     <label>Session Code</label>
@@ -192,20 +295,60 @@
 <script type="module">
 import { connect, send, on } from './scripts/game-socket.js';
 
-const nameInput  = document.getElementById('name-input');
-const roleSelect = document.getElementById('role-select');
-const codeInput  = document.getElementById('code-input');
-const btnJoin    = document.getElementById('btn-join');
-const statusEl   = document.getElementById('status');
+const ROLE_STATS = {
+  warrior: { str: 14, agi: 10, int:  8, lck: 10, hp: 20 },
+  rogue:   { str:  8, agi: 14, int: 10, lck: 12, hp: 14 },
+  mage:    { str:  6, agi:  8, int: 14, lck: 12, hp: 12 },
+};
+const STAT_LABELS = [
+  { key: 'str', label: 'STR', max: 20 },
+  { key: 'agi', label: 'AGI', max: 20 },
+  { key: 'int', label: 'INT', max: 20 },
+  { key: 'lck', label: 'LCK', max: 20 },
+  { key: 'hp',  label: 'HP',  max: 20 },
+];
+
+// Build stat bars inside each card
+document.querySelectorAll('.cc-role-card').forEach(card => {
+  const stats = ROLE_STATS[card.dataset.role];
+  card.querySelector('.cc-card-stats').innerHTML = STAT_LABELS.map(s => {
+    const isHp = s.key === 'hp';
+    const pct = (stats[s.key] / s.max * 100);
+    return `<div class="cc-card-stat">
+      <span class="cc-card-stat-name">${s.label}</span>
+      <div class="cc-card-stat-bar"><div class="cc-card-stat-fill ${isHp ? 'hp-fill' : 'stat-fill'}" style="width:${pct}%"></div></div>
+      <span class="cc-card-stat-val ${isHp ? 'hp-val' : ''}">${stats[s.key]}</span>
+    </div>`;
+  }).join('');
+});
+
+const nameInput = document.getElementById('name-input');
+const codeInput = document.getElementById('code-input');
+const btnJoin   = document.getElementById('btn-join');
+const statusEl  = document.getElementById('status');
+
+let selectedRole = null;
+
+function selectRole(role) {
+  selectedRole = role;
+  document.querySelectorAll('.cc-role-card').forEach(c => {
+    c.classList.toggle('selected', c.dataset.role === role);
+  });
+  updateJoinBtn();
+}
+
+document.querySelectorAll('.cc-role-card').forEach(card => {
+  card.addEventListener('click', () => selectRole(card.dataset.role));
+});
 
 // Pre-fill from saved character
 const existing = JSON.parse(localStorage.getItem('dndlite-character') || 'null');
 if (existing) {
   nameInput.value = existing.name || '';
-  roleSelect.value = existing.role || 'warrior';
+  if (existing.role && ROLE_STATS[existing.role]) selectRole(existing.role);
 }
 
-// Role picker
+// Role picker (DM / Player toggle)
 document.getElementById('btn-dm').addEventListener('click', () => {
   document.getElementById('btn-dm').classList.add('active');
   document.getElementById('btn-player').classList.remove('active');
@@ -222,7 +365,7 @@ document.getElementById('btn-player').addEventListener('click', () => {
 });
 
 function updateJoinBtn() {
-  btnJoin.disabled = nameInput.value.trim().length === 0 || codeInput.value.length !== 4;
+  btnJoin.disabled = !selectedRole || nameInput.value.trim().length === 0 || codeInput.value.length !== 4;
 }
 nameInput.addEventListener('input', updateJoinBtn);
 codeInput.addEventListener('input', () => {
@@ -233,7 +376,8 @@ codeInput.addEventListener('input', () => {
 function saveCharacter() {
   localStorage.setItem('dndlite-character', JSON.stringify({
     name: nameInput.value.trim(),
-    role: roleSelect.value,
+    role: selectedRole,
+    ...ROLE_STATS[selectedRole],
   }));
 }
 
@@ -260,14 +404,15 @@ on('_disconnect', () => {
 });
 
 btnJoin.addEventListener('click', () => {
-  if (!connected || !nameInput.value.trim()) return;
+  if (!connected || !nameInput.value.trim() || !selectedRole) return;
   btnJoin.disabled = true;
   statusEl.textContent = 'Joining…';
-  send({ type: 'player_join', code: codeInput.value, name: nameInput.value.trim(), role: roleSelect.value });
+  send({ type: 'player_join', code: codeInput.value, name: nameInput.value.trim(), role: selectedRole });
 });
 
 document.getElementById('btn-solo').addEventListener('click', () => {
   if (!nameInput.value.trim()) { statusEl.textContent = 'Enter your name first'; return; }
+  if (!selectedRole) { statusEl.textContent = 'Choose a class first'; return; }
   saveCharacter();
   localStorage.removeItem('session-code');
   localStorage.removeItem('player-id');
