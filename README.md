@@ -21,4 +21,4 @@ node server.js
 
 ## Tech
 
-Three.js, MediaPipe FaceLandmarker, WebSocket (Node.js), vanilla JS — no framework, no build step.
+Three.js, MediaPipe FaceLandmarker, WebSocket (Node.js)
