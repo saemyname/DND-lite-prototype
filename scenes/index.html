@@ -84,6 +84,30 @@
   }
   button:hover { background: rgba(200,169,110,.18); color: #ffe9a0; }
   button:disabled { opacity: .35; cursor: default; }
+  .divider {
+    width: 260px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 16px 0 8px;
+  }
+  .divider hr {
+    flex: 1;
+    border: none;
+    border-top: 1px solid rgba(200,169,110,.12);
+  }
+  .divider span {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: rgba(200,169,110,.25);
+    text-transform: uppercase;
+  }
+  #btn-solo {
+    background: transparent;
+    border-color: rgba(200,169,110,.15);
+    color: rgba(200,169,110,.4);
+  }
+  #btn-solo:hover { background: rgba(200,169,110,.08); color: rgba(200,169,110,.8); border-color: rgba(200,169,110,.3); }
   #status {
     margin-top: 24px;
     font-size: 10px;
@@ -116,6 +140,10 @@
 </div>
 
 <button id="btn-join" disabled>Join Session</button>
+
+<div class="divider"><hr><span>or</span><hr></div>
+
+<button id="btn-solo">Play Solo</button>
 <div id="status"></div>
 
 <script type="module">
@@ -167,6 +195,13 @@ on('error', (msg) => {
 
 on('_disconnect', () => {
   statusEl.textContent = 'Server not reachable';
+});
+
+document.getElementById('btn-solo').addEventListener('click', () => {
+  localStorage.removeItem('session-code');
+  localStorage.removeItem('player-id');
+  localStorage.setItem('unlocked-stages', JSON.stringify(['stage_01', 'stage_02', 'stage_03']));
+  window.location.href = 'world-map.html';
 });
 
 let connected = false;
