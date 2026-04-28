@@ -170,7 +170,7 @@ server.listen(PORT, '0.0.0.0', () => {
     }
   }
   console.log(`DND-lite server:`);
-  console.log(`  Local:   http://localhost:${PORT}/scenes/world-map.html`);
-  console.log(`  Network: http://${localIP}:${PORT}/scenes/world-map.html`);
+  console.log(`  Local:   http://localhost:${PORT}/`);
+  console.log(`  Network: http://${localIP}:${PORT}/`);
   console.log(`  DM:      http://${localIP}:${PORT}/scenes/dm/lobby.html`);
 });
