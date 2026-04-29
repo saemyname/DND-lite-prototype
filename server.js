@@ -76,6 +76,54 @@ function snapshotState(stageState) {
   };
 }
 
+function isCellWalkable(stageState, col, row) {
+  const { cols, rows } = stageState.cfg.grid;
+  if (col < 0 || col >= cols || row < 0 || row >= rows) return false;
+  if (stageState.cfg.walkable[row][col] !== 1) return false;
+  if (stageState.enemies.some(e => e.hp > 0 && e.col === col && e.row === row)) return false;
+  for (const [otherPid, p] of stageState.players) {
+    if (p.col === col && p.row === row) return false;
+  }
+  return true;
+}
+
+const MOVE_RANGE_BY_ROLE = { Warrior: 3, Rogue: 5, Mage: 4, Cleric: 4 };
+
+function reachable(stageState, fromCol, fromRow, range) {
+  const visited = new Set();
+  const result = new Set();
+  const queue = [{ col: fromCol, row: fromRow, dist: 0 }];
+  visited.add(`${fromCol},${fromRow}`);
+  while (queue.length) {
+    const { col, row, dist } = queue.shift();
+    result.add(`${col},${row}`);
+    if (dist < range) {
+      for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const nc = col + dc, nr = row + dr;
+        const key = `${nc},${nr}`;
+        if (!visited.has(key) && isCellWalkable(stageState, nc, nr)) {
+          visited.add(key);
+          queue.push({ col: nc, row: nr, dist: dist + 1 });
+        }
+      }
+    }
+  }
+  return result;
+}
+
+function adjacentEnemyAt(stageState, col, row) {
+  return stageState.enemies.find(e =>
+    e.hp > 0 &&
+    Math.abs(e.col - col) <= 1 &&
+    Math.abs(e.row - row) <= 1
+  );
+}
+
+function advanceTurn(stageState) {
+  if (stageState.turnOrder.length === 0) return;
+  stageState.activeTurnIdx = (stageState.activeTurnIdx + 1) % stageState.turnOrder.length;
+}
+
 wss.on('connection', (ws) => {
   let sess = null;
   let role = null; // 'dm' | 'player'
@@ -195,6 +243,38 @@ wss.on('connection', (ws) => {
         const snap = snapshotState(st);
         broadcastStage(st, sess, { type: 'state_update', state: snap });
         console.log(`[enter_stage] session=${code} stage=${stageId} pid=${pid} players=${st.players.size}`);
+        break;
+      }
+
+      case 'action_request': {
+        if (role !== 'player' || !sess || !pid) return;
+        const stageId = msg.stageId;
+        const st = sess.stages.get(stageId);
+        if (!st) return;
+        if (st.outcome) return;
+        if (activeTurnPid(st) !== pid) return;
+        if (st.pendingCombat) return;
+
+        if (msg.kind === 'move') {
+          const me = st.players.get(pid);
+          if (!me) return;
+          const dstCol = Number(msg.col), dstRow = Number(msg.row);
+          if (!Number.isInteger(dstCol) || !Number.isInteger(dstRow)) return;
+          if (!isCellWalkable(st, dstCol, dstRow)) return;
+          const range = MOVE_RANGE_BY_ROLE[me.role] || 4;
+          const reach = reachable(st, me.col, me.row, range);
+          if (!reach.has(`${dstCol},${dstRow}`)) return;
+          me.col = dstCol;
+          me.row = dstRow;
+
+          const adj = adjacentEnemyAt(st, dstCol, dstRow);
+          if (adj) {
+            st.pendingCombat = { attackerPid: pid, enemyId: adj.id };
+          } else {
+            advanceTurn(st);
+          }
+          broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
+        }
         break;
       }
 
