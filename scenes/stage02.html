@@ -116,6 +116,26 @@ let debugGridLines = [];
 let pendingRoll = null;
 const charData = JSON.parse(localStorage.getItem('dndlite-character') || 'null');
 
+function initHUD() {
+  if (!charData) return;
+  const nameEl = document.getElementById('hud-name');
+  const roleEl = document.getElementById('hud-role');
+  if (nameEl) nameEl.textContent = charData.name;
+  if (roleEl) roleEl.textContent = charData.role;
+  updateHUD();
+}
+
+function updateHUD() {
+  if (!charData) return;
+  ['str','agi','int','lck','hp'].forEach(key => {
+    const val = charData[key] ?? 0;
+    const el = document.getElementById('val-' + key);
+    const bar = document.getElementById('bar-' + key);
+    if (el) el.textContent = val;
+    if (bar) bar.style.width = (val / 20 * 100) + '%';
+  });
+}
+
 // ── Renderer ──
 const canvas = document.getElementById('canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -281,6 +301,81 @@ function removeDebugGrid() {
   debugGridLines = [];
 }
 
+// ── Player token ──
+const MOVE_RANGE_BY_ROLE = { Warrior: 3, Rogue: 5, Mage: 4 };
+const MINI_FILES = { Warrior: 'warrior.glb', Rogue: 'rogue.glb', Mage: 'mage.glb' };
+
+function loadPlayerToken() {
+  return new Promise((resolve) => {
+    const file = MINI_FILES[charData?.role];
+    if (!file) { resolve(createFallbackToken()); return; }
+    gltfLoader.load('../Assets/' + file, (gltf) => {
+      const model = gltf.scene;
+      model.scale.setScalar(1.2);
+      model.traverse(c => { if (c.isMesh) c.castShadow = true; });
+      const box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      model.position.x -= center.x;
+      model.position.z -= center.z;
+      model.position.y -= box.min.y;
+      const group = new THREE.Group();
+      group.add(model);
+      resolve(group);
+    }, undefined, () => resolve(createFallbackToken()));
+  });
+}
+
+function createFallbackToken() {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.4, metalness: 0.6 });
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 0.2, 16), mat);
+  group.add(base);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.35, 0.9, 12), mat);
+  body.position.y = 0.55;
+  group.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 10), mat);
+  head.position.y = 1.15;
+  group.add(head);
+  group.traverse(c => { if (c.isMesh) c.castShadow = true; });
+  return group;
+}
+
+// ── Enemy tokens ──
+function createEnemyToken(enemy) {
+  const group = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.9 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.2, 0.7), bodyMat);
+  body.position.y = 0.6;
+  body.castShadow = true;
+  group.add(body);
+  const headMat = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.8 });
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.55), headMat);
+  head.position.y = 1.45;
+  head.castShadow = true;
+  group.add(head);
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff2222 });
+  [-0.14, 0.14].forEach(ex => {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 6), eyeMat);
+    eye.position.set(ex, 1.48, 0.28);
+    group.add(eye);
+  });
+  group.userData.enemyId = enemy.id;
+  return group;
+}
+
+function placeEnemies() {
+  gridData.enemies.forEach(e => {
+    const mesh = createEnemyToken(e);
+    const pos = gridToWorld(e.col, e.row);
+    mesh.position.set(pos.x, gridData.grid.floorY, pos.z);
+    scene.add(mesh);
+    enemyTokens.push({ ...e, mesh });
+  });
+}
+
+// stub — replaced in Task 5
+function showMoveRange(col, row) {}
+
 gltfLoader.load('../Assets/dnd_luna_ruins_02a.glb', async (gltf) => {
   placeModel(gltf.scene, 'dnd_luna_ruins_02a.glb');
 
@@ -308,6 +403,22 @@ gltfLoader.load('../Assets/dnd_luna_ruins_02a.glb', async (gltf) => {
 
   // Debug grid lines (removed in Task 8)
   addDebugGrid();
+
+  // Spawn player token
+  playerCol = gridData.playerSpawn[0];
+  playerRow = gridData.playerSpawn[1];
+  playerToken = await loadPlayerToken();
+  const spawnPos = gridToWorld(playerCol, playerRow);
+  playerToken.position.set(spawnPos.x, gridData.grid.floorY, spawnPos.z);
+  playerTargetPos = playerToken.position.clone();
+  scene.add(playerToken);
+
+  // Spawn enemy tokens
+  placeEnemies();
+
+  // Start move phase
+  turnState = 'move';
+  showMoveRange(playerCol, playerRow);
 }, undefined, (err) => {
   console.error('GLB load error:', err);
   document.getElementById('loading').textContent = 'Load failed';
@@ -315,6 +426,7 @@ gltfLoader.load('../Assets/dnd_luna_ruins_02a.glb', async (gltf) => {
 
 // ── Face tracking + rotation buttons ──
 initRotationButtons();
+initHUD();
 
 window.addEventListener('resize', () => {
   const w = window.innerWidth, h = window.innerHeight;
