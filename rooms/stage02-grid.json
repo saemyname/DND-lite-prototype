@@ -1,0 +1,47 @@
+{
+  "id": "stage02",
+  "name": "Luna Ruins",
+  "grid": {
+    "cols": 10,
+    "rows": 8,
+    "cellSize": 3.0,
+    "originX": -15,
+    "originZ": -30,
+    "floorY": -4.0
+  },
+  "walkable": [
+    [0,0,1,1,1,1,1,1,0,0],
+    [0,1,1,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,0,0,1,1,0,0,1],
+    [1,1,1,0,0,1,1,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,1,1,0],
+    [0,0,1,1,1,1,1,1,0,0]
+  ],
+  "playerSpawn": [5, 7],
+  "enemies": [
+    {
+      "id": "goblin1",
+      "col": 2, "row": 1,
+      "name": "Goblin",
+      "hp": 6, "maxHp": 6,
+      "stat": "str", "dc": 11,
+      "description": "A snarling goblin lunges from behind a crumbling pillar!",
+      "successText": "Your blade finds its mark. The goblin stumbles back!",
+      "failText": "The goblin dodges and slashes back with rusty claws.",
+      "successHp": 0, "failHp": -3
+    },
+    {
+      "id": "goblin2",
+      "col": 7, "row": 1,
+      "name": "Goblin",
+      "hp": 6, "maxHp": 6,
+      "stat": "str", "dc": 11,
+      "description": "A second goblin emerges from the shadows, chittering wildly!",
+      "successText": "Clean hit — the goblin crashes into the ruins wall!",
+      "failText": "It bites! Sharp yellowed teeth find their mark.",
+      "successHp": 0, "failHp": -3
+    }
+  ]
+}
