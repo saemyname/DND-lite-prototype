@@ -124,6 +124,9 @@ function advanceTurn(stageState) {
   stageState.activeTurnIdx = (stageState.activeTurnIdx + 1) % stageState.turnOrder.length;
 }
 
+function rollD20() { return Math.floor(Math.random() * 20) + 1; }
+function statModifier(val) { return Math.floor((val - 10) / 2); }
+
 wss.on('connection', (ws) => {
   let sess = null;
   let role = null; // 'dm' | 'player'
@@ -253,11 +256,55 @@ wss.on('connection', (ws) => {
         if (!st) return;
         if (st.outcome) return;
         if (activeTurnPid(st) !== pid) return;
-        if (st.pendingCombat) return;
+
+        if (msg.kind === 'attack') {
+          if (!st.pendingCombat || st.pendingCombat.attackerPid !== pid) return;
+          const enemy = st.enemies.find(e => e.id === st.pendingCombat.enemyId);
+          if (!enemy || enemy.hp <= 0) return;
+
+          const roll = rollD20();
+          const mod = 0; // prototype: no per-player stats yet
+          const total = roll + mod;
+          const success = total >= enemy.dc;
+
+          let outcomeText, dmgToEnemy = 0, dmgToPlayer = 0;
+          if (success) {
+            dmgToEnemy = 3;
+            enemy.hp = Math.max(0, enemy.hp - dmgToEnemy);
+            outcomeText = enemy.successText + (enemy.hp > 0
+              ? ` [Enemy HP: ${enemy.hp}/${enemy.maxHp}]`
+              : ' — ENEMY DEFEATED!');
+          } else {
+            dmgToPlayer = -enemy.failHp;
+            const me = st.players.get(pid);
+            me.hp = Math.max(0, me.hp - dmgToPlayer);
+            outcomeText = enemy.failText + ` (-${dmgToPlayer} HP)`;
+          }
+
+          broadcastStage(st, sess, {
+            type: 'combat_event',
+            attackerPid: pid,
+            enemyId: enemy.id,
+            stat: enemy.stat,
+            dc: enemy.dc,
+            roll, mod, total, success,
+            outcomeText,
+          });
+
+          if (st.players.get(pid).hp <= 0) {
+            st.outcome = 'defeat';
+          } else if (st.enemies.every(e => e.hp <= 0)) {
+            st.outcome = 'victory';
+          }
+
+          broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
+          break;
+        }
 
         if (msg.kind === 'move') {
           const me = st.players.get(pid);
           if (!me) return;
+          if (st.pendingCombat) return;
           const dstCol = Number(msg.col), dstRow = Number(msg.row);
           if (!Number.isInteger(dstCol) || !Number.isInteger(dstRow)) return;
           if (!isCellWalkable(st, dstCol, dstRow)) return;
@@ -275,6 +322,18 @@ wss.on('connection', (ws) => {
           }
           broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
         }
+        break;
+      }
+
+      case 'combat_continue': {
+        if (role !== 'player' || !sess || !pid) return;
+        const stageId = msg.stageId;
+        const st = sess.stages.get(stageId);
+        if (!st || !st.pendingCombat) return;
+        if (st.pendingCombat.attackerPid !== pid) return;
+        st.pendingCombat = null;
+        if (!st.outcome) advanceTurn(st);
+        broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
         break;
       }
 
