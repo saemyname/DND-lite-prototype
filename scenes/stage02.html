@@ -744,6 +744,151 @@ function showStatusMsg(text) {
   el._timeout = setTimeout(() => { el.style.opacity = '0'; }, 2200);
 }
 
+// ── Combat system ──
+const STAT_NAMES = { str: 'Strength', agi: 'Agility', int: 'Intelligence', lck: 'Luck' };
+
+function rollD20() { return Math.floor(Math.random() * 20) + 1; }
+function getModifier(val) { return Math.floor((val - 10) / 2); }
+
+function createBtn(text, onclick) {
+  const btn = document.createElement('button');
+  btn.className = 'event-btn';
+  btn.textContent = text;
+  btn.addEventListener('click', onclick);
+  return btn;
+}
+
+function openPanel() {
+  document.getElementById('event-panel').classList.add('visible');
+}
+
+function closePanel() {
+  document.getElementById('event-panel').classList.remove('visible');
+  document.getElementById('event-desc').textContent = '';
+  document.getElementById('event-actions').innerHTML = '';
+  document.getElementById('event-result').textContent = '';
+  document.getElementById('event-result').className = '';
+  document.getElementById('event-outcome').textContent = '';
+  const d20 = document.getElementById('d20-hud');
+  d20.classList.remove('active');
+  document.getElementById('d20-label').textContent = '';
+  document.getElementById('d20-value').textContent = '—';
+  document.getElementById('d20-dice-shape').className = '';
+}
+
+function startCombat(enemy) {
+  turnState = 'action';
+  clearHighlights();
+
+  document.getElementById('event-desc').textContent = enemy.description;
+  document.getElementById('event-actions').innerHTML = '';
+  document.getElementById('event-result').textContent = '';
+  document.getElementById('event-outcome').textContent = '';
+  document.getElementById('d20-hud').classList.remove('active');
+  document.getElementById('d20-label').textContent = '';
+  document.getElementById('d20-value').textContent = '—';
+  document.getElementById('d20-dice-shape').className = '';
+
+  const statLabel = STAT_NAMES[enemy.stat] || enemy.stat.toUpperCase();
+  const btn = createBtn(`Attack (${statLabel})`, () => {
+    btn.disabled = true;
+    pendingRoll = enemy;
+    document.getElementById('d20-hud').classList.add('active');
+    document.getElementById('d20-label').textContent = 'Roll d20';
+  });
+  document.getElementById('event-actions').appendChild(btn);
+  openPanel();
+}
+
+document.getElementById('d20-hud').addEventListener('click', () => {
+  if (!pendingRoll) return;
+  executeRoll(pendingRoll);
+  pendingRoll = null;
+  document.getElementById('d20-hud').classList.remove('active');
+});
+
+function executeRoll(enemy) {
+  const roll = rollD20();
+  const statVal = charData?.[enemy.stat] || 10;
+  const mod = getModifier(statVal);
+  const total = roll + mod;
+  const success = total >= enemy.dc;
+  const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
+  const statLabel = STAT_NAMES[enemy.stat] || enemy.stat.toUpperCase();
+
+  // Animate dice
+  const diceShape = document.getElementById('d20-dice-shape');
+  const diceValue = document.getElementById('d20-value');
+  diceShape.classList.remove('rolling', 'success', 'fail');
+  void diceShape.offsetWidth; // force reflow for animation restart
+  diceShape.classList.add('rolling');
+  document.getElementById('d20-label').textContent = '';
+
+  let count = 0;
+  const anim = setInterval(() => {
+    diceValue.textContent = Math.floor(Math.random() * 20) + 1;
+    count++;
+    if (count > 12) {
+      clearInterval(anim);
+      diceValue.textContent = roll;
+      diceValue.style.color = roll === 20 ? '#ffe97a' : roll === 1 ? '#ff6b6b' : '#ffe9a0';
+      diceShape.classList.remove('rolling');
+      diceShape.classList.add(success ? 'success' : 'fail');
+
+      // Result line
+      const resultEl = document.getElementById('event-result');
+      resultEl.textContent = `${roll} ${modStr} (${statLabel}) = ${total} vs DC ${enemy.dc} — ${success ? 'SUCCESS!' : 'FAILED'}`;
+      resultEl.className = success ? 'success' : 'fail';
+
+      // Apply outcome
+      let outcomeText = success ? enemy.successText : enemy.failText;
+      if (success) {
+        enemy.hp = Math.max(0, enemy.hp - 3);
+        outcomeText += enemy.hp > 0
+          ? ` [Enemy HP: ${enemy.hp}/${enemy.maxHp}]`
+          : ' — ENEMY DEFEATED!';
+        if (enemy.hp <= 0) scene.remove(enemy.mesh);
+      } else {
+        if (charData) {
+          charData.hp = Math.max(0, charData.hp + enemy.failHp);
+          localStorage.setItem('dndlite-character', JSON.stringify(charData));
+          updateHUD();
+          outcomeText += ` (${enemy.failHp} HP)`;
+        }
+      }
+      document.getElementById('event-outcome').textContent = outcomeText;
+
+      // Check game over
+      if (charData && charData.hp <= 0) {
+        setTimeout(() => {
+          closePanel();
+          document.getElementById('game-over').style.display = 'flex';
+        }, 1400);
+        return;
+      }
+
+      // Continue button — back to move phase
+      document.getElementById('event-actions').innerHTML = '';
+      document.getElementById('event-actions').appendChild(
+        createBtn('Continue', () => {
+          closePanel();
+          turnState = 'move';
+          showMoveRange(playerCol, playerRow);
+          checkVictory();
+        })
+      );
+    }
+  }, 60);
+}
+
+function checkVictory() {
+  if (enemyTokens.every(e => e.hp <= 0)) {
+    setTimeout(() => {
+      document.getElementById('victory').style.display = 'flex';
+    }, 600);
+  }
+}
+
 function tick() {
   requestAnimationFrame(tick);
   updateFaceCamera(camera, faceCamConfig);
