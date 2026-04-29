@@ -80,6 +80,159 @@
     transition: opacity .6s;
   }
   #loading.hidden { opacity: 0; pointer-events: none; }
+
+  /* Status message */
+  #status-msg {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 60;
+    font-family: 'Georgia', serif;
+    font-size: 13px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #e85d5d;
+    opacity: 0;
+    transition: opacity .4s;
+    pointer-events: none;
+  }
+
+  /* HUD stats */
+  #hud-stats {
+    position: fixed;
+    bottom: 28px;
+    left: 28px;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: rgba(0,0,0,.45);
+    border: 1px solid rgba(200,169,110,.12);
+    border-radius: 6px;
+    padding: 12px 16px;
+    backdrop-filter: blur(4px);
+    font-family: 'Georgia', serif;
+  }
+  #hud-name { font-size: 20px; letter-spacing: 2px; color: #ffe9a0; line-height: 1.2; }
+  #hud-role { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: #c8a96e; opacity: .5; margin-bottom: 4px; }
+  .hud-stat { display: flex; align-items: center; gap: 10px; }
+  .hud-stat-name { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #c8a96e; opacity: .5; width: 32px; }
+  .hud-stat-bar { width: 80px; height: 4px; background: rgba(200,169,110,.12); border-radius: 2px; overflow: hidden; }
+  .hud-stat-fill { height: 100%; border-radius: 2px; background: linear-gradient(to right, #c8a96e, #ffe9a0); }
+  .hud-stat-fill.hp-fill { background: linear-gradient(to right, #c45050, #e85d5d); }
+  .hud-stat-val { font-size: 14px; color: #c8a96e; opacity: .75; width: 22px; text-align: right; }
+  .hud-stat-val.hp-val { color: #e85d5d; }
+
+  /* Event panel */
+  #event-panel {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    z-index: 50;
+    width: 480px;
+    max-width: calc(100vw - 340px);
+    background: rgba(0,0,0,.65);
+    border: 1px solid rgba(200,169,110,.2);
+    border-radius: 8px;
+    padding: 20px 24px;
+    backdrop-filter: blur(6px);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .4s ease, transform .4s ease;
+    font-family: 'Georgia', serif;
+  }
+  #event-panel.visible {
+    opacity: 1;
+    pointer-events: all;
+    transform: translateX(-50%) translateY(0);
+  }
+  #event-desc { font-size: 14px; line-height: 1.7; color: rgba(200,169,110,.8); letter-spacing: .5px; }
+  #event-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  #event-result { font-size: 15px; letter-spacing: 1px; color: #ffe9a0; }
+  #event-result.success { color: #66bb6a; }
+  #event-result.fail { color: #e85d5d; }
+  #event-outcome { font-size: 13px; line-height: 1.6; color: rgba(200,169,110,.7); }
+  .event-btn {
+    padding: 10px 20px;
+    background: rgba(200,169,110,.08);
+    border: 1px solid rgba(200,169,110,.3);
+    border-radius: 4px;
+    color: #c8a96e;
+    font-family: 'Georgia', serif;
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .event-btn:hover { background: rgba(200,169,110,.18); border-color: rgba(200,169,110,.6); color: #ffe9a0; }
+  .event-btn:disabled { opacity: .3; pointer-events: none; }
+
+  /* D20 dice */
+  #d20-hud {
+    position: fixed;
+    bottom: 20px;
+    right: 28px;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    pointer-events: none;
+    transition: transform .4s;
+  }
+  #d20-hud.active { pointer-events: all; cursor: pointer; transform: scale(1.5) translateY(-16px); }
+  #d20-hud.active:hover #d20-dice-shape { filter: brightness(1.4) drop-shadow(0 0 8px rgba(200,169,110,.5)); }
+  #d20-dice-shape { width: 80px; height: 80px; transition: filter .2s; }
+  #d20-dice-shape polygon { fill: rgba(30,22,12,.85); stroke: rgba(200,169,110,.85); stroke-width: 1.4; }
+  #d20-dice-shape line { stroke: rgba(200,169,110,.85); stroke-width: 1.4; }
+  #d20-dice-shape.success polygon { fill: rgba(102,187,106,.15); stroke: rgba(102,187,106,.8); }
+  #d20-dice-shape.success line { stroke: rgba(102,187,106,.8); }
+  #d20-dice-shape.fail polygon { fill: rgba(232,93,93,.15); stroke: rgba(232,93,93,.8); }
+  #d20-dice-shape.fail line { stroke: rgba(232,93,93,.8); }
+  @keyframes d20-roll {
+    0%   { transform: rotate(0deg) scale(1); }
+    25%  { transform: rotate(90deg) scale(1.1); }
+    50%  { transform: rotate(180deg) scale(0.95); }
+    75%  { transform: rotate(270deg) scale(1.1); }
+    100% { transform: rotate(360deg) scale(1); }
+  }
+  #d20-dice-shape.rolling { animation: d20-roll .5s ease-out; }
+  #d20-wrapper { position: relative; width: 80px; height: 80px; }
+  #d20-value {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 22px;
+    font-family: 'Georgia', serif;
+    color: #ffe9a0;
+    pointer-events: none;
+    text-shadow: 0 0 10px rgba(200,169,110,.8);
+  }
+  #d20-label { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: rgba(200,169,110,.4); height: 14px; font-family: 'Georgia', serif; }
+
+  /* Overlays */
+  #victory, #game-over {
+    position: fixed;
+    inset: 0;
+    z-index: 800;
+    background: rgba(0,0,0,.85);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    font-family: 'Georgia', serif;
+  }
+  #victory { color: #ffe9a0; }
+  #game-over { color: #e85d5d; }
+  .overlay-title { font-size: 36px; letter-spacing: 6px; text-shadow: 0 0 40px currentColor; }
+  .overlay-sub { font-size: 14px; letter-spacing: 2px; opacity: .5; }
 </style>
 </head>
 <body>
@@ -94,6 +247,80 @@
 <div id="webcam-preview" class="hidden">
   <video id="webcam" autoplay playsinline muted></video>
   <canvas id="face-canvas"></canvas>
+</div>
+
+<!-- Status message -->
+<div id="status-msg"></div>
+
+<!-- HUD stats -->
+<div id="hud-stats">
+  <div id="hud-name">Adventurer</div>
+  <div id="hud-role">--</div>
+  <div class="hud-stat">
+    <span class="hud-stat-name">STR</span>
+    <div class="hud-stat-bar"><div class="hud-stat-fill" id="bar-str" style="width:0%"></div></div>
+    <span class="hud-stat-val" id="val-str">--</span>
+  </div>
+  <div class="hud-stat">
+    <span class="hud-stat-name">AGI</span>
+    <div class="hud-stat-bar"><div class="hud-stat-fill" id="bar-agi" style="width:0%"></div></div>
+    <span class="hud-stat-val" id="val-agi">--</span>
+  </div>
+  <div class="hud-stat">
+    <span class="hud-stat-name">INT</span>
+    <div class="hud-stat-bar"><div class="hud-stat-fill" id="bar-int" style="width:0%"></div></div>
+    <span class="hud-stat-val" id="val-int">--</span>
+  </div>
+  <div class="hud-stat">
+    <span class="hud-stat-name">LCK</span>
+    <div class="hud-stat-bar"><div class="hud-stat-fill" id="bar-lck" style="width:0%"></div></div>
+    <span class="hud-stat-val" id="val-lck">--</span>
+  </div>
+  <div class="hud-stat">
+    <span class="hud-stat-name">HP</span>
+    <div class="hud-stat-bar"><div class="hud-stat-fill hp-fill" id="bar-hp" style="width:0%"></div></div>
+    <span class="hud-stat-val hp-val" id="val-hp">--</span>
+  </div>
+</div>
+
+<!-- Event panel -->
+<div id="event-panel">
+  <div id="event-desc"></div>
+  <div id="event-actions"></div>
+  <div id="event-result"></div>
+  <div id="event-outcome"></div>
+</div>
+
+<!-- D20 dice -->
+<div id="d20-hud">
+  <div id="d20-wrapper">
+    <svg id="d20-dice-shape" viewBox="0 0 64 64">
+      <polygon points="32,4 60,20 60,44 32,60 4,44 4,20"/>
+      <line x1="32" y1="4"  x2="32" y2="60"/>
+      <line x1="4"  y1="20" x2="60" y2="44"/>
+      <line x1="60" y1="20" x2="4"  y2="44"/>
+      <line x1="32" y1="4"  x2="4"  y2="44"/>
+      <line x1="32" y1="4"  x2="60" y2="44"/>
+      <line x1="4"  y1="20" x2="32" y2="60"/>
+      <line x1="60" y1="20" x2="32" y2="60"/>
+    </svg>
+    <div id="d20-value">—</div>
+  </div>
+  <div id="d20-label"></div>
+</div>
+
+<!-- Victory -->
+<div id="victory">
+  <div class="overlay-title">VICTORY</div>
+  <div class="overlay-sub">The ruins are cleared.</div>
+  <button class="event-btn" onclick="window.location.href='world-map.html'">Return to World Map</button>
+</div>
+
+<!-- Game Over -->
+<div id="game-over">
+  <div class="overlay-title">YOU HAVE FALLEN</div>
+  <div class="overlay-sub">Your adventure ends here...</div>
+  <button class="event-btn" onclick="window.location.href='../../index.html'">Start Over</button>
 </div>
 
 <script type="module">
