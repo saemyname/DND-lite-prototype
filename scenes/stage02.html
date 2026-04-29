@@ -25,6 +25,15 @@
     color: #c8a96e;
     user-select: none;
   }
+  body.spectator #hud-stats,
+  body.spectator #nav,
+  body.spectator #title,
+  body.spectator #event-panel,
+  body.spectator #d20-hud,
+  body.spectator #status-msg,
+  body.spectator #chat-panel,
+  body.spectator #victory,
+  body.spectator #game-over { display: none !important; }
   body.not-my-turn { cursor: not-allowed; }
   canvas { display: block; width: 100%; height: 100%; }
 
@@ -814,14 +823,22 @@ gltfLoader.load('../Assets/dnd_luna_ruins_02a.glb', async (gltf) => {
     applyState(msg.state).catch(err => console.error('[state_update] applyState failed:', err));
   });
 
-  const localChar = JSON.parse(localStorage.getItem('dndlite-character') || '{"hp":10,"maxHp":10}');
-  send({
-    type: 'enter_stage',
-    stageId: 'stage02',
-    hp: localChar.hp ?? 10,
-    maxHp: localChar.maxHp ?? localChar.hp ?? 10,
-    stats: { str: localChar.str, agi: localChar.agi, int: localChar.int, lck: localChar.lck },
-  });
+  const urlParams = new URLSearchParams(location.search);
+  const isSpectator = urlParams.get('spectator') === '1';
+  if (isSpectator) {
+    document.body.classList.add('spectator');
+    const sessionCode = urlParams.get('code');
+    if (sessionCode) send({ type: 'dm_observe', code: sessionCode, stageId: 'stage02' });
+  } else {
+    const localChar = JSON.parse(localStorage.getItem('dndlite-character') || '{"hp":10,"maxHp":10}');
+    send({
+      type: 'enter_stage',
+      stageId: 'stage02',
+      hp: localChar.hp ?? 10,
+      maxHp: localChar.maxHp ?? localChar.hp ?? 10,
+      stats: { str: localChar.str, agi: localChar.agi, int: localChar.int, lck: localChar.lck },
+    });
+  }
 }, undefined, (err) => {
   console.error('GLB load error:', err);
   document.getElementById('loading').textContent = 'Load failed';
