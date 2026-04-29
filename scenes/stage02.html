@@ -810,7 +810,13 @@ gltfLoader.load('../Assets/dnd_luna_ruins_02a.glb', async (gltf) => {
   });
 
   const localChar = JSON.parse(localStorage.getItem('dndlite-character') || '{"hp":10,"maxHp":10}');
-  send({ type: 'enter_stage', stageId: 'stage02', hp: localChar.hp ?? 10, maxHp: localChar.maxHp ?? localChar.hp ?? 10 });
+  send({
+    type: 'enter_stage',
+    stageId: 'stage02',
+    hp: localChar.hp ?? 10,
+    maxHp: localChar.maxHp ?? localChar.hp ?? 10,
+    stats: { str: localChar.str, agi: localChar.agi, int: localChar.int, lck: localChar.lck },
+  });
 }, undefined, (err) => {
   console.error('GLB load error:', err);
   document.getElementById('loading').textContent = 'Load failed';
