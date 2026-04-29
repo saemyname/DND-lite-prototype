@@ -204,6 +204,9 @@
         <span class="pending-pill" id="pending-pill" style="display:none">Combat</span>
       </span>
     </div>
+    <div data-active-only style="margin-bottom:14px">
+      <iframe id="stage-frame" style="width:100%;aspect-ratio:16/9;border:1px solid rgba(200,169,110,.15);border-radius:6px;background:#000"></iframe>
+    </div>
     <div style="margin-bottom:14px" data-active-only>
       <div style="font-size:9px;letter-spacing:3px;color:rgba(200,169,110,.4);margin-bottom:6px;text-transform:uppercase">Party</div>
       <div class="entity-grid" id="party-list"></div>
@@ -306,10 +309,18 @@ const pendingPill = document.getElementById('pending-pill');
 const partyList   = document.getElementById('enemy-list') ? document.getElementById('party-list') : null;
 const enemyList   = document.getElementById('enemy-list');
 
+const stageFrame = document.getElementById('stage-frame');
+let frameStageId = null;
+
 function renderStageState(state) {
   if (!state) { stageView.classList.remove('active'); return; }
   stageView.classList.add('active');
   stageLabel.textContent = state.stageId;
+
+  if (state.stageId !== frameStageId && code) {
+    stageFrame.src = `../${state.stageId}.html?spectator=1&code=${encodeURIComponent(code)}`;
+    frameStageId = state.stageId;
+  }
 
   const activeP = state.players.find(p => p.pid === state.activeTurnPid);
   turnPill.textContent = activeP ? `${activeP.name}'s turn` : 'No active turn';

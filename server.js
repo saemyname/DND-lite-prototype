@@ -49,6 +49,7 @@ function makeStageState(stageId) {
     activeTurnIdx: 0,
     pendingCombat: null,
     outcome: null,
+    observers: new Set(),  // extra ws connections (e.g. DM iframe spectators)
   };
 }
 
@@ -58,6 +59,7 @@ function broadcastStage(stageState, sess, msg) {
     if (p?.ws) send(p.ws, msg);
   }
   if (sess.dm) send(sess.dm, msg);
+  for (const obsWs of stageState.observers) send(obsWs, msg);
 }
 
 function activeTurnPid(stageState) {
@@ -272,6 +274,23 @@ wss.on('connection', (ws) => {
         break;
       }
 
+      case 'dm_observe': {
+        const observeSess = sessions.get(msg.code);
+        if (!observeSess) return;
+        if (!msg.stageId || typeof msg.stageId !== 'string') return;
+        let st = observeSess.stages.get(msg.stageId);
+        if (!st) {
+          try { st = makeStageState(msg.stageId); }
+          catch (e) { console.error('[dm_observe] config load fail:', msg.stageId, e.message); return; }
+          observeSess.stages.set(msg.stageId, st);
+        }
+        st.observers.add(ws);
+        ws._observing = { sess: observeSess, st };
+        send(ws, { type: 'state_update', state: snapshotState(st) });
+        console.log(`[dm_observe] session=${msg.code} stage=${msg.stageId} observers=${st.observers.size}`);
+        break;
+      }
+
       case 'action_request': {
         if (role !== 'player' || !sess || !pid) return;
         const stageId = msg.stageId;
@@ -419,6 +438,10 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    if (ws._observing) {
+      ws._observing.st.observers?.delete(ws);
+      ws._observing = null;
+    }
     if (!sess) return;
     if (role === 'dm') {
       if (sess.dm === ws) { // don't wipe if session.html already took over (dm_rejoin sets sess.dm first)
