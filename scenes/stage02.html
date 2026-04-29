@@ -380,6 +380,7 @@ const charData = JSON.parse(localStorage.getItem('dndlite-character') || 'null')
 const myPid = localStorage.getItem('player-id');
 let serverState = null;
 const playerTokens = new Map();   // pid → { group, label, role }
+const loadingPids = new Set();    // pids whose token is mid-load (race guard)
 
 function initHUD() {
   if (!charData) return;
@@ -645,7 +646,8 @@ async function applyState(snap) {
   for (const p of snap.players) {
     seenPids.add(p.pid);
     let entry = playerTokens.get(p.pid);
-    if (!entry) {
+    if (!entry && !loadingPids.has(p.pid)) {
+      loadingPids.add(p.pid);
       const group = await loadPlayerTokenForRole(p.role);
       const label = document.createElement('div');
       label.className = 'player-name-label';
@@ -654,10 +656,13 @@ async function applyState(snap) {
       scene.add(group);
       entry = { group, label, role: p.role };
       playerTokens.set(p.pid, entry);
+      loadingPids.delete(p.pid);
     }
-    const pos = gridToWorld(p.col, p.row);
-    entry.group.position.set(pos.x, gridData.grid.floorY, pos.z);
-    entry.group.userData.targetPos = pos;
+    if (entry) {
+      const pos = gridToWorld(p.col, p.row);
+      entry.group.position.set(pos.x, gridData.grid.floorY, pos.z);
+      entry.group.userData.targetPos = pos;
+    }
   }
   for (const [pid, entry] of [...playerTokens.entries()]) {
     if (!seenPids.has(pid)) {
