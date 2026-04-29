@@ -107,8 +107,11 @@
   button.dm-btn.active { background: rgba(200,169,110,.25); color: #ffe9a0; border-color: rgba(200,169,110,.7); }
 
   /* Stage observation panel */
-  #stage-view { display: none; }
-  #stage-view.active { display: block; }
+  #stage-empty { font-size: 10px; color: rgba(200,169,110,.3); letter-spacing: 1px; padding: 16px 0; }
+  #stage-view.active #stage-empty { display: none; }
+  #stage-view:not(.active) .stage-header,
+  #stage-view:not(.active) .entity-grid,
+  #stage-view:not(.active) [data-active-only] { display: none; }
   .stage-header {
     display: flex;
     align-items: center;
@@ -193,6 +196,7 @@
 
   <section id="stage-view">
     <h2>Stage Observation</h2>
+    <div id="stage-empty">No players in a combat stage yet.</div>
     <div class="stage-header">
       <span class="label" id="stage-label"></span>
       <span>
@@ -200,11 +204,11 @@
         <span class="pending-pill" id="pending-pill" style="display:none">Combat</span>
       </span>
     </div>
-    <div style="margin-bottom:14px">
+    <div style="margin-bottom:14px" data-active-only>
       <div style="font-size:9px;letter-spacing:3px;color:rgba(200,169,110,.4);margin-bottom:6px;text-transform:uppercase">Party</div>
       <div class="entity-grid" id="party-list"></div>
     </div>
-    <div>
+    <div data-active-only>
       <div style="font-size:9px;letter-spacing:3px;color:rgba(200,169,110,.4);margin-bottom:6px;text-transform:uppercase">Enemies</div>
       <div class="entity-grid" id="enemy-list"></div>
     </div>
