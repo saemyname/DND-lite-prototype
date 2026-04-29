@@ -339,7 +339,6 @@ let enemyTokens = [];
 let turnState = 'idle'; // 'idle' | 'move' | 'moving' | 'action'
 const highlightMeshes = [];
 const highlightGroup = new THREE.Group();
-let debugGridLines = [];
 let pendingRoll = null;
 const charData = JSON.parse(localStorage.getItem('dndlite-character') || 'null');
 
@@ -480,6 +479,9 @@ function calcMoveRange(startCol, startRow, range) {
   const visited = new Set();
   const queue = [{ col: startCol, row: startRow, dist: 0 }];
   visited.add(`${startCol},${startRow}`);
+  const enemyTiles = new Set(
+    enemyTokens.filter(e => e.hp > 0).map(e => `${e.col},${e.row}`)
+  );
   while (queue.length) {
     const { col, row, dist } = queue.shift();
     tiles.push({ col, row });
@@ -487,7 +489,7 @@ function calcMoveRange(startCol, startRow, range) {
       for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
         const nc = col + dc, nr = row + dr;
         const key = `${nc},${nr}`;
-        if (!visited.has(key) && isWalkable(nc, nr)) {
+        if (!visited.has(key) && isWalkable(nc, nr) && !enemyTiles.has(key)) {
           visited.add(key);
           queue.push({ col: nc, row: nr, dist: dist + 1 });
         }
@@ -495,37 +497,6 @@ function calcMoveRange(startCol, startRow, range) {
     }
   }
   return tiles;
-}
-
-// DEBUG: shows green grid lines for calibration — removed in Task 8
-function addDebugGrid() {
-  const { cols, rows, cellSizeX, cellSizeZ, originX, originZ, floorY } = gridData.grid;
-  const mat = new THREE.LineBasicMaterial({ color: 0x00ff44, opacity: 0.7, transparent: true });
-  for (let c = 0; c <= cols; c++) {
-    const x = originX + c * cellSizeX;
-    const pts = [
-      new THREE.Vector3(x, floorY + 0.3, originZ),
-      new THREE.Vector3(x, floorY + 0.3, originZ + rows * cellSizeZ),
-    ];
-    const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat);
-    scene.add(l);
-    debugGridLines.push(l);
-  }
-  for (let r = 0; r <= rows; r++) {
-    const z = originZ + r * cellSizeZ;
-    const pts = [
-      new THREE.Vector3(originX, floorY + 0.3, z),
-      new THREE.Vector3(originX + cols * cellSizeX, floorY + 0.3, z),
-    ];
-    const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat);
-    scene.add(l);
-    debugGridLines.push(l);
-  }
-}
-
-function removeDebugGrid() {
-  debugGridLines.forEach(l => scene.remove(l));
-  debugGridLines = [];
 }
 
 // ── Player token ──
@@ -547,6 +518,7 @@ function loadPlayerToken() {
       model.position.y -= box.min.y;
       const group = new THREE.Group();
       group.add(model);
+      group.scale.setScalar(3);
       resolve(group);
     }, undefined, () => resolve(createFallbackToken()));
   });
@@ -564,6 +536,7 @@ function createFallbackToken() {
   head.position.y = 1.15;
   group.add(head);
   group.traverse(c => { if (c.isMesh) c.castShadow = true; });
+  group.scale.setScalar(3);
   return group;
 }
 
@@ -587,6 +560,7 @@ function createEnemyToken(enemy) {
     group.add(eye);
   });
   group.userData.enemyId = enemy.id;
+  group.scale.setScalar(3);
   return group;
 }
 
@@ -627,14 +601,6 @@ function clearHighlights() {
 gltfLoader.load('../Assets/dnd_luna_ruins_02a.glb', async (gltf) => {
   placeModel(gltf.scene, 'dnd_luna_ruins_02a.glb');
 
-  // Log model bounds for floorY calibration — remove after calibration
-  const modelBox = new THREE.Box3().setFromObject(currentModel);
-  console.log('[grid-calibrate] model bounds:', {
-    minX: modelBox.min.x.toFixed(2), maxX: modelBox.max.x.toFixed(2),
-    minY: modelBox.min.y.toFixed(2), maxY: modelBox.max.y.toFixed(2),
-    minZ: modelBox.min.z.toFixed(2), maxZ: modelBox.max.z.toFixed(2),
-  });
-
   // Load grid
   const resp = await fetch('../rooms/stage02-grid.json');
   gridData = await resp.json();
@@ -648,9 +614,6 @@ gltfLoader.load('../Assets/dnd_luna_ruins_02a.glb', async (gltf) => {
   floorPlane.rotation.x = -Math.PI / 2;
   floorPlane.position.y = gridData.grid.floorY;
   scene.add(floorPlane);
-
-  // Debug grid lines (removed in Task 8)
-  addDebugGrid();
 
   // Spawn player token
   playerCol = gridData.playerSpawn[0];
@@ -714,23 +677,34 @@ canvas.addEventListener('click', (e) => {
     return;
   }
 
-  // Attack: click on enemy mesh
-  const enemyMeshChildren = [];
-  enemyTokens.filter(e => e.hp > 0).forEach(e => {
-    e.mesh.traverse(c => { if (c.isMesh) enemyMeshChildren.push({ mesh: c, token: e }); });
-  });
-  const enemyHits = raycaster.intersectObjects(enemyMeshChildren.map(x => x.mesh));
+  // Attack: try enemy mesh first, fall back to floor → grid cell lookup
+  let targetEnemy = null;
+  const enemyMeshes = enemyTokens.filter(e => e.hp > 0).map(e => e.mesh);
+  const enemyHits = raycaster.intersectObjects(enemyMeshes, true);
   if (enemyHits.length > 0) {
-    const hitMesh = enemyHits[0].object;
-    const found = enemyMeshChildren.find(x => x.mesh === hitMesh);
-    if (found) {
-      const colDist = Math.abs(playerCol - found.token.col);
-      const rowDist = Math.abs(playerRow - found.token.row);
-      if (colDist <= 1 && rowDist <= 1) {
-        startCombat(found.token);
-      } else {
-        showStatusMsg('Move closer to attack!');
-      }
+    let obj = enemyHits[0].object;
+    while (obj && !targetEnemy) {
+      targetEnemy = enemyTokens.find(e => e.mesh === obj);
+      obj = obj.parent;
+    }
+  }
+  if (!targetEnemy) {
+    const floorHits = raycaster.intersectObjects([floorPlane]);
+    if (floorHits.length > 0) {
+      const hit = floorHits[0].point;
+      const { cellSizeX, cellSizeZ, originX, originZ } = gridData.grid;
+      const clickedCol = Math.floor((hit.x - originX) / cellSizeX);
+      const clickedRow = Math.floor((hit.z - originZ) / cellSizeZ);
+      targetEnemy = enemyTokens.find(e => e.hp > 0 && e.col === clickedCol && e.row === clickedRow);
+    }
+  }
+  if (targetEnemy) {
+    const colDist = Math.abs(playerCol - targetEnemy.col);
+    const rowDist = Math.abs(playerRow - targetEnemy.row);
+    if (colDist <= 1 && rowDist <= 1) {
+      startCombat(targetEnemy);
+    } else {
+      showStatusMsg('Move closer to attack!');
     }
   }
 });
@@ -773,7 +747,7 @@ function closePanel() {
   d20.classList.remove('active');
   document.getElementById('d20-label').textContent = '';
   document.getElementById('d20-value').textContent = '—';
-  document.getElementById('d20-dice-shape').className = '';
+  document.getElementById('d20-dice-shape').setAttribute('class', '');
 }
 
 function startCombat(enemy) {
@@ -787,7 +761,7 @@ function startCombat(enemy) {
   document.getElementById('d20-hud').classList.remove('active');
   document.getElementById('d20-label').textContent = '';
   document.getElementById('d20-value').textContent = '—';
-  document.getElementById('d20-dice-shape').className = '';
+  document.getElementById('d20-dice-shape').setAttribute('class', '');
 
   const statLabel = STAT_NAMES[enemy.stat] || enemy.stat.toUpperCase();
   const btn = createBtn(`Attack (${statLabel})`, () => {
@@ -902,8 +876,17 @@ function tick() {
       const dx = playerToken.position.x - playerTargetPos.x;
       const dz = playerToken.position.z - playerTargetPos.z;
       if (Math.abs(dx) < 0.08 && Math.abs(dz) < 0.08) {
-        turnState = 'move';
-        showMoveRange(playerCol, playerRow);
+        const adjacentEnemy = enemyTokens.find(e =>
+          e.hp > 0 &&
+          Math.abs(e.col - playerCol) <= 1 &&
+          Math.abs(e.row - playerRow) <= 1
+        );
+        if (adjacentEnemy) {
+          startCombat(adjacentEnemy);
+        } else {
+          turnState = 'move';
+          showMoveRange(playerCol, playerRow);
+        }
       }
     }
   }
