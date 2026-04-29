@@ -136,6 +136,7 @@ wss.on('connection', (ws) => {
         role = 'player';
         if (msg.location) ep.location = msg.location;
         console.log(`[player_rejoin] session=${code}, pid=${pid}, dm_present=${!!sess.dm}`);
+        send(ws, { type: 'player_rejoined', unlockedStages: [...sess.unlockedStages] });
         if (sess.dm) send(sess.dm, { type: 'player_location', playerId: pid, location: ep.location });
         break;
       }
