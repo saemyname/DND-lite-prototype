@@ -373,8 +373,29 @@ function placeEnemies() {
   });
 }
 
-// stub — replaced in Task 5
-function showMoveRange(col, row) {}
+function showMoveRange(col, row) {
+  clearHighlights();
+  const tiles = calcMoveRange(col, row, MOVE_RANGE_BY_ROLE[charData?.role] || 4);
+  const { cellSizeX, cellSizeZ, floorY } = gridData.grid;
+  tiles.forEach(tile => {
+    if (tile.col === col && tile.row === row) return;
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(cellSizeX * 0.85, cellSizeZ * 0.85),
+      new THREE.MeshBasicMaterial({ color: 0xaa2222, transparent: true, opacity: 0.35, side: THREE.DoubleSide })
+    );
+    plane.rotation.x = -Math.PI / 2;
+    const pos = gridToWorld(tile.col, tile.row);
+    plane.position.set(pos.x, floorY + 0.05, pos.z);
+    plane.userData = { col: tile.col, row: tile.row };
+    highlightGroup.add(plane);
+    highlightMeshes.push(plane);
+  });
+}
+
+function clearHighlights() {
+  highlightMeshes.forEach(m => highlightGroup.remove(m));
+  highlightMeshes.length = 0;
+}
 
 gltfLoader.load('../Assets/dnd_luna_ruins_02a.glb', async (gltf) => {
   placeModel(gltf.scene, 'dnd_luna_ruins_02a.glb');
@@ -445,9 +466,76 @@ const faceCamConfig = {
   far: 500,
 };
 
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+canvas.addEventListener('click', (e) => {
+  if (turnState !== 'move' || !gridData) return;
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  // Movement: click on red highlight tile
+  const tileHits = raycaster.intersectObjects(highlightMeshes);
+  if (tileHits.length > 0) {
+    const { col, row } = tileHits[0].object.userData;
+    playerCol = col;
+    playerRow = row;
+    playerTargetPos = gridToWorld(col, row).clone();
+    turnState = 'moving';
+    clearHighlights();
+    return;
+  }
+
+  // Attack: click on enemy mesh
+  const enemyMeshChildren = [];
+  enemyTokens.filter(e => e.hp > 0).forEach(e => {
+    e.mesh.traverse(c => { if (c.isMesh) enemyMeshChildren.push({ mesh: c, token: e }); });
+  });
+  const enemyHits = raycaster.intersectObjects(enemyMeshChildren.map(x => x.mesh));
+  if (enemyHits.length > 0) {
+    const hitMesh = enemyHits[0].object;
+    const found = enemyMeshChildren.find(x => x.mesh === hitMesh);
+    if (found) {
+      const colDist = Math.abs(playerCol - found.token.col);
+      const rowDist = Math.abs(playerRow - found.token.row);
+      if (colDist <= 1 && rowDist <= 1) {
+        startCombat(found.token);
+      } else {
+        showStatusMsg('Move closer to attack!');
+      }
+    }
+  }
+});
+
+function showStatusMsg(text) {
+  const el = document.getElementById('status-msg');
+  if (!el) return;
+  el.textContent = text;
+  el.style.opacity = '1';
+  clearTimeout(el._timeout);
+  el._timeout = setTimeout(() => { el.style.opacity = '0'; }, 2200);
+}
+
 function tick() {
   requestAnimationFrame(tick);
   updateFaceCamera(camera, faceCamConfig);
+
+  // Player token animation
+  if (playerToken && playerTargetPos) {
+    playerToken.position.lerp(playerTargetPos, 0.1);
+    playerToken.position.y = playerTargetPos.y + Math.sin(performance.now() * 0.002) * 0.06;
+
+    if (turnState === 'moving') {
+      const dx = playerToken.position.x - playerTargetPos.x;
+      const dz = playerToken.position.z - playerTargetPos.z;
+      if (Math.abs(dx) < 0.08 && Math.abs(dz) < 0.08) {
+        turnState = 'move';
+        showMoveRange(playerCol, playerRow);
+      }
+    }
+  }
+
   renderer.render(scene, camera);
 }
 tick();
