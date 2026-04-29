@@ -98,6 +98,24 @@
     white-space: nowrap;
   }
 
+  /* Player name labels */
+  .player-name-label {
+    position: fixed;
+    pointer-events: none;
+    z-index: 30;
+    font-family: 'Georgia', serif;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: #88c8ff;
+    background: rgba(0,0,0,.6);
+    border: 1px solid rgba(136,200,255,.4);
+    border-radius: 3px;
+    padding: 2px 8px;
+    transform: translate(-50%, -100%);
+    white-space: nowrap;
+  }
+  .player-name-label.me { color: #ffe9a0; border-color: rgba(255,233,160,.5); }
+
   /* Status message */
   #status-msg {
     position: fixed;
@@ -345,6 +363,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { updateFaceCamera, onResizeFaceCamera, initRotationButtons } from '../scripts/face-camera.js';
+import { send, on } from '../scripts/game-socket.js';
 
 // ── Grid / combat state (module scope) ──
 let gridData = null;
@@ -358,6 +377,9 @@ const highlightMeshes = [];
 const highlightGroup = new THREE.Group();
 let pendingRoll = null;
 const charData = JSON.parse(localStorage.getItem('dndlite-character') || 'null');
+const myPid = localStorage.getItem('player-id');
+let serverState = null;
+const playerTokens = new Map();   // pid → { group, label, role }
 
 function initHUD() {
   if (!charData) return;
@@ -541,6 +563,27 @@ function loadPlayerToken() {
   });
 }
 
+function loadPlayerTokenForRole(roleName) {
+  return new Promise((resolve) => {
+    const file = MINI_FILES[roleName];
+    if (!file) { resolve(createFallbackToken()); return; }
+    gltfLoader.load('../Assets/' + file, (gltf) => {
+      const model = gltf.scene;
+      model.scale.setScalar(1.2);
+      model.traverse(c => { if (c.isMesh) c.castShadow = true; });
+      const box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      model.position.x -= center.x;
+      model.position.z -= center.z;
+      model.position.y -= box.min.y;
+      const group = new THREE.Group();
+      group.add(model);
+      group.scale.setScalar(3);
+      resolve(group);
+    }, undefined, () => resolve(createFallbackToken()));
+  });
+}
+
 function createFallbackToken() {
   const group = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.4, metalness: 0.6 });
@@ -595,6 +638,51 @@ function placeEnemies() {
   });
 }
 
+async function applyState(snap) {
+  serverState = snap;
+
+  const seenPids = new Set();
+  for (const p of snap.players) {
+    seenPids.add(p.pid);
+    let entry = playerTokens.get(p.pid);
+    if (!entry) {
+      const group = await loadPlayerTokenForRole(p.role);
+      const label = document.createElement('div');
+      label.className = 'player-name-label';
+      label.textContent = p.name;
+      document.body.appendChild(label);
+      scene.add(group);
+      entry = { group, label, role: p.role };
+      playerTokens.set(p.pid, entry);
+    }
+    const pos = gridToWorld(p.col, p.row);
+    entry.group.position.set(pos.x, gridData.grid.floorY, pos.z);
+    entry.group.userData.targetPos = pos;
+  }
+  for (const [pid, entry] of [...playerTokens.entries()]) {
+    if (!seenPids.has(pid)) {
+      scene.remove(entry.group);
+      entry.label.remove();
+      playerTokens.delete(pid);
+    }
+  }
+
+  reconcileEnemies(snap.enemies);
+}
+
+function reconcileEnemies(enemiesFromServer) {
+  for (const srvE of enemiesFromServer) {
+    const local = enemyTokens.find(e => e.id === srvE.id);
+    if (!local) continue;
+    local.hp = srvE.hp;
+    if (local.label) local.label.textContent = `${srvE.hp}/${srvE.maxHp}`;
+    if (srvE.hp <= 0 && local.mesh.parent) {
+      scene.remove(local.mesh);
+      if (local.label) { local.label.remove(); local.label = null; }
+    }
+  }
+}
+
 function showMoveRange(col, row) {
   clearHighlights();
   const tiles = calcMoveRange(col, row, MOVE_RANGE_BY_ROLE[charData?.role] || 4);
@@ -636,21 +724,16 @@ gltfLoader.load('../Assets/dnd_luna_ruins_02a.glb', async (gltf) => {
   floorPlane.position.y = gridData.grid.floorY;
   scene.add(floorPlane);
 
-  // Spawn player token
-  playerCol = gridData.playerSpawn[0];
-  playerRow = gridData.playerSpawn[1];
-  playerToken = await loadPlayerToken();
-  const spawnPos = gridToWorld(playerCol, playerRow);
-  playerToken.position.set(spawnPos.x, gridData.grid.floorY, spawnPos.z);
-  playerTargetPos = playerToken.position.clone();
-  scene.add(playerToken);
-
-  // Spawn enemy tokens
+  // Spawn enemy tokens (visual placeholders — server is authoritative for HP)
   placeEnemies();
 
-  // Start move phase
-  turnState = 'move';
-  showMoveRange(playerCol, playerRow);
+  // Subscribe to server state, then announce arrival
+  on('state_update', (msg) => {
+    applyState(msg.state).catch(err => console.error('[state_update] applyState failed:', err));
+  });
+
+  const localChar = JSON.parse(localStorage.getItem('dndlite-character') || '{"hp":10,"maxHp":10}');
+  send({ type: 'enter_stage', stageId: 'stage02', hp: localChar.hp ?? 10, maxHp: localChar.maxHp ?? localChar.hp ?? 10 });
 }, undefined, (err) => {
   console.error('GLB load error:', err);
   document.getElementById('loading').textContent = 'Load failed';
@@ -892,27 +975,13 @@ function tick() {
   requestAnimationFrame(tick);
   updateFaceCamera(camera, faceCamConfig);
 
-  // Player token animation
-  if (playerToken && playerTargetPos) {
-    playerToken.position.lerp(playerTargetPos, 0.1);
-    playerToken.position.y = playerTargetPos.y + Math.sin(performance.now() * 0.002) * 0.06;
-
-    if (turnState === 'moving') {
-      const dx = playerToken.position.x - playerTargetPos.x;
-      const dz = playerToken.position.z - playerTargetPos.z;
-      if (Math.abs(dx) < 0.08 && Math.abs(dz) < 0.08) {
-        const adjacentEnemy = enemyTokens.find(e =>
-          e.hp > 0 &&
-          Math.abs(e.col - playerCol) <= 1 &&
-          Math.abs(e.row - playerRow) <= 1
-        );
-        if (adjacentEnemy) {
-          startCombat(adjacentEnemy);
-        } else {
-          turnState = 'move';
-          showMoveRange(playerCol, playerRow);
-        }
-      }
+  // Player token bob animation (positions are set by applyState)
+  if (gridData) {
+    for (const [pid, entry] of playerTokens) {
+      const target = entry.group.userData.targetPos;
+      if (!target) continue;
+      entry.group.position.lerp(target, 0.15);
+      entry.group.position.y = gridData.grid.floorY + Math.sin(performance.now() * 0.002) * 0.06;
     }
   }
 
@@ -928,6 +997,19 @@ function tick() {
     e.label.style.left = x + 'px';
     e.label.style.top = y + 'px';
   });
+
+  // Update player name label positions
+  const _pVec = new THREE.Vector3();
+  for (const [pid, entry] of playerTokens) {
+    _pVec.copy(entry.group.position);
+    _pVec.y += 7;
+    _pVec.project(camera);
+    const x = (_pVec.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-_pVec.y * 0.5 + 0.5) * window.innerHeight;
+    entry.label.style.left = x + 'px';
+    entry.label.style.top  = y + 'px';
+    if (pid === myPid) entry.label.classList.add('me');
+  }
 
   renderer.render(scene, camera);
 }
