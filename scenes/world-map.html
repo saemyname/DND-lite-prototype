@@ -105,82 +105,6 @@
     text-transform: uppercase;
   }
 
-  #debug-panel {
-    position: fixed;
-    top: 70px;
-    right: 16px;
-    z-index: 200;
-    background: rgba(0,0,0,.85);
-    border: 1px solid rgba(200,169,110,.35);
-    border-radius: 6px;
-    padding: 12px 14px;
-    font-family: monospace;
-    font-size: 11px;
-    color: #c8a96e;
-    min-width: 240px;
-    display: none;
-  }
-  #debug-panel.visible { display: block; }
-  #debug-panel h3 {
-    font-size: 10px;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: rgba(200,169,110,.6);
-    margin-bottom: 10px;
-    border-bottom: 1px solid rgba(200,169,110,.2);
-    padding-bottom: 6px;
-  }
-  #debug-panel .row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 7px;
-  }
-  #debug-panel label {
-    width: 110px;
-    font-size: 10px;
-    color: rgba(200,169,110,.7);
-    flex-shrink: 0;
-  }
-  #debug-panel input[type=range] {
-    flex: 1;
-    accent-color: #c8a96e;
-    height: 3px;
-  }
-  #debug-panel .val {
-    width: 36px;
-    text-align: right;
-    font-size: 10px;
-    color: #ffe9a0;
-  }
-  #debug-panel .stat {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 4px;
-    font-size: 10px;
-  }
-  #debug-panel .stat span:last-child { color: #ffe9a0; }
-  #debug-panel .section { margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(200,169,110,.15); }
-
-  #debug-toggle {
-    position: fixed;
-    top: 70px;
-    right: 16px;
-    z-index: 201;
-    padding: 5px 10px;
-    background: rgba(200,169,110,.08);
-    border: 1px solid rgba(200,169,110,.3);
-    border-radius: 4px;
-    color: rgba(200,169,110,.6);
-    font-size: 10px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    cursor: pointer;
-    font-family: 'Georgia', serif;
-  }
-  #debug-toggle:hover { background: rgba(200,169,110,.18); color: #ffe9a0; }
-  #debug-panel.visible ~ #debug-toggle,
-  #debug-toggle.panel-open { top: auto; bottom: 70px; right: 16px; }
 </style>
 </head>
 <body>
@@ -192,59 +116,7 @@
 </div>
 <div id="tooltip"></div>
 <div id="vignette"></div>
-<div id="controls-hint">Scroll to zoom · D = debug</div>
-
-<button id="debug-toggle">Debug</button>
-<div id="debug-panel">
-  <h3>Camera Debug</h3>
-
-  <div class="stat"><span>zoomLevel</span><span id="db-zoom">0</span></div>
-  <div class="stat"><span>zoomRatio</span><span id="db-ratio">0.00</span></div>
-  <div class="stat"><span>cam.position</span><span id="db-pos">—</span></div>
-  <div class="stat"><span>basePos (Y,Z)</span><span id="db-base">—</span></div>
-
-  <div class="section">
-    <div class="row">
-      <label>lookTarget X</label>
-      <input type="range" id="sl-lx" min="-40" max="40" step="0.5" value="0">
-      <span class="val" id="vl-lx">0</span>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="row">
-      <label>zoomIn camY</label>
-      <input type="range" id="sl-inY" min="-10" max="80" step="0.5" value="13">
-      <span class="val" id="vl-inY">13</span>
-    </div>
-    <div class="row">
-      <label>zoomOut camY</label>
-      <input type="range" id="sl-outY" min="-10" max="80" step="0.5" value="7">
-      <span class="val" id="vl-outY">7</span>
-    </div>
-    <div class="row">
-      <label>zoomIn camZ</label>
-      <input type="range" id="sl-inZ" min="-20" max="60" step="0.5" value="13">
-      <span class="val" id="vl-inZ">13</span>
-    </div>
-    <div class="row">
-      <label>zoomOut camZ</label>
-      <input type="range" id="sl-outZ" min="-20" max="60" step="0.5" value="18">
-      <span class="val" id="vl-outZ">18</span>
-    </div>
-    <div class="row">
-      <label>zoom min</label>
-      <input type="range" id="sl-zmin" min="-60" max="0" step="1" value="-20">
-      <span class="val" id="vl-zmin">-20</span>
-    </div>
-    <div class="row">
-      <label>zoom max</label>
-      <input type="range" id="sl-zmax" min="0" max="80" step="1" value="30">
-      <span class="val" id="vl-zmax">30</span>
-    </div>
-  </div>
-</div>
-
+<div id="controls-hint">Scroll to zoom</div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -594,7 +466,7 @@ if (localStorage.getItem('session-code')) {
 
 let zoomLevel = 0;
 
-// Zoom camera params (editable via debug panel)
+// Zoom camera params
 const zoomParams = {
   min: -20,
   max: 30,
@@ -609,42 +481,6 @@ canvas.addEventListener('wheel', e => {
   zoomLevel -= e.deltaY * 0.03;
   zoomLevel = Math.max(zoomParams.min, Math.min(zoomParams.max, zoomLevel));
 }, { passive: false });
-
-// ── Debug panel ──
-const debugPanel = document.getElementById('debug-panel');
-const debugToggle = document.getElementById('debug-toggle');
-
-function toggleDebug() {
-  const visible = debugPanel.classList.toggle('visible');
-  debugToggle.textContent = visible ? 'Close' : 'Debug';
-}
-debugToggle.addEventListener('click', toggleDebug);
-document.addEventListener('keydown', e => { if (e.key === 'd' || e.key === 'D') toggleDebug(); });
-
-// Wire sliders
-function wireSlider(id, valId, paramKey) {
-  const sl = document.getElementById(id);
-  const vl = document.getElementById(valId);
-  sl.addEventListener('input', () => {
-    zoomParams[paramKey] = parseFloat(sl.value);
-    vl.textContent = sl.value;
-    // Clamp zoomLevel when limits change
-    zoomLevel = Math.max(zoomParams.min, Math.min(zoomParams.max, zoomLevel));
-  });
-}
-wireSlider('sl-inY',  'vl-inY',  'inY');
-wireSlider('sl-outY', 'vl-outY', 'outY');
-wireSlider('sl-inZ',  'vl-inZ',  'inZ');
-wireSlider('sl-outZ', 'vl-outZ', 'outZ');
-wireSlider('sl-zmin', 'vl-zmin', 'min');
-wireSlider('sl-zmax', 'vl-zmax', 'max');
-
-// lookTarget sliders
-document.getElementById('sl-lx').addEventListener('input', e => {
-  LOOK_TARGET.x = parseFloat(e.target.value);
-  document.getElementById('vl-lx').textContent = e.target.value;
-});
-
 
 // ══════════════════════════════════════
 //   RAYCASTER + TOOLTIP
@@ -814,15 +650,6 @@ function tick() {
   const camZ = zoomParams.inZ + zoomRatio * (zoomParams.outZ - zoomParams.inZ);
   BASE_CAM_POS.set(0, camY, camZ);
 
-  // Update debug panel stats
-  if (debugPanel.classList.contains('visible')) {
-    document.getElementById('db-zoom').textContent  = zoomLevel.toFixed(1);
-    document.getElementById('db-ratio').textContent = zoomRatio.toFixed(3);
-    document.getElementById('db-pos').textContent   =
-      `${camera.position.x.toFixed(1)}, ${camera.position.y.toFixed(1)}, ${camera.position.z.toFixed(1)}`;
-    document.getElementById('db-base').textContent  =
-      `${camY.toFixed(1)}, ${camZ.toFixed(1)}`;
-  }
   // Fog density: thicker when zoomed out, clear when zoomed in
   scene.fog.density = 0.001 + zoomRatio * 0.008;
 

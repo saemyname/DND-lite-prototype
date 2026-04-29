@@ -104,7 +104,7 @@ wss.on('connection', (ws) => {
         if (!text) return;
         let from;
         if (role === 'dm') {
-          from = 'Dungeon Master';
+          from = 'DM';
         } else if (role === 'player' && pid) {
           const p = sess.players.get(pid);
           from = p?.name || 'Adventurer';
