@@ -86,8 +86,9 @@
     transition: all .2s;
   }
   button:hover { background: rgba(200,169,110,.18); color: #ffe9a0; }
-  #btn-create { margin-bottom: 12px; }
-  #btn-start  { display: none; }
+  #btn-create  { margin-bottom: 12px; }
+  #btn-rejoin  { display: none; margin-bottom: 12px; }
+  #btn-start   { display: none; }
   #status {
     margin-top: 24px;
     font-size: 10px;
@@ -110,6 +111,7 @@
 </div>
 
 <button id="btn-create">Create Session</button>
+<button id="btn-rejoin"></button>
 <button id="btn-start">Start Session →</button>
 <div id="status">Not connected</div>
 
@@ -120,6 +122,7 @@ let sessionCode = null;
 const players = new Map();
 
 const btnCreate = document.getElementById('btn-create');
+const btnRejoin = document.getElementById('btn-rejoin');
 const btnStart  = document.getElementById('btn-start');
 const codeDisplay = document.getElementById('code-display');
 const codeHint    = document.getElementById('code-hint');
@@ -150,6 +153,7 @@ on('session_created', (msg) => {
   codeDisplay.style.display = 'block';
   codeHint.style.display = 'block';
   btnCreate.style.display = 'none';
+  btnRejoin.style.display = 'none';
   btnStart.style.display = 'block';
   statusEl.textContent = 'Session active — waiting for players';
 });
@@ -170,10 +174,20 @@ on('_disconnect', () => {
 
 connect(() => {
   statusEl.textContent = 'Connected to server';
+  const saved = localStorage.getItem('dm-session-code');
+  if (saved) {
+    btnRejoin.textContent = `Rejoin Session (${saved})`;
+    btnRejoin.style.display = 'block';
+  }
 });
 
 btnCreate.addEventListener('click', () => {
   send({ type: 'dm_create' });
+});
+
+btnRejoin.addEventListener('click', () => {
+  const saved = localStorage.getItem('dm-session-code');
+  if (saved) window.location.href = `session.html?code=${encodeURIComponent(saved)}`;
 });
 
 btnStart.addEventListener('click', () => {
