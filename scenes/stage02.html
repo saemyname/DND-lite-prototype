@@ -251,6 +251,25 @@
   }
   #d20-label { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: rgba(200,169,110,.4); height: 14px; font-family: 'Georgia', serif; }
 
+  /* Turn indicator */
+  #turn-indicator {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 60;
+    padding: 6px 18px;
+    border-radius: 4px;
+    font-family: 'Georgia', serif;
+    font-size: 13px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    background: rgba(0,0,0,.6);
+    border: 1px solid rgba(200,169,110,.3);
+    color: rgba(200,169,110,.85);
+  }
+  #turn-indicator.my-turn { color: #ffe9a0; border-color: rgba(255,233,160,.7); }
+
   /* Overlays */
   #victory, #game-over {
     position: fixed;
@@ -274,6 +293,7 @@
 
 <canvas id="canvas"></canvas>
 <div id="title">Stage 02</div>
+<div id="turn-indicator" style="display:none"></div>
 <div id="nav">
   <a href="world-map.html">← World</a>
 </div>
@@ -519,9 +539,14 @@ function calcMoveRange(startCol, startRow, range) {
   const visited = new Set();
   const queue = [{ col: startCol, row: startRow, dist: 0 }];
   visited.add(`${startCol},${startRow}`);
-  const enemyTiles = new Set(
+  const blockedTiles = new Set(
     enemyTokens.filter(e => e.hp > 0).map(e => `${e.col},${e.row}`)
   );
+  if (serverState) {
+    for (const p of serverState.players) {
+      if (p.pid !== myPid) blockedTiles.add(`${p.col},${p.row}`);
+    }
+  }
   while (queue.length) {
     const { col, row, dist } = queue.shift();
     tiles.push({ col, row });
@@ -529,7 +554,7 @@ function calcMoveRange(startCol, startRow, range) {
       for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
         const nc = col + dc, nr = row + dr;
         const key = `${nc},${nr}`;
-        if (!visited.has(key) && isWalkable(nc, nr) && !enemyTiles.has(key)) {
+        if (!visited.has(key) && isWalkable(nc, nr) && !blockedTiles.has(key)) {
           visited.add(key);
           queue.push({ col: nc, row: nr, dist: dist + 1 });
         }
@@ -642,6 +667,15 @@ function placeEnemies() {
 async function applyState(snap) {
   serverState = snap;
 
+  const indicator = document.getElementById('turn-indicator');
+  if (indicator && snap.activeTurnPid) {
+    const active = snap.players.find(p => p.pid === snap.activeTurnPid);
+    const isMine = snap.activeTurnPid === myPid;
+    indicator.textContent = isMine ? 'Your turn' : `${active?.name || '...'}'s turn`;
+    indicator.classList.toggle('my-turn', isMine);
+    indicator.style.display = 'block';
+  }
+
   const seenPids = new Set();
   for (const p of snap.players) {
     seenPids.add(p.pid);
@@ -673,6 +707,14 @@ async function applyState(snap) {
   }
 
   reconcileEnemies(snap.enemies);
+
+  // Show move range only on local player's turn (not in combat)
+  const me = snap.players.find(p => p.pid === myPid);
+  if (me && snap.activeTurnPid === myPid && !snap.pendingCombat && !snap.outcome) {
+    showMoveRange(me.col, me.row);
+  } else {
+    clearHighlights();
+  }
 }
 
 function reconcileEnemies(enemiesFromServer) {
@@ -769,52 +811,20 @@ const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
 canvas.addEventListener('click', (e) => {
-  if (turnState !== 'move' || !gridData) return;
+  if (!serverState || !gridData) return;
+  if (serverState.activeTurnPid !== myPid) return;       // not my turn
+  if (serverState.pendingCombat) return;                 // combat panel handles its own input
+  if (serverState.outcome) return;
+
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
 
-  // Movement: click on red highlight tile
+  // Click on a highlight tile -> request move
   const tileHits = raycaster.intersectObjects(highlightMeshes);
   if (tileHits.length > 0) {
     const { col, row } = tileHits[0].object.userData;
-    playerCol = col;
-    playerRow = row;
-    playerTargetPos = gridToWorld(col, row).clone();
-    turnState = 'moving';
-    clearHighlights();
-    return;
-  }
-
-  // Attack: try enemy mesh first, fall back to floor → grid cell lookup
-  let targetEnemy = null;
-  const enemyMeshes = enemyTokens.filter(e => e.hp > 0).map(e => e.mesh);
-  const enemyHits = raycaster.intersectObjects(enemyMeshes, true);
-  if (enemyHits.length > 0) {
-    let obj = enemyHits[0].object;
-    while (obj && !targetEnemy) {
-      targetEnemy = enemyTokens.find(e => e.mesh === obj);
-      obj = obj.parent;
-    }
-  }
-  if (!targetEnemy) {
-    const floorHits = raycaster.intersectObjects([floorPlane]);
-    if (floorHits.length > 0) {
-      const hit = floorHits[0].point;
-      const { cellSizeX, cellSizeZ, originX, originZ } = gridData.grid;
-      const clickedCol = Math.floor((hit.x - originX) / cellSizeX);
-      const clickedRow = Math.floor((hit.z - originZ) / cellSizeZ);
-      targetEnemy = enemyTokens.find(e => e.hp > 0 && e.col === clickedCol && e.row === clickedRow);
-    }
-  }
-  if (targetEnemy) {
-    const colDist = Math.abs(playerCol - targetEnemy.col);
-    const rowDist = Math.abs(playerRow - targetEnemy.row);
-    if (colDist <= 1 && rowDist <= 1) {
-      startCombat(targetEnemy);
-    } else {
-      showStatusMsg('Move closer to attack!');
-    }
+    send({ type: 'action_request', stageId: 'stage02', kind: 'move', col, row });
   }
 });
 
