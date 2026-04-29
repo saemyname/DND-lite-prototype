@@ -3,6 +3,7 @@ const http = require('http');
 const { WebSocketServer } = require('ws');
 const { networkInterfaces } = require('os');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -10,6 +11,16 @@ const wss = new WebSocketServer({ server });
 
 // Serve entire project root as static
 app.use(express.static(path.join(__dirname)));
+
+const STAGE_CONFIGS = {};
+function loadStageConfig(stageId) {
+  if (STAGE_CONFIGS[stageId]) return STAGE_CONFIGS[stageId];
+  const filePath = path.join(__dirname, 'rooms', `${stageId}-grid.json`);
+  const raw = fs.readFileSync(filePath, 'utf8');
+  const cfg = JSON.parse(raw);
+  STAGE_CONFIGS[stageId] = cfg;
+  return cfg;
+}
 
 // sessions: Map<code, { dm: WebSocket|null, players: Map<id, PlayerEntry>, unlockedStages: Set }>
 // PlayerEntry: { ws: WebSocket|null, name, role, location }
@@ -27,6 +38,44 @@ function broadcastPlayers(session, msg) {
   for (const p of session.players.values()) send(p.ws, msg);
 }
 
+function makeStageState(stageId) {
+  const cfg = loadStageConfig(stageId);
+  return {
+    stageId,
+    cfg,
+    players: new Map(),
+    enemies: cfg.enemies.map(e => ({...e})),
+    turnOrder: [],
+    activeTurnIdx: 0,
+    pendingCombat: null,
+    outcome: null,
+  };
+}
+
+function broadcastStage(stageState, sess, msg) {
+  for (const pid of stageState.players.keys()) {
+    const p = sess.players.get(pid);
+    if (p?.ws) send(p.ws, msg);
+  }
+  if (sess.dm) send(sess.dm, msg);
+}
+
+function activeTurnPid(stageState) {
+  return stageState.turnOrder[stageState.activeTurnIdx] || null;
+}
+
+function snapshotState(stageState) {
+  return {
+    stageId: stageState.stageId,
+    players: [...stageState.players.entries()].map(([pid, p]) => ({ pid, ...p })),
+    enemies: stageState.enemies,
+    turnOrder: stageState.turnOrder,
+    activeTurnPid: activeTurnPid(stageState),
+    pendingCombat: stageState.pendingCombat,
+    outcome: stageState.outcome,
+  };
+}
+
 wss.on('connection', (ws) => {
   let sess = null;
   let role = null; // 'dm' | 'player'
@@ -41,7 +90,7 @@ wss.on('connection', (ws) => {
 
       case 'dm_create': {
         code = makeCode();
-        sess = { dm: ws, players: new Map(), unlockedStages: new Set(['stage_01']), chatHistory: [] };
+        sess = { dm: ws, players: new Map(), unlockedStages: new Set(['stage_01']), chatHistory: [], stages: new Map() };
         sessions.set(code, sess);
         role = 'dm';
         console.log(`[dm_create] session=${code}`);
@@ -117,6 +166,35 @@ wss.on('connection', (ws) => {
         const out = { type: 'chat_message', ...entry };
         send(sess.dm, out);
         broadcastPlayers(sess, out);
+        break;
+      }
+
+      case 'enter_stage': {
+        if (role !== 'player' || !sess || !pid) return;
+        const stageId = msg.stageId;
+        if (!stageId || typeof stageId !== 'string') return;
+        let st = sess.stages.get(stageId);
+        if (!st) {
+          try { st = makeStageState(stageId); }
+          catch (e) { console.error('[enter_stage] config load fail:', stageId, e.message); return; }
+          sess.stages.set(stageId, st);
+        }
+        if (!st.players.has(pid)) {
+          const player = sess.players.get(pid);
+          const [spawnCol, spawnRow] = st.cfg.playerSpawn;
+          st.players.set(pid, {
+            col: spawnCol,
+            row: spawnRow,
+            hp: Math.max(1, Number(msg.hp) || 10),
+            maxHp: Math.max(1, Number(msg.maxHp) || 10),
+            name: player?.name || 'Adventurer',
+            role: player?.role || 'Warrior',
+          });
+          st.turnOrder.push(pid);
+        }
+        const snap = snapshotState(st);
+        broadcastStage(st, sess, { type: 'state_update', state: snap });
+        console.log(`[enter_stage] session=${code} stage=${stageId} pid=${pid} players=${st.players.size}`);
         break;
       }
 
