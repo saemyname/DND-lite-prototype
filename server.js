@@ -41,7 +41,7 @@ wss.on('connection', (ws) => {
 
       case 'dm_create': {
         code = makeCode();
-        sess = { dm: ws, players: new Map(), unlockedStages: new Set(['stage_01']) };
+        sess = { dm: ws, players: new Map(), unlockedStages: new Set(['stage_01']), chatHistory: [] };
         sessions.set(code, sess);
         role = 'dm';
         console.log(`[dm_create] session=${code}`);
@@ -64,6 +64,7 @@ wss.on('connection', (ws) => {
         }));
         console.log(`[dm_rejoin] session=${code}, players=${playerList.length}`);
         send(ws, { type: 'dm_rejoined', players: playerList, unlockedStages: [...rejoinSess.unlockedStages] });
+        send(ws, { type: 'chat_history', messages: rejoinSess.chatHistory });
         broadcastPlayers(sess, { type: 'dm_reconnected' });
         console.log(`[dm_rejoin] notified ${sess.players.size} players of dm_reconnected`);
         break;
@@ -79,6 +80,7 @@ wss.on('connection', (ws) => {
         sess.players.set(pid, { ws, name: msg.name, role: msg.role, location: 'world-map' });
         console.log(`[player_join] session=${msg.code}, pid=${pid}, name=${msg.name}`);
         send(ws, { type: 'joined', playerId: pid, unlockedStages: [...sess.unlockedStages] });
+        send(ws, { type: 'chat_history', messages: sess.chatHistory });
         send(sess.dm, { type: 'player_joined', playerId: pid, name: msg.name, role: msg.role });
         break;
       }
@@ -93,6 +95,28 @@ wss.on('connection', (ws) => {
         console.log(`[stage_unlock] key=${msg.stageKey}, players_with_open_ws=${activeWs}/${sess.players.size}`);
         broadcastPlayers(sess, { type: 'stage_unlock', stageKey: msg.stageKey });
         send(ws, { type: 'stage_unlock_ack', stageKey: msg.stageKey });
+        break;
+      }
+
+      case 'chat_send': {
+        if (!sess) return;
+        const text = String(msg.text ?? '').slice(0, 200).trim();
+        if (!text) return;
+        let from;
+        if (role === 'dm') {
+          from = 'Dungeon Master';
+        } else if (role === 'player' && pid) {
+          const p = sess.players.get(pid);
+          from = p?.name || 'Adventurer';
+        } else {
+          return;
+        }
+        const entry = { from, role, text, ts: Date.now() };
+        sess.chatHistory.push(entry);
+        if (sess.chatHistory.length > 50) sess.chatHistory.shift();
+        const out = { type: 'chat_message', ...entry };
+        send(sess.dm, out);
+        broadcastPlayers(sess, out);
         break;
       }
 
@@ -137,6 +161,7 @@ wss.on('connection', (ws) => {
         if (msg.location) ep.location = msg.location;
         console.log(`[player_rejoin] session=${code}, pid=${pid}, dm_present=${!!sess.dm}`);
         send(ws, { type: 'player_rejoined', unlockedStages: [...sess.unlockedStages] });
+        send(ws, { type: 'chat_history', messages: sess.chatHistory });
         if (sess.dm) send(sess.dm, { type: 'player_location', playerId: pid, location: ep.location });
         break;
       }
