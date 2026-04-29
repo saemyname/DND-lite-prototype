@@ -76,12 +76,13 @@ function snapshotState(stageState) {
   };
 }
 
-function isCellWalkable(stageState, col, row) {
+function isCellWalkable(stageState, col, row, selfPid) {
   const { cols, rows } = stageState.cfg.grid;
   if (col < 0 || col >= cols || row < 0 || row >= rows) return false;
   if (stageState.cfg.walkable[row][col] !== 1) return false;
   if (stageState.enemies.some(e => e.hp > 0 && e.col === col && e.row === row)) return false;
   for (const [otherPid, p] of stageState.players) {
+    if (otherPid === selfPid) continue;
     if (p.col === col && p.row === row) return false;
   }
   return true;
@@ -89,7 +90,7 @@ function isCellWalkable(stageState, col, row) {
 
 const MOVE_RANGE_BY_ROLE = { Warrior: 3, Rogue: 5, Mage: 4, Cleric: 4 };
 
-function reachable(stageState, fromCol, fromRow, range) {
+function reachable(stageState, fromCol, fromRow, range, selfPid) {
   const visited = new Set();
   const result = new Set();
   const queue = [{ col: fromCol, row: fromRow, dist: 0 }];
@@ -101,7 +102,7 @@ function reachable(stageState, fromCol, fromRow, range) {
       for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
         const nc = col + dc, nr = row + dr;
         const key = `${nc},${nr}`;
-        if (!visited.has(key) && isCellWalkable(stageState, nc, nr)) {
+        if (!visited.has(key) && isCellWalkable(stageState, nc, nr, selfPid)) {
           visited.add(key);
           queue.push({ col: nc, row: nr, dist: dist + 1 });
         }
@@ -331,9 +332,9 @@ wss.on('connection', (ws) => {
           if (st.pendingCombat) return;
           const dstCol = Number(msg.col), dstRow = Number(msg.row);
           if (!Number.isInteger(dstCol) || !Number.isInteger(dstRow)) return;
-          if (!isCellWalkable(st, dstCol, dstRow)) return;
+          if (!isCellWalkable(st, dstCol, dstRow, pid)) return;
           const range = MOVE_RANGE_BY_ROLE[me.role] || 4;
-          const reach = reachable(st, me.col, me.row, range);
+          const reach = reachable(st, me.col, me.row, range, pid);
           if (!reach.has(`${dstCol},${dstRow}`)) return;
           me.col = dstCol;
           me.row = dstRow;
@@ -343,7 +344,6 @@ wss.on('connection', (ws) => {
             st.pendingCombat = { attackerPid: pid, enemyId: adj.id };
           } else {
             advanceTurn(st);
-            startTurnAutoCombat(st);
           }
           broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
         }
@@ -357,10 +357,7 @@ wss.on('connection', (ws) => {
         if (!st || !st.pendingCombat) return;
         if (st.pendingCombat.attackerPid !== pid) return;
         st.pendingCombat = null;
-        if (!st.outcome) {
-          advanceTurn(st);
-          startTurnAutoCombat(st);
-        }
+        if (!st.outcome) advanceTurn(st);
         broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
         break;
       }
