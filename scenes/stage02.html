@@ -81,6 +81,23 @@
   }
   #loading.hidden { opacity: 0; pointer-events: none; }
 
+  /* Enemy HP labels */
+  .enemy-hp {
+    position: fixed;
+    pointer-events: none;
+    z-index: 30;
+    font-family: 'Georgia', serif;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: #e85d5d;
+    background: rgba(0,0,0,.65);
+    border: 1px solid rgba(232,93,93,.4);
+    border-radius: 3px;
+    padding: 2px 8px;
+    transform: translate(-50%, -100%);
+    white-space: nowrap;
+  }
+
   /* Status message */
   #status-msg {
     position: fixed;
@@ -570,7 +587,11 @@ function placeEnemies() {
     const pos = gridToWorld(e.col, e.row);
     mesh.position.set(pos.x, gridData.grid.floorY, pos.z);
     scene.add(mesh);
-    enemyTokens.push({ ...e, mesh });
+    const label = document.createElement('div');
+    label.className = 'enemy-hp';
+    label.textContent = `${e.hp}/${e.maxHp}`;
+    document.body.appendChild(label);
+    enemyTokens.push({ ...e, mesh, label });
   });
 }
 
@@ -821,7 +842,11 @@ function executeRoll(enemy) {
         outcomeText += enemy.hp > 0
           ? ` [Enemy HP: ${enemy.hp}/${enemy.maxHp}]`
           : ' — ENEMY DEFEATED!';
-        if (enemy.hp <= 0) scene.remove(enemy.mesh);
+        if (enemy.label) enemy.label.textContent = `${enemy.hp}/${enemy.maxHp}`;
+        if (enemy.hp <= 0) {
+          scene.remove(enemy.mesh);
+          if (enemy.label) { enemy.label.remove(); enemy.label = null; }
+        }
       } else {
         if (charData) {
           charData.hp = Math.max(0, charData.hp + enemy.failHp);
@@ -891,11 +916,25 @@ function tick() {
     }
   }
 
+  // Update enemy HP label screen positions
+  const _labelVec = new THREE.Vector3();
+  enemyTokens.forEach(e => {
+    if (!e.label) return;
+    _labelVec.copy(e.mesh.position);
+    _labelVec.y += 7;
+    _labelVec.project(camera);
+    const x = (_labelVec.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-_labelVec.y * 0.5 + 0.5) * window.innerHeight;
+    e.label.style.left = x + 'px';
+    e.label.style.top = y + 'px';
+  });
+
   renderer.render(scene, camera);
 }
 tick();
 </script>
 
+<script type="module" src="../scripts/chat-panel.js"></script>
 <script type="module" src="../scripts/player-session.js"></script>
 </body>
 </html>
