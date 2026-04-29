@@ -765,10 +765,15 @@ function showMoveRange(col, row) {
   const tiles = calcMoveRange(col, row, MOVE_RANGE_BY_ROLE[charData?.role] || 4);
   const { cellSizeX, cellSizeZ, floorY } = gridData.grid;
   tiles.forEach(tile => {
-    if (tile.col === col && tile.row === row) return;
+    const isSelf = tile.col === col && tile.row === row;
     const plane = new THREE.Mesh(
       new THREE.PlaneGeometry(cellSizeX * 0.85, cellSizeZ * 0.85),
-      new THREE.MeshBasicMaterial({ color: 0xaa2222, transparent: true, opacity: 0.35, side: THREE.DoubleSide })
+      new THREE.MeshBasicMaterial({
+        color: isSelf ? 0xc8a96e : 0xaa2222,
+        transparent: true,
+        opacity: isSelf ? 0.25 : 0.35,
+        side: THREE.DoubleSide,
+      })
     );
     plane.rotation.x = -Math.PI / 2;
     const pos = gridToWorld(tile.col, tile.row);
