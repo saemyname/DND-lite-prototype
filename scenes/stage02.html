@@ -25,6 +25,7 @@
     color: #c8a96e;
     user-select: none;
   }
+  body.not-my-turn { cursor: not-allowed; }
   canvas { display: block; width: 100%; height: 100%; }
 
   #title {
@@ -419,6 +420,17 @@ function updateHUD() {
     if (el) el.textContent = val;
     if (bar) bar.style.width = (val / 20 * 100) + '%';
   });
+
+  // Mirror server-side HP if available
+  if (serverState) {
+    const me = serverState.players.find(p => p.pid === myPid);
+    if (me) {
+      const hpEl  = document.getElementById('val-hp');
+      const hpBar = document.getElementById('bar-hp');
+      if (hpEl)  hpEl.textContent  = me.hp;
+      if (hpBar) hpBar.style.width = (me.hp / me.maxHp * 100) + '%';
+    }
+  }
 }
 
 // ── Renderer ──
@@ -675,6 +687,8 @@ async function applyState(snap) {
     indicator.style.display = 'block';
   }
 
+  document.body.classList.toggle('not-my-turn', !!serverState && serverState.activeTurnPid !== myPid && !serverState.outcome);
+
   const seenPids = new Set();
   for (const p of snap.players) {
     seenPids.add(p.pid);
@@ -729,6 +743,8 @@ async function applyState(snap) {
   } else {
     clearHighlights();
   }
+
+  updateHUD();
 }
 
 function reconcileEnemies(enemiesFromServer) {
