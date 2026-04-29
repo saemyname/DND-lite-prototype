@@ -124,6 +124,18 @@ function advanceTurn(stageState) {
   stageState.activeTurnIdx = (stageState.activeTurnIdx + 1) % stageState.turnOrder.length;
 }
 
+function startTurnAutoCombat(stageState) {
+  if (stageState.outcome || stageState.pendingCombat) return;
+  const activePid = activeTurnPid(stageState);
+  if (!activePid) return;
+  const me = stageState.players.get(activePid);
+  if (!me) return;
+  const adj = adjacentEnemyAt(stageState, me.col, me.row);
+  if (adj) {
+    stageState.pendingCombat = { attackerPid: activePid, enemyId: adj.id };
+  }
+}
+
 function rollD20() { return Math.floor(Math.random() * 20) + 1; }
 function statModifier(val) { return Math.floor((val - 10) / 2); }
 
@@ -233,6 +245,7 @@ wss.on('connection', (ws) => {
         if (!st.players.has(pid)) {
           const player = sess.players.get(pid);
           const [spawnCol, spawnRow] = st.cfg.playerSpawn;
+          const stats = msg.stats && typeof msg.stats === 'object' ? msg.stats : {};
           st.players.set(pid, {
             col: spawnCol,
             row: spawnRow,
@@ -240,6 +253,12 @@ wss.on('connection', (ws) => {
             maxHp: Math.max(1, Number(msg.maxHp) || 10),
             name: player?.name || 'Adventurer',
             role: player?.role || 'Warrior',
+            stats: {
+              str: Number(stats.str) || 10,
+              agi: Number(stats.agi) || 10,
+              int: Number(stats.int) || 10,
+              lck: Number(stats.lck) || 10,
+            },
           });
           st.turnOrder.push(pid);
         }
@@ -262,8 +281,10 @@ wss.on('connection', (ws) => {
           const enemy = st.enemies.find(e => e.id === st.pendingCombat.enemyId);
           if (!enemy || enemy.hp <= 0) return;
 
+          const attacker = st.players.get(pid);
+          const statVal = attacker?.stats?.[enemy.stat] ?? 10;
           const roll = rollD20();
-          const mod = 0; // prototype: no per-player stats yet
+          const mod = statModifier(statVal);
           const total = roll + mod;
           const success = total >= enemy.dc;
 
@@ -319,6 +340,7 @@ wss.on('connection', (ws) => {
             st.pendingCombat = { attackerPid: pid, enemyId: adj.id };
           } else {
             advanceTurn(st);
+            startTurnAutoCombat(st);
           }
           broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
         }
@@ -332,7 +354,10 @@ wss.on('connection', (ws) => {
         if (!st || !st.pendingCombat) return;
         if (st.pendingCombat.attackerPid !== pid) return;
         st.pendingCombat = null;
-        if (!st.outcome) advanceTurn(st);
+        if (!st.outcome) {
+          advanceTurn(st);
+          startTurnAutoCombat(st);
+        }
         broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
         break;
       }
