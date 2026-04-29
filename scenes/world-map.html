@@ -562,7 +562,21 @@ const serverUnlocked = new Set(
   JSON.parse(localStorage.getItem('unlocked-stages') || '["stage_01"]')
 );
 
+function syncUnlockedStages(list) {
+  serverUnlocked.clear();
+  for (const key of list) serverUnlocked.add(key);
+  localStorage.setItem('unlocked-stages', JSON.stringify(list));
+}
+
 if (localStorage.getItem('session-code')) {
+  on('joined', (msg) => {
+    if (msg.unlockedStages) syncUnlockedStages(msg.unlockedStages);
+  });
+
+  on('player_rejoined', (msg) => {
+    if (msg.unlockedStages) syncUnlockedStages(msg.unlockedStages);
+  });
+
   on('stage_unlock', (msg) => {
     serverUnlocked.add(msg.stageKey);
     localStorage.setItem('unlocked-stages', JSON.stringify([...serverUnlocked]));
