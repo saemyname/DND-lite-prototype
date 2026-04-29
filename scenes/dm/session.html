@@ -105,6 +105,58 @@
   }
   button.dm-btn:hover { background: rgba(200,169,110,.18); color: #ffe9a0; border-color: rgba(200,169,110,.5); }
   button.dm-btn.active { background: rgba(200,169,110,.25); color: #ffe9a0; border-color: rgba(200,169,110,.7); }
+
+  /* Stage observation panel */
+  #stage-view { display: none; }
+  #stage-view.active { display: block; }
+  .stage-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .stage-header .label { font-size: 12px; color: rgba(200,169,110,.85); letter-spacing: 2px; }
+  .turn-pill {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 3px;
+    background: rgba(200,169,110,.12);
+    color: #ffe9a0;
+    border: 1px solid rgba(200,169,110,.3);
+  }
+  .pending-pill {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 3px;
+    background: rgba(232,93,93,.15);
+    color: #ff9090;
+    border: 1px solid rgba(232,93,93,.4);
+    margin-left: 8px;
+  }
+  .entity-grid { display: flex; flex-direction: column; gap: 8px; }
+  .entity-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: rgba(0,0,0,.35);
+    border: 1px solid rgba(200,169,110,.1);
+    border-radius: 4px;
+    font-size: 11px;
+  }
+  .entity-row.active-turn { border-color: rgba(255,233,160,.6); background: rgba(255,233,160,.06); }
+  .entity-row.dead { opacity: .35; }
+  .entity-row.enemy { border-color: rgba(232,93,93,.18); }
+  .entity-name { color: #ffe9a0; letter-spacing: 1px; }
+  .entity-name .role { font-size: 9px; color: rgba(200,169,110,.5); margin-left: 6px; }
+  .entity-pos { font-size: 10px; color: rgba(200,169,110,.5); font-family: monospace; }
+  .entity-hp { font-size: 11px; color: #c8a96e; font-family: monospace; min-width: 56px; text-align: right; }
+  .entity-row.enemy .entity-hp { color: #e85d5d; }
 </style>
 </head>
 <body>
@@ -136,6 +188,25 @@
       <button class="dm-btn" data-action="redirect" data-url="world-map.html">World Map</button>
       <button class="dm-btn" data-action="redirect" data-url="stage01.html">Stage 01</button>
       <button class="dm-btn" data-action="redirect" data-url="stage02.html">Stage 02</button>
+    </div>
+  </section>
+
+  <section id="stage-view">
+    <h2>Stage Observation</h2>
+    <div class="stage-header">
+      <span class="label" id="stage-label"></span>
+      <span>
+        <span class="turn-pill" id="turn-pill"></span>
+        <span class="pending-pill" id="pending-pill" style="display:none">Combat</span>
+      </span>
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:9px;letter-spacing:3px;color:rgba(200,169,110,.4);margin-bottom:6px;text-transform:uppercase">Party</div>
+      <div class="entity-grid" id="party-list"></div>
+    </div>
+    <div>
+      <div style="font-size:9px;letter-spacing:3px;color:rgba(200,169,110,.4);margin-bottom:6px;text-transform:uppercase">Enemies</div>
+      <div class="entity-grid" id="enemy-list"></div>
     </div>
   </section>
 </main>
@@ -222,6 +293,61 @@ on('dm_rejoined', (msg) => {
     if (btn) btn.classList.add('active');
   }
 });
+
+// Stage observation
+const stageView   = document.getElementById('stage-view');
+const stageLabel  = document.getElementById('stage-label');
+const turnPill    = document.getElementById('turn-pill');
+const pendingPill = document.getElementById('pending-pill');
+const partyList   = document.getElementById('enemy-list') ? document.getElementById('party-list') : null;
+const enemyList   = document.getElementById('enemy-list');
+
+function renderStageState(state) {
+  if (!state) { stageView.classList.remove('active'); return; }
+  stageView.classList.add('active');
+  stageLabel.textContent = state.stageId;
+
+  const activeP = state.players.find(p => p.pid === state.activeTurnPid);
+  turnPill.textContent = activeP ? `${activeP.name}'s turn` : 'No active turn';
+  pendingPill.style.display = state.pendingCombat ? 'inline-block' : 'none';
+
+  partyList.innerHTML = '';
+  for (const p of state.players) {
+    const row = document.createElement('div');
+    row.className = 'entity-row' + (p.pid === state.activeTurnPid ? ' active-turn' : '') + (p.hp <= 0 ? ' dead' : '');
+    row.innerHTML = `
+      <div class="entity-name"></div>
+      <div class="entity-pos"></div>
+      <div class="entity-hp"></div>
+    `;
+    const nameDiv = row.querySelector('.entity-name');
+    nameDiv.textContent = p.name;
+    const roleSpan = document.createElement('span');
+    roleSpan.className = 'role';
+    roleSpan.textContent = p.role;
+    nameDiv.appendChild(roleSpan);
+    row.querySelector('.entity-pos').textContent = `[${p.col},${p.row}]`;
+    row.querySelector('.entity-hp').textContent = `${p.hp}/${p.maxHp} HP`;
+    partyList.appendChild(row);
+  }
+
+  enemyList.innerHTML = '';
+  for (const e of state.enemies) {
+    const row = document.createElement('div');
+    row.className = 'entity-row enemy' + (e.hp <= 0 ? ' dead' : '');
+    row.innerHTML = `
+      <div class="entity-name"></div>
+      <div class="entity-pos"></div>
+      <div class="entity-hp"></div>
+    `;
+    row.querySelector('.entity-name').textContent = e.name + (e.hp <= 0 ? ' (defeated)' : '');
+    row.querySelector('.entity-pos').textContent = `[${e.col},${e.row}]`;
+    row.querySelector('.entity-hp').textContent = `${e.hp}/${e.maxHp} HP`;
+    enemyList.appendChild(row);
+  }
+}
+
+on('state_update', (msg) => renderStageState(msg.state));
 
 on('_disconnect', () => { statusEl.textContent = 'Disconnected'; });
 
