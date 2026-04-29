@@ -177,6 +177,9 @@ wss.on('connection', (ws) => {
         console.log(`[dm_rejoin] session=${code}, players=${playerList.length}`);
         send(ws, { type: 'dm_rejoined', players: playerList, unlockedStages: [...rejoinSess.unlockedStages] });
         send(ws, { type: 'chat_history', messages: rejoinSess.chatHistory });
+        for (const st of rejoinSess.stages.values()) {
+          send(ws, { type: 'state_update', state: snapshotState(st) });
+        }
         broadcastPlayers(sess, { type: 'dm_reconnected' });
         console.log(`[dm_rejoin] notified ${sess.players.size} players of dm_reconnected`);
         break;
