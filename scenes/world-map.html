@@ -123,6 +123,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { on } from '../scripts/game-socket.js';
+import { createEmojiMiniature } from '../scripts/miniature.js';
 
 // ══════════════════════════════════════
 //   RENDERER
@@ -278,50 +279,15 @@ gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
   console.error('Map load error:', err);
 });
 
-// ── Miniature loading ──
-function createFallbackMiniature() {
-  const group = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.4, metalness: 0.6 });
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 0.2, 16), mat);
-  group.add(base);
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.35, 0.9, 12), mat);
-  body.position.y = 0.55;
-  group.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 10), mat);
-  head.position.y = 1.15;
-  group.add(head);
-  group.traverse(c => { if (c.isMesh) c.castShadow = true; });
-  return group;
-}
-
-function placeMiniature(model) {
-  miniature = model;
-  // Scale miniature to fit on stage
-  const miniBox = new THREE.Box3().setFromObject(miniature);
-  const miniSize = miniBox.getSize(new THREE.Vector3());
-  const miniScale = 1.5 / Math.max(miniSize.x, miniSize.y, miniSize.z, 0.01);
-  miniature.scale.setScalar(miniScale);
-  // Offset so bottom of miniature sits at position Y
-  const scaledBox = new THREE.Box3().setFromObject(miniature);
-  miniBottomOffset = scaledBox.min.y;
-  // Place on current stage
+// ── Miniature (emoji sprite) ──
+function loadMiniature() {
+  miniature = createEmojiMiniature(charRole, 1.5);
+  miniBottomOffset = 0; // group origin is at the bottom (sprite centered at y=height/2)
   if (currentStage) {
     const p = currentStage.worldPos;
-    miniature.position.set(p.x, p.y - miniBottomOffset, p.z);
+    miniature.position.set(p.x, p.y, p.z);
   }
   scene.add(miniature);
-}
-
-function loadMiniature() {
-  const modelFile = `../Assets/${charRole}.glb`;
-  gltfLoader.load(modelFile, (gltf) => {
-    gltf.scene.traverse(child => { if (child.isMesh) child.castShadow = true; });
-    placeMiniature(gltf.scene);
-    console.log('Miniature loaded:', charRole);
-  }, undefined, (err) => {
-    console.warn(`Miniature GLB missing for "${charRole}" — using procedural fallback`);
-    placeMiniature(createFallbackMiniature());
-  });
 }
 
 // ── Stage clickable meshes (direct hit on model geometry) ──

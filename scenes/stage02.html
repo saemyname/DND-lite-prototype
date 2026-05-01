@@ -394,6 +394,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { updateFaceCamera, onResizeFaceCamera, initRotationButtons } from '../scripts/face-camera.js';
 import { send, on } from '../scripts/game-socket.js';
+import { createEmojiMiniature } from '../scripts/miniature.js';
 
 // ── Grid / combat state (module scope) ──
 let gridData = null;
@@ -586,64 +587,9 @@ function calcMoveRange(startCol, startRow, range) {
 
 // ── Player token ──
 const MOVE_RANGE_BY_ROLE = { warrior: 3, rogue: 5, mage: 4, cleric: 4 };
-const MINI_FILES = { warrior: 'warrior.glb', rogue: 'rogue.glb', mage: 'mage.glb' };
-
-function loadPlayerToken() {
-  return new Promise((resolve) => {
-    const file = MINI_FILES[charData?.role];
-    if (!file) { resolve(createFallbackToken()); return; }
-    gltfLoader.load('../Assets/' + file, (gltf) => {
-      const model = gltf.scene;
-      model.scale.setScalar(1.2);
-      model.traverse(c => { if (c.isMesh) c.castShadow = true; });
-      const box = new THREE.Box3().setFromObject(model);
-      const center = box.getCenter(new THREE.Vector3());
-      model.position.x -= center.x;
-      model.position.z -= center.z;
-      model.position.y -= box.min.y;
-      const group = new THREE.Group();
-      group.add(model);
-      group.scale.setScalar(3);
-      resolve(group);
-    }, undefined, () => resolve(createFallbackToken()));
-  });
-}
 
 function loadPlayerTokenForRole(roleName) {
-  return new Promise((resolve) => {
-    const file = MINI_FILES[roleName];
-    if (!file) { resolve(createFallbackToken()); return; }
-    gltfLoader.load('../Assets/' + file, (gltf) => {
-      const model = gltf.scene;
-      model.scale.setScalar(1.2);
-      model.traverse(c => { if (c.isMesh) c.castShadow = true; });
-      const box = new THREE.Box3().setFromObject(model);
-      const center = box.getCenter(new THREE.Vector3());
-      model.position.x -= center.x;
-      model.position.z -= center.z;
-      model.position.y -= box.min.y;
-      const group = new THREE.Group();
-      group.add(model);
-      group.scale.setScalar(3);
-      resolve(group);
-    }, undefined, () => resolve(createFallbackToken()));
-  });
-}
-
-function createFallbackToken() {
-  const group = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.4, metalness: 0.6 });
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 0.2, 16), mat);
-  group.add(base);
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.35, 0.9, 12), mat);
-  body.position.y = 0.55;
-  group.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 10), mat);
-  head.position.y = 1.15;
-  group.add(head);
-  group.traverse(c => { if (c.isMesh) c.castShadow = true; });
-  group.scale.setScalar(3);
-  return group;
+  return Promise.resolve(createEmojiMiniature(roleName, 4));
 }
 
 // ── Enemy tokens ──
