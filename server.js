@@ -219,6 +219,31 @@ wss.on('connection', (ws) => {
         break;
       }
 
+      case 'start_solo': {
+        // Single-player session: this connection is the only player; no DM
+        code = makeCode();
+        pid  = `p${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3,'0')}`;
+        role = 'player';
+        sess = {
+          dm: null,
+          players: new Map(),
+          unlockedStages: new Set(['stage_01', 'stage_02', 'stage_03']),
+          chatHistory: [],
+          stages: new Map(),
+        };
+        sess.players.set(pid, {
+          ws,
+          name: String(msg.name || 'Adventurer').slice(0, 24),
+          role: String(msg.role || 'warrior').toLowerCase(),
+          location: 'world-map',
+          worldMapStage: null,
+        });
+        sessions.set(code, sess);
+        console.log(`[start_solo] session=${code}, pid=${pid}, name=${msg.name}, role=${msg.role}`);
+        send(ws, { type: 'solo_started', code, playerId: pid, unlockedStages: [...sess.unlockedStages] });
+        break;
+      }
+
       case 'player_join': {
         sess = sessions.get(msg.code);
         if (!sess)                  { send(ws, { type: 'error', message: 'Invalid code' }); return; }

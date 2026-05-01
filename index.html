@@ -475,14 +475,19 @@ btnJoin.addEventListener('click', () => {
   send({ type: 'player_join', code: codeInput.value, name: nameInput.value.trim(), role: selectedRole });
 });
 
+on('solo_started', (msg) => {
+  localStorage.setItem('player-id', msg.playerId);
+  localStorage.setItem('session-code', msg.code);
+  localStorage.setItem('unlocked-stages', JSON.stringify(msg.unlockedStages));
+  window.location.href = 'scenes/world-map.html';
+});
+
 document.getElementById('btn-solo').addEventListener('click', () => {
   if (!nameInput.value.trim()) { statusEl.textContent = 'Enter your name first'; return; }
   if (!selectedRole) { statusEl.textContent = 'Choose a class first'; return; }
+  if (!connected) { statusEl.textContent = 'Connecting to server...'; return; }
   saveCharacter();
-  localStorage.removeItem('session-code');
-  localStorage.removeItem('player-id');
-  localStorage.setItem('unlocked-stages', JSON.stringify(['stage_01', 'stage_02', 'stage_03']));
-  window.location.href = 'scenes/world-map.html';
+  send({ type: 'start_solo', name: nameInput.value.trim(), role: selectedRole });
 });
 </script>
 </body>
