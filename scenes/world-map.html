@@ -122,7 +122,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
-import { on } from '../scripts/game-socket.js';
+import { on, send } from '../scripts/game-socket.js';
 import { createEmojiMiniature } from '../scripts/miniature.js';
 
 // ══════════════════════════════════════
@@ -200,6 +200,11 @@ const clearedStages = new Set(['stage_01']); // start cleared
 const charData = JSON.parse(localStorage.getItem('dndlite-character') || 'null');
 const charRole = charData?.role?.toLowerCase() || 'warrior';
 
+// Multiplayer party state (other players + self when in a session)
+const myPid = localStorage.getItem('player-id');
+const partyMiniatures = new Map(); // pid → { group, stageId, targetPos }
+const inSession = !!localStorage.getItem('session-code');
+
 gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
   mapModel = gltf.scene;
 
@@ -273,8 +278,8 @@ gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
     }
   });
 
-  // Load miniature
-  loadMiniature();
+  // Load miniature only in solo mode; multiplayer uses world_map_state party miniatures
+  if (!inSession) loadMiniature();
 }, undefined, (err) => {
   console.error('Map load error:', err);
 });
@@ -302,7 +307,14 @@ function getStageURL(stageKey) {
 // ── Move miniature to a stage ──
 function moveToStage(stageKey) {
   const stage = stages[stageKey];
-  if (!stage || !miniature) return;
+  if (!stage) return;
+
+  // In multiplayer: tell the server; everyone (including self) updates via world_map_state broadcast
+  if (inSession) {
+    send({ type: 'world_map_move', stageId: stageKey });
+  }
+
+  if (!miniature) return; // multiplayer: own miniature is in partyMiniatures, no local lerp needed here
 
   miniTargetPos = stage.worldPos.clone();
   miniTargetPos.y -= miniBottomOffset;
@@ -436,6 +448,48 @@ if (localStorage.getItem('session-code')) {
   on('fog_reveal', (msg) => {
     revealFog(msg.x, msg.z);
   });
+
+  on('world_map_state', (msg) => {
+    syncPartyMiniatures(msg.players || []);
+  });
+}
+
+function syncPartyMiniatures(players) {
+  const seen = new Set();
+  for (const p of players) {
+    seen.add(p.pid);
+    let entry = partyMiniatures.get(p.pid);
+    if (!entry) {
+      const group = createEmojiMiniature(p.role, 1.5);
+      scene.add(group);
+      entry = { group, stageId: null, targetPos: null };
+      partyMiniatures.set(p.pid, entry);
+    }
+    if (p.stageId !== entry.stageId) {
+      entry.stageId = p.stageId;
+      const stage = stages[p.stageId];
+      if (stage) {
+        entry.targetPos = stage.worldPos.clone();
+        // First placement: snap; subsequent: lerp via tick
+        if (entry.group.position.lengthSq() === 0) {
+          entry.group.position.copy(entry.targetPos);
+        }
+      } else {
+        // Default position when no stage chosen: stage_01 worldPos if available
+        const fallback = stages['stage_01'];
+        if (fallback && entry.group.position.lengthSq() === 0) {
+          entry.group.position.copy(fallback.worldPos);
+        }
+      }
+    }
+  }
+  // Remove disconnected
+  for (const [pid, entry] of [...partyMiniatures.entries()]) {
+    if (!seen.has(pid)) {
+      scene.remove(entry.group);
+      partyMiniatures.delete(pid);
+    }
+  }
 }
 
 // ══════════════════════════════════════
@@ -603,7 +657,7 @@ function tick() {
   }
   fogPos.needsUpdate = true;
 
-  // Miniature movement animation
+  // Solo miniature movement animation
   if (miniature && miniMoving && miniTargetPos) {
     miniature.position.x += (miniTargetPos.x - miniature.position.x) * MINI_SPEED;
     miniature.position.z += (miniTargetPos.z - miniature.position.z) * MINI_SPEED;
@@ -617,6 +671,27 @@ function tick() {
         const cb = miniArrivalCallback;
         miniArrivalCallback = null;
         cb();
+      }
+    }
+  }
+
+  // Multiplayer: lerp all party miniatures toward their target stage positions
+  for (const [pid, entry] of partyMiniatures) {
+    if (!entry.targetPos) continue;
+    entry.group.position.x += (entry.targetPos.x - entry.group.position.x) * MINI_SPEED;
+    entry.group.position.z += (entry.targetPos.z - entry.group.position.z) * MINI_SPEED;
+    const dx = entry.targetPos.x - entry.group.position.x;
+    const dz = entry.targetPos.z - entry.group.position.z;
+    if (Math.sqrt(dx * dx + dz * dz) < 0.1) {
+      entry.group.position.x = entry.targetPos.x;
+      entry.group.position.z = entry.targetPos.z;
+      // If this is me and I just arrived, redirect to that stage's HTML
+      if (pid === myPid && entry.stageId && entry._navigated !== entry.stageId) {
+        entry._navigated = entry.stageId;
+        const url = entry.stageId.replace('_', '') + '.html'; // stage_01 → stage01.html
+        if (serverUnlocked.has(entry.stageId) || entry.stageId === 'stage_01') {
+          setTimeout(() => { window.location.href = url; }, 200);
+        }
       }
     }
   }

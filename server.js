@@ -38,6 +38,21 @@ function broadcastPlayers(session, msg) {
   for (const p of session.players.values()) send(p.ws, msg);
 }
 
+function buildWorldMapState(sess) {
+  return {
+    type: 'world_map_state',
+    players: [...sess.players.entries()].map(([pid, p]) => ({
+      pid, name: p.name, role: p.role, stageId: p.worldMapStage || null,
+    })),
+  };
+}
+
+function broadcastWorldMapState(sess) {
+  const msg = buildWorldMapState(sess);
+  broadcastPlayers(sess, msg);
+  if (sess.dm) send(sess.dm, msg);
+}
+
 function makeStageState(stageId) {
   const cfg = loadStageConfig(stageId);
   return {
@@ -195,6 +210,7 @@ wss.on('connection', (ws) => {
         console.log(`[dm_rejoin] session=${code}, players=${playerList.length}`);
         send(ws, { type: 'dm_rejoined', players: playerList, unlockedStages: [...rejoinSess.unlockedStages] });
         send(ws, { type: 'chat_history', messages: rejoinSess.chatHistory });
+        send(ws, buildWorldMapState(rejoinSess));
         for (const st of rejoinSess.stages.values()) {
           send(ws, { type: 'state_update', state: snapshotState(st) });
         }
@@ -210,11 +226,12 @@ wss.on('connection', (ws) => {
         if (sess.players.size >= 4) { send(ws, { type: 'error', message: 'Session full' });  return; }
         pid  = `p${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3,'0')}`;
         role = 'player';
-        sess.players.set(pid, { ws, name: msg.name, role: msg.role, location: 'world-map' });
+        sess.players.set(pid, { ws, name: msg.name, role: msg.role, location: 'world-map', worldMapStage: null });
         console.log(`[player_join] session=${msg.code}, pid=${pid}, name=${msg.name}`);
         send(ws, { type: 'joined', playerId: pid, unlockedStages: [...sess.unlockedStages] });
         send(ws, { type: 'chat_history', messages: sess.chatHistory });
         send(sess.dm, { type: 'player_joined', playerId: pid, name: msg.name, role: msg.role });
+        broadcastWorldMapState(sess);
         break;
       }
 
@@ -494,7 +511,19 @@ wss.on('connection', (ws) => {
         console.log(`[player_rejoin] session=${code}, pid=${pid}, dm_present=${!!sess.dm}`);
         send(ws, { type: 'player_rejoined', unlockedStages: [...sess.unlockedStages] });
         send(ws, { type: 'chat_history', messages: sess.chatHistory });
+        send(ws, buildWorldMapState(sess));
         if (sess.dm) send(sess.dm, { type: 'player_location', playerId: pid, location: ep.location });
+        break;
+      }
+
+      case 'world_map_move': {
+        if (role !== 'player' || !sess || !pid) return;
+        const stageId = msg.stageId;
+        if (typeof stageId !== 'string') return;
+        const me = sess.players.get(pid);
+        if (!me) return;
+        me.worldMapStage = stageId;
+        broadcastWorldMapState(sess);
         break;
       }
 
