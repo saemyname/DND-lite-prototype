@@ -228,7 +228,7 @@ wss.on('connection', (ws) => {
         sess = {
           dm: null,
           players: new Map(),
-          unlockedStages: new Set(['stage_01', 'stage_02', 'stage_03']),
+          unlockedStages: new Set(['stage_01', 'stage_02', 'stage_03', 'stage_04']),
           chatHistory: [],
           stages: new Map(),
           revealedFog: [],
