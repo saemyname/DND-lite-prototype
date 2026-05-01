@@ -268,6 +268,11 @@ gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
       if (stages[stageKey]) continue;
       const clone = baseObj.clone(true);
       clone.position.copy(baseObj.position).addScaledVector(localDelta, i - 2);
+      // Per-stage tweaks (world-units offset, divided by mapScale into local coords)
+      const tweaks = { 'stage_03': { x: -1.5 } };
+      const tw = tweaks[stageKey];
+      if (tw?.x) clone.position.x += tw.x / (mapScale || 1);
+      if (tw?.z) clone.position.z += tw.z / (mapScale || 1);
       clone.name = `stage-0${i}`;
       mapModel.add(clone);
       clone.updateMatrixWorld(true);
@@ -752,8 +757,17 @@ function tick() {
   // Fog density: thicker when zoomed out, clear when zoomed in
   scene.fog.density = 0.001 + zoomRatio * 0.008;
 
-  // Simple camera: position from zoom params, look at map center
-  camera.position.copy(BASE_CAM_POS);
+  // Camera follows my own miniature (lerp for smoothness)
+  const myMini = inSession ? partyMiniatures.get(myPid)?.group : miniature;
+  if (myMini) {
+    LOOK_TARGET.lerp(myMini.position, 0.06);
+  }
+  const targetCamPos = new THREE.Vector3(
+    LOOK_TARGET.x + BASE_CAM_POS.x,
+    BASE_CAM_POS.y,
+    LOOK_TARGET.z + BASE_CAM_POS.z,
+  );
+  camera.position.lerp(targetCamPos, 0.06);
   camera.lookAt(LOOK_TARGET);
   renderer.render(scene, camera);
 }
