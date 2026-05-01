@@ -730,13 +730,16 @@ async function applyState(snap) {
 
   reconcileEnemies(snap.enemies);
 
-  // Combat panel sync
+  // Action panel sync (combat or heal — mutually exclusive)
+  const panelOpen = document.getElementById('event-panel').classList.contains('visible');
   if (snap.pendingCombat) {
     const enemy = snap.enemies.find(e => e.id === snap.pendingCombat.enemyId);
     const isAttacker = snap.pendingCombat.attackerPid === myPid;
-    if (enemy && !document.getElementById('event-panel').classList.contains('visible')) {
-      openCombatPanel(enemy, isAttacker);
-    }
+    if (enemy && !panelOpen) openCombatPanel(enemy, isAttacker);
+  } else if (snap.pendingHeal) {
+    const target = snap.players.find(p => p.pid === snap.pendingHeal.targetPid);
+    const isHealer = snap.pendingHeal.healerPid === myPid;
+    if (target && !panelOpen) openHealPanel(target, isHealer);
   } else {
     closeCombatPanel();
   }
@@ -973,7 +976,7 @@ function animateCombatEvent(ev, isAttacker) {
         btn.className = 'event-btn';
         btn.textContent = 'Continue';
         btn.addEventListener('click', () => {
-          send({ type: 'combat_continue', stageId: 'stage02' });
+          send({ type: 'turn_continue', stageId: 'stage02' });
           closeCombatPanel();
         });
         panelEl('event-actions').appendChild(btn);
@@ -989,6 +992,66 @@ on('combat_event', (msg) => {
     openCombatPanel(enemy, isAttacker);
   }
   animateCombatEvent(msg, isAttacker);
+});
+
+function openHealPanel(target, isHealer) {
+  panelEl('event-desc').textContent = isHealer
+    ? `${target.name} is wounded. Channel divine grace?`
+    : `Your party's cleric prepares to heal ${target.name}.`;
+  panelEl('event-actions').innerHTML = '';
+  panelEl('event-result').textContent = '';
+  panelEl('event-result').className = '';
+  panelEl('event-outcome').textContent = '';
+  panelEl('d20-label').textContent = '';
+  panelEl('d20-value').textContent = '—';
+  panelEl('d20-dice-shape').setAttribute('class', '');
+  panelEl('d20-hud').classList.remove('active');
+
+  if (isHealer) {
+    const healBtn = document.createElement('button');
+    healBtn.className = 'event-btn';
+    healBtn.textContent = `Heal ${target.name}`;
+    healBtn.addEventListener('click', () => {
+      healBtn.disabled = true;
+      send({ type: 'action_request', stageId: 'stage02', kind: 'heal' });
+    });
+    panelEl('event-actions').appendChild(healBtn);
+
+    const skipBtn = document.createElement('button');
+    skipBtn.className = 'event-btn';
+    skipBtn.textContent = 'Skip';
+    skipBtn.addEventListener('click', () => {
+      send({ type: 'turn_continue', stageId: 'stage02' });
+      closeCombatPanel();
+    });
+    panelEl('event-actions').appendChild(skipBtn);
+  } else {
+    const note = document.createElement('div');
+    note.style.fontSize = '11px';
+    note.style.opacity = '0.5';
+    note.textContent = 'Watching...';
+    panelEl('event-actions').appendChild(note);
+  }
+  panelEl('event-panel').classList.add('visible');
+}
+
+on('heal_event', (msg) => {
+  const isHealer = msg.healerPid === myPid;
+  const resultEl = panelEl('event-result');
+  resultEl.textContent = `Roll d6: ${msg.roll} ${msg.mod >= 0 ? '+' : ''}${msg.mod} → +${msg.restored} HP`;
+  resultEl.className = 'success';
+  panelEl('event-outcome').textContent = msg.outcomeText;
+  if (isHealer) {
+    panelEl('event-actions').innerHTML = '';
+    const btn = document.createElement('button');
+    btn.className = 'event-btn';
+    btn.textContent = 'Continue';
+    btn.addEventListener('click', () => {
+      send({ type: 'turn_continue', stageId: 'stage02' });
+      closeCombatPanel();
+    });
+    panelEl('event-actions').appendChild(btn);
+  }
 });
 
 function tick() {

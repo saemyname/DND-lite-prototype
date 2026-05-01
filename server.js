@@ -48,6 +48,7 @@ function makeStageState(stageId) {
     turnOrder: [],
     activeTurnIdx: 0,
     pendingCombat: null,
+    pendingHeal: null,
     outcome: null,
     observers: new Set(),  // extra ws connections (e.g. DM iframe spectators)
   };
@@ -74,6 +75,7 @@ function snapshotState(stageState) {
     turnOrder: stageState.turnOrder,
     activeTurnPid: activeTurnPid(stageState),
     pendingCombat: stageState.pendingCombat,
+    pendingHeal: stageState.pendingHeal,
     outcome: stageState.outcome,
   };
 }
@@ -120,6 +122,19 @@ function adjacentEnemyAt(stageState, col, row) {
     Math.abs(e.col - col) <= 1 &&
     Math.abs(e.row - row) <= 1
   );
+}
+
+function rollD6() { return Math.floor(Math.random() * 6) + 1; }
+
+function adjacentHealableAllyAt(stageState, col, row) {
+  for (const [pid, p] of stageState.players) {
+    if (p.hp <= 0) continue;
+    if (p.hp >= p.maxHp) continue;
+    if (Math.abs(p.col - col) <= 1 && Math.abs(p.row - row) <= 1) {
+      return { pid, ...p };
+    }
+  }
+  return null;
 }
 
 function advanceTurn(stageState) {
@@ -299,6 +314,31 @@ wss.on('connection', (ws) => {
         if (st.outcome) return;
         if (activeTurnPid(st) !== pid) return;
 
+        if (msg.kind === 'heal') {
+          if (!st.pendingHeal || st.pendingHeal.healerPid !== pid) return;
+          const target = st.players.get(st.pendingHeal.targetPid);
+          if (!target || target.hp <= 0) return;
+          const healer = st.players.get(pid);
+          const intVal = healer?.stats?.int ?? 10;
+          const roll = rollD6();
+          const mod = statModifier(intVal);
+          const heal = Math.max(0, roll + mod);
+          const before = target.hp;
+          target.hp = Math.min(target.maxHp, target.hp + heal);
+          const restored = target.hp - before;
+
+          broadcastStage(st, sess, {
+            type: 'heal_event',
+            healerPid: pid,
+            targetPid: st.pendingHeal.targetPid,
+            roll, mod, restored,
+            outcomeText: `${healer.name} restores ${restored} HP to ${target.name}.`,
+          });
+
+          broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
+          break;
+        }
+
         if (msg.kind === 'attack') {
           if (!st.pendingCombat || st.pendingCombat.attackerPid !== pid) return;
           const enemy = st.enemies.find(e => e.id === st.pendingCombat.enemyId);
@@ -361,6 +401,13 @@ wss.on('connection', (ws) => {
           const adj = adjacentEnemyAt(st, dstCol, dstRow);
           if (adj) {
             st.pendingCombat = { attackerPid: pid, enemyId: adj.id };
+          } else if (me.role === 'cleric') {
+            const ally = adjacentHealableAllyAt(st, dstCol, dstRow);
+            if (ally) {
+              st.pendingHeal = { healerPid: pid, targetPid: ally.pid };
+            } else {
+              advanceTurn(st);
+            }
           } else {
             advanceTurn(st);
           }
@@ -369,13 +416,16 @@ wss.on('connection', (ws) => {
         break;
       }
 
-      case 'combat_continue': {
+      case 'turn_continue': {
         if (role !== 'player' || !sess || !pid) return;
         const stageId = msg.stageId;
         const st = sess.stages.get(stageId);
-        if (!st || !st.pendingCombat) return;
-        if (st.pendingCombat.attackerPid !== pid) return;
+        if (!st) return;
+        const isMyCombat = st.pendingCombat?.attackerPid === pid;
+        const isMyHeal   = st.pendingHeal?.healerPid === pid;
+        if (!isMyCombat && !isMyHeal) return;
         st.pendingCombat = null;
+        st.pendingHeal = null;
         if (!st.outcome) advanceTurn(st);
         broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
         break;
