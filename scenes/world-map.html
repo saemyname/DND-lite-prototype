@@ -204,6 +204,7 @@ const charRole = charData?.role?.toLowerCase() || 'warrior';
 const myPid = localStorage.getItem('player-id');
 const partyMiniatures = new Map(); // pid → { group, stageId, targetPos }
 const inSession = !!localStorage.getItem('session-code');
+let localMoveIntent = null;  // stageId user clicked toward (only this triggers auto-redirect)
 
 gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
   mapModel = gltf.scene;
@@ -311,6 +312,7 @@ function moveToStage(stageKey) {
 
   // In multiplayer: tell the server; everyone (including self) updates via world_map_state broadcast
   if (inSession) {
+    localMoveIntent = stageKey;
     send({ type: 'world_map_move', stageId: stageKey });
   }
 
@@ -685,10 +687,10 @@ function tick() {
     if (Math.sqrt(dx * dx + dz * dz) < 0.1) {
       entry.group.position.x = entry.targetPos.x;
       entry.group.position.z = entry.targetPos.z;
-      // If this is me and I just arrived, redirect to that stage's HTML
-      if (pid === myPid && entry.stageId && entry._navigated !== entry.stageId) {
-        entry._navigated = entry.stageId;
+      // If this is me AND I clicked to move (not just initial state), redirect to stage HTML
+      if (pid === myPid && entry.stageId && entry.stageId === localMoveIntent) {
         const url = entry.stageId.replace('_', '') + '.html'; // stage_01 → stage01.html
+        localMoveIntent = null;
         if (serverUnlocked.has(entry.stageId) || entry.stageId === 'stage_01') {
           setTimeout(() => { window.location.href = url; }, 200);
         }
