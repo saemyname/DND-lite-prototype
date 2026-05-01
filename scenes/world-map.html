@@ -258,6 +258,36 @@ gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
   console.log('Map loaded — size:', size, 'scale:', mapScale.toFixed(3));
   console.log('Stages:', Object.keys(stages));
 
+  // Clone stage_02 to add stage_03..05 if missing (extrapolate along stage_01 → stage_02 vector)
+  if (stages['stage_01'] && stages['stage_02']) {
+    const baseObj = stages['stage_02'].object;
+    const worldDelta = stages['stage_02'].worldPos.clone().sub(stages['stage_01'].worldPos);
+    const localDelta = worldDelta.clone().divideScalar(mapScale || 1);
+    for (let i = 3; i <= 5; i++) {
+      const stageKey = `stage_0${i}`;
+      if (stages[stageKey]) continue;
+      const clone = baseObj.clone(true);
+      clone.position.copy(baseObj.position).addScaledVector(localDelta, i - 2);
+      clone.name = `stage-0${i}`;
+      mapModel.add(clone);
+      clone.updateMatrixWorld(true);
+      clone.traverse(c => {
+        if (c.isMesh) {
+          c.userData.stageId = stageKey;
+          c.userData.locationName = clone.name;
+          if (!clickables.includes(c)) clickables.push(c);
+          if (!stageClickables.includes(c)) stageClickables.push(c);
+        }
+      });
+      const newPivot = new THREE.Vector3();
+      clone.getWorldPosition(newPivot);
+      const newBox = new THREE.Box3().setFromObject(clone);
+      const newWorldPos = new THREE.Vector3(newPivot.x, newBox.max.y, newPivot.z);
+      stages[stageKey] = { object: clone, worldPos: newWorldPos };
+      console.log(`Cloned stage: ${stageKey} at`, newWorldPos.x.toFixed(1), newWorldPos.y.toFixed(1), newWorldPos.z.toFixed(1));
+    }
+  }
+
   // Log all object names for debugging
   mapModel.traverse(child => {
     if (child.name) console.log('  obj:', child.name);

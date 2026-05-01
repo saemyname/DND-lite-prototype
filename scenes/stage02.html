@@ -1024,7 +1024,7 @@ function tick() {
     for (const [pid, entry] of playerTokens) {
       const target = entry.group.userData.targetPos;
       if (!target) continue;
-      entry.group.position.lerp(target, 0.15);
+      entry.group.position.lerp(target, 0.1);
       entry.group.position.y = gridData.grid.floorY + Math.sin(performance.now() * 0.002) * 0.06;
     }
   }
