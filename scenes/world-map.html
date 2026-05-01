@@ -204,8 +204,9 @@ const charRole = charData?.role?.toLowerCase() || 'warrior';
 const myPid = localStorage.getItem('player-id');
 const partyMiniatures = new Map(); // pid → { group, stageId, targetPos }
 const inSession = !!localStorage.getItem('session-code');
-let localMoveIntent = null;  // stageId user clicked toward (only this triggers auto-redirect)
+let localMoveIntent = null;  // stageId destined for redirect on lerp arrival
 let lastPartyState = null;   // cached so we can re-render after GLB stages load
+let myLastKnownStage;        // undefined = haven't received any state yet (first sync skip-redirect)
 
 gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
   mapModel = gltf.scene;
@@ -438,7 +439,7 @@ const fogPoints = new THREE.Points(fogGeo, fogMat);
 fogPoints.renderOrder = 900;
 scene.add(fogPoints);
 
-function revealFog(worldX, worldZ) {
+function revealFog(worldX, worldZ, fromBroadcast = false) {
   for (let i = 0; i < FOG_COUNT; i++) {
     if (fogState[i].state !== 'idle') continue;
     const bp = fogBasePositions[i];
@@ -453,6 +454,9 @@ function revealFog(worldX, worldZ) {
       fogState[i].vz = (dz / dist) * speed;
       fogState[i].progress = 0;
     }
+  }
+  if (inSession && !fromBroadcast) {
+    send({ type: 'fog_reveal', x: worldX, z: worldZ });
   }
 }
 
@@ -486,7 +490,11 @@ if (localStorage.getItem('session-code')) {
   });
 
   on('fog_reveal', (msg) => {
-    revealFog(msg.x, msg.z);
+    revealFog(msg.x, msg.z, true);
+  });
+
+  on('fog_history', (msg) => {
+    for (const p of (msg.points || [])) revealFog(p.x, p.z, true);
   });
 
   on('world_map_state', (msg) => {
@@ -497,6 +505,16 @@ if (localStorage.getItem('session-code')) {
 
 function syncPartyMiniatures(players) {
   console.log('[syncPartyMiniatures] players:', players.length, 'stages available:', Object.keys(stages));
+  // Detect party movement targeting me — trigger redirect on arrival
+  const myP = players.find(p => p.pid === myPid);
+  if (myP) {
+    if (myLastKnownStage === undefined) {
+      myLastKnownStage = myP.stageId;
+    } else if (myLastKnownStage !== myP.stageId) {
+      myLastKnownStage = myP.stageId;
+      if (myP.stageId) localMoveIntent = myP.stageId;
+    }
+  }
   const seen = new Set();
   for (const p of players) {
     seen.add(p.pid);

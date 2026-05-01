@@ -186,7 +186,7 @@ wss.on('connection', (ws) => {
 
       case 'dm_create': {
         code = makeCode();
-        sess = { dm: ws, players: new Map(), unlockedStages: new Set(['stage_01']), chatHistory: [], stages: new Map() };
+        sess = { dm: ws, players: new Map(), unlockedStages: new Set(['stage_01']), chatHistory: [], stages: new Map(), revealedFog: [] };
         sessions.set(code, sess);
         role = 'dm';
         console.log(`[dm_create] session=${code}`);
@@ -210,6 +210,7 @@ wss.on('connection', (ws) => {
         console.log(`[dm_rejoin] session=${code}, players=${playerList.length}`);
         send(ws, { type: 'dm_rejoined', players: playerList, unlockedStages: [...rejoinSess.unlockedStages] });
         send(ws, { type: 'chat_history', messages: rejoinSess.chatHistory });
+        send(ws, { type: 'fog_history', points: rejoinSess.revealedFog || [] });
         send(ws, buildWorldMapState(rejoinSess));
         for (const st of rejoinSess.stages.values()) {
           send(ws, { type: 'state_update', state: snapshotState(st) });
@@ -230,6 +231,7 @@ wss.on('connection', (ws) => {
           unlockedStages: new Set(['stage_01', 'stage_02', 'stage_03']),
           chatHistory: [],
           stages: new Map(),
+          revealedFog: [],
         };
         sess.players.set(pid, {
           ws,
@@ -255,6 +257,7 @@ wss.on('connection', (ws) => {
         console.log(`[player_join] session=${msg.code}, pid=${pid}, name=${msg.name}`);
         send(ws, { type: 'joined', playerId: pid, unlockedStages: [...sess.unlockedStages] });
         send(ws, { type: 'chat_history', messages: sess.chatHistory });
+        send(ws, { type: 'fog_history', points: sess.revealedFog || [] });
         send(sess.dm, { type: 'player_joined', playerId: pid, name: msg.name, role: msg.role });
         broadcastWorldMapState(sess);
         break;
@@ -511,8 +514,13 @@ wss.on('connection', (ws) => {
       }
 
       case 'fog_reveal': {
-        if (role !== 'dm' || !sess) return;
+        if (!sess) return;
+        if (typeof msg.x !== 'number' || typeof msg.z !== 'number') return;
+        if (!sess.revealedFog) sess.revealedFog = [];
+        sess.revealedFog.push({ x: msg.x, z: msg.z });
+        if (sess.revealedFog.length > 200) sess.revealedFog.shift();
         broadcastPlayers(sess, { type: 'fog_reveal', x: msg.x, z: msg.z });
+        if (sess.dm) send(sess.dm, { type: 'fog_reveal', x: msg.x, z: msg.z });
         break;
       }
 
@@ -536,18 +544,21 @@ wss.on('connection', (ws) => {
         console.log(`[player_rejoin] session=${code}, pid=${pid}, dm_present=${!!sess.dm}`);
         send(ws, { type: 'player_rejoined', unlockedStages: [...sess.unlockedStages] });
         send(ws, { type: 'chat_history', messages: sess.chatHistory });
+        send(ws, { type: 'fog_history', points: sess.revealedFog || [] });
         send(ws, buildWorldMapState(sess));
         if (sess.dm) send(sess.dm, { type: 'player_location', playerId: pid, location: ep.location });
         break;
       }
 
       case 'world_map_move': {
+        // Party movement: any player triggering a move moves the WHOLE party to that stage
         if (role !== 'player' || !sess || !pid) return;
         const stageId = msg.stageId;
         if (typeof stageId !== 'string') return;
-        const me = sess.players.get(pid);
-        if (!me) return;
-        me.worldMapStage = stageId;
+        if (!sess.unlockedStages.has(stageId)) return;
+        for (const p of sess.players.values()) {
+          p.worldMapStage = stageId;
+        }
         broadcastWorldMapState(sess);
         break;
       }
