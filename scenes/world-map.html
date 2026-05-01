@@ -461,25 +461,44 @@ if (localStorage.getItem('session-code')) {
 }
 
 function syncPartyMiniatures(players) {
+  console.log('[syncPartyMiniatures] players:', players.length, 'stages available:', Object.keys(stages));
   const seen = new Set();
   for (const p of players) {
     seen.add(p.pid);
     let entry = partyMiniatures.get(p.pid);
     const isNew = !entry;
     if (isNew) {
-      const group = createEmojiMiniature(p.role, 1.5);
+      const group = createEmojiMiniature(p.role, 3);
       scene.add(group);
       entry = { group, stageId: null, targetPos: null };
       partyMiniatures.set(p.pid, entry);
+      console.log(`[party] created miniature for ${p.name} (${p.role}) pid=${p.pid}`);
     }
     if (isNew || p.stageId !== entry.stageId) {
       entry.stageId = p.stageId;
-      // Resolve target stage: explicit stageId, else default to stage_01
-      const stage = stages[p.stageId] || stages['stage_01'];
+      // Resolve target stage with multiple fallbacks
+      let stage = stages[p.stageId];
+      if (!stage) {
+        // Try common stage_01 variants
+        stage = stages['stage_01'] || stages['stage1'] || stages['stage01'];
+      }
+      if (!stage) {
+        // Use the first stage in the map
+        const firstKey = Object.keys(stages)[0];
+        if (firstKey) stage = stages[firstKey];
+      }
       if (stage) {
         entry.targetPos = stage.worldPos.clone();
-        // First placement: snap so the token doesn't lerp from world origin
-        if (isNew) entry.group.position.copy(entry.targetPos);
+        if (isNew) {
+          entry.group.position.copy(entry.targetPos);
+          console.log(`[party] placed ${p.name} at`, entry.targetPos.x.toFixed(1), entry.targetPos.y.toFixed(1), entry.targetPos.z.toFixed(1));
+        }
+      } else {
+        // Ultimate fallback: visible point above map center
+        if (isNew) {
+          entry.group.position.set(0, 5, 0);
+          console.warn(`[party] no stages found — placing ${p.name} at world center (0,5,0)`);
+        }
       }
     }
   }
