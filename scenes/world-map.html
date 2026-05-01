@@ -468,7 +468,7 @@ function syncPartyMiniatures(players) {
     let entry = partyMiniatures.get(p.pid);
     const isNew = !entry;
     if (isNew) {
-      const group = createEmojiMiniature(p.role, 3);
+      const group = createEmojiMiniature(p.role, 1);
       scene.add(group);
       entry = { group, stageId: null, targetPos: null };
       partyMiniatures.set(p.pid, entry);
