@@ -527,21 +527,17 @@ function syncPartyMiniatures(players) {
       partyMiniatures.set(p.pid, entry);
       console.log(`[party] created miniature for ${p.name} (${p.role}) pid=${p.pid}`);
     }
-    // Per-pid offset so multiple miniatures don't stack on the same stage point
+    // Horizontal line arrangement, slot 0 = leader on the left
     const sortedPids = [...players].map(pp => pp.pid).sort();
     const slotIdx = sortedPids.indexOf(p.pid);
     const slotCount = sortedPids.length;
-    let offsetX = 0, offsetZ = 0;
-    if (slotCount > 1) {
-      const angle = (slotIdx / slotCount) * Math.PI * 2;
-      const radius = 0.6;
-      offsetX = Math.cos(angle) * radius;
-      offsetZ = Math.sin(angle) * radius;
-    }
+    const SLOT_SPACING = 0.6;
+    const offsetX = (slotIdx - (slotCount - 1) / 2) * SLOT_SPACING;
+    const offsetZ = 0;
 
-    // Need (re)placement when: new entry, OR stage changed, OR slot offset changed (party size shifted), OR previously couldn't place
     const slotChanged = entry._slotIdx !== slotIdx || entry._slotCount !== slotCount;
-    const needsPlacement = isNew || p.stageId !== entry.stageId || !entry.targetPos || slotChanged;
+    const stageChanged = p.stageId !== entry.stageId;
+    const needsPlacement = isNew || stageChanged || !entry.targetPos || slotChanged;
     if (needsPlacement) {
       entry.stageId = p.stageId;
       entry._slotIdx = slotIdx;
@@ -559,6 +555,9 @@ function syncPartyMiniatures(players) {
         if (isNew || !entry.targetPos) {
           entry.group.position.copy(newPos);
           console.log(`[party] placed ${p.name} at`, newPos.x.toFixed(1), newPos.y.toFixed(1), newPos.z.toFixed(1));
+        } else if (stageChanged) {
+          // Conga line! Leader (slot 0) moves first, each follower delayed by 200ms
+          entry._moveStartTime = performance.now() + slotIdx * 200;
         }
         entry.targetPos = newPos;
       } else if (isNew) {
@@ -762,6 +761,7 @@ function tick() {
   // Multiplayer: lerp all party miniatures toward their target stage positions
   for (const [pid, entry] of partyMiniatures) {
     if (!entry.targetPos) continue;
+    if (entry._moveStartTime && performance.now() < entry._moveStartTime) continue; // wait for our turn in the conga line
     entry.group.position.x += (entry.targetPos.x - entry.group.position.x) * MINI_SPEED;
     entry.group.position.z += (entry.targetPos.z - entry.group.position.z) * MINI_SPEED;
     const dx = entry.targetPos.x - entry.group.position.x;
