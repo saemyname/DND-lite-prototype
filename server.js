@@ -92,7 +92,7 @@ function isCellWalkable(stageState, col, row, selfPid) {
   return true;
 }
 
-const MOVE_RANGE_BY_ROLE = { Warrior: 3, Rogue: 5, Mage: 4, Cleric: 4 };
+const MOVE_RANGE_BY_ROLE = { warrior: 3, rogue: 5, mage: 4, cleric: 4 };
 
 function reachable(stageState, fromCol, fromRow, range, selfPid) {
   const visited = new Set();
@@ -208,7 +208,7 @@ wss.on('connection', (ws) => {
         if (!sess)                  { send(ws, { type: 'error', message: 'Invalid code' }); return; }
         if (ws === sess.dm) { send(ws, { type: 'error', message: 'DM cannot join as player' }); return; }
         if (sess.players.size >= 4) { send(ws, { type: 'error', message: 'Session full' });  return; }
-        pid  = `p${Date.now()}`;
+        pid  = `p${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3,'0')}`;
         role = 'player';
         sess.players.set(pid, { ws, name: msg.name, role: msg.role, location: 'world-map' });
         console.log(`[player_join] session=${msg.code}, pid=${pid}, name=${msg.name}`);
@@ -266,10 +266,31 @@ wss.on('connection', (ws) => {
         if (!st.players.has(pid)) {
           const player = sess.players.get(pid);
           const [spawnCol, spawnRow] = st.cfg.playerSpawn;
+          // Find an unoccupied walkable cell starting from spawn (BFS outward)
+          let placeCol = spawnCol, placeRow = spawnRow;
+          const taken = new Set([...st.players.values()].map(p => `${p.col},${p.row}`));
+          if (taken.has(`${spawnCol},${spawnRow}`)) {
+            const visited = new Set([`${spawnCol},${spawnRow}`]);
+            const queue = [[spawnCol, spawnRow]];
+            outer: while (queue.length) {
+              const [c, r] = queue.shift();
+              for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+                const nc = c + dc, nr = r + dr;
+                const key = `${nc},${nr}`;
+                if (visited.has(key)) continue;
+                visited.add(key);
+                if (isCellWalkable(st, nc, nr, pid) && !taken.has(key)) {
+                  placeCol = nc; placeRow = nr;
+                  break outer;
+                }
+                queue.push([nc, nr]);
+              }
+            }
+          }
           const stats = msg.stats && typeof msg.stats === 'object' ? msg.stats : {};
           st.players.set(pid, {
-            col: spawnCol,
-            row: spawnRow,
+            col: placeCol,
+            row: placeRow,
             hp: Math.max(1, Number(msg.hp) || 10),
             maxHp: Math.max(1, Number(msg.maxHp) || 10),
             name: player?.name || 'Adventurer',

@@ -585,8 +585,8 @@ function calcMoveRange(startCol, startRow, range) {
 }
 
 // ── Player token ──
-const MOVE_RANGE_BY_ROLE = { Warrior: 3, Rogue: 5, Mage: 4 };
-const MINI_FILES = { Warrior: 'warrior.glb', Rogue: 'rogue.glb', Mage: 'mage.glb' };
+const MOVE_RANGE_BY_ROLE = { warrior: 3, rogue: 5, mage: 4, cleric: 4 };
+const MINI_FILES = { warrior: 'warrior.glb', rogue: 'rogue.glb', mage: 'mage.glb' };
 
 function loadPlayerToken() {
   return new Promise((resolve) => {
