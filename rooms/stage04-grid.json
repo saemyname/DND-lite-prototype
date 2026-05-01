@@ -1,0 +1,69 @@
+{
+  "id": "stage04",
+  "name": "Goblin Outpost",
+  "grid": {
+    "cols": 6,
+    "rows": 7,
+    "cellSizeX": 6,
+    "cellSizeZ": 6,
+    "originX": -18,
+    "originZ": -42,
+    "floorY": 0
+  },
+  "walkable": [
+    [1,1,1,1,1,1],
+    [1,1,1,1,1,1],
+    [1,1,1,1,1,1],
+    [1,0,1,1,0,1],
+    [1,1,1,1,1,1],
+    [1,1,1,1,1,1],
+    [0,1,1,1,1,0]
+  ],
+  "playerSpawn": [2, 6],
+  "enemies": [
+    {
+      "id": "captain",
+      "col": 3, "row": 0,
+      "name": "Goblin Captain",
+      "hp": 12, "maxHp": 12,
+      "stat": "agi", "dc": 13,
+      "description": "The Captain stands before the throne — twin blades drawn, eyes burning. \"You will not pass!\"",
+      "successText": "Your strike lands true — the Captain reels back!",
+      "failText": "The Captain laughs and slashes you twice in return.",
+      "successHp": 0, "failHp": -5
+    },
+    {
+      "id": "goblin1",
+      "col": 1, "row": 1,
+      "name": "Goblin Guard",
+      "hp": 6, "maxHp": 6,
+      "stat": "str", "dc": 11,
+      "description": "A guard shrieks the alarm and lunges with a rusty spear!",
+      "successText": "Your blade silences the alarm — guard down!",
+      "failText": "Sharp claws rake your armor.",
+      "successHp": 0, "failHp": -3
+    },
+    {
+      "id": "goblin2",
+      "col": 4, "row": 1,
+      "name": "Goblin Guard",
+      "hp": 6, "maxHp": 6,
+      "stat": "str", "dc": 11,
+      "description": "A second guard charges with a notched cleaver!",
+      "successText": "You parry and counter — clean kill!",
+      "failText": "The cleaver bites — you bleed!",
+      "successHp": 0, "failHp": -3
+    },
+    {
+      "id": "goblin3",
+      "col": 2, "row": 4,
+      "name": "Goblin Archer",
+      "hp": 6, "maxHp": 6,
+      "stat": "str", "dc": 11,
+      "description": "An archer pops out from a barricade and looses an arrow!",
+      "successText": "You close the distance and end them!",
+      "failText": "An arrow finds a gap — sharp pain.",
+      "successHp": 0, "failHp": -3
+    }
+  ]
+}
