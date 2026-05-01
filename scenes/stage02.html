@@ -707,7 +707,7 @@ async function applyState(snap) {
       const group = await loadPlayerTokenForRole(p.role);
       const label = document.createElement('div');
       label.className = 'player-name-label';
-      label.textContent = p.name;
+      label.textContent = `${p.name} ${p.hp}/${p.maxHp}`;
       document.body.appendChild(label);
       scene.add(group);
       entry = { group, label, role: p.role };
@@ -715,6 +715,7 @@ async function applyState(snap) {
       loadingPids.delete(p.pid);
     }
     if (entry) {
+      entry.label.textContent = `${p.name} ${p.hp}/${p.maxHp}`;
       const pos = gridToWorld(p.col, p.row);
       entry.group.position.set(pos.x, gridData.grid.floorY, pos.z);
       entry.group.userData.targetPos = pos;
