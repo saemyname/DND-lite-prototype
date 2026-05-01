@@ -527,10 +527,25 @@ function syncPartyMiniatures(players) {
       partyMiniatures.set(p.pid, entry);
       console.log(`[party] created miniature for ${p.name} (${p.role}) pid=${p.pid}`);
     }
-    // Need (re)placement when: new entry, OR stage changed, OR previously couldn't place (targetPos still null)
-    const needsPlacement = isNew || p.stageId !== entry.stageId || !entry.targetPos;
+    // Per-pid offset so multiple miniatures don't stack on the same stage point
+    const sortedPids = [...players].map(pp => pp.pid).sort();
+    const slotIdx = sortedPids.indexOf(p.pid);
+    const slotCount = sortedPids.length;
+    let offsetX = 0, offsetZ = 0;
+    if (slotCount > 1) {
+      const angle = (slotIdx / slotCount) * Math.PI * 2;
+      const radius = 0.6;
+      offsetX = Math.cos(angle) * radius;
+      offsetZ = Math.sin(angle) * radius;
+    }
+
+    // Need (re)placement when: new entry, OR stage changed, OR slot offset changed (party size shifted), OR previously couldn't place
+    const slotChanged = entry._slotIdx !== slotIdx || entry._slotCount !== slotCount;
+    const needsPlacement = isNew || p.stageId !== entry.stageId || !entry.targetPos || slotChanged;
     if (needsPlacement) {
       entry.stageId = p.stageId;
+      entry._slotIdx = slotIdx;
+      entry._slotCount = slotCount;
       let stage = stages[p.stageId];
       if (!stage) stage = stages['stage_01'] || stages['stage1'] || stages['stage01'];
       if (!stage) {
@@ -539,14 +554,14 @@ function syncPartyMiniatures(players) {
       }
       if (stage) {
         const newPos = stage.worldPos.clone();
-        // Snap on first placement OR when we couldn't place before (targetPos was null)
+        newPos.x += offsetX;
+        newPos.z += offsetZ;
         if (isNew || !entry.targetPos) {
           entry.group.position.copy(newPos);
           console.log(`[party] placed ${p.name} at`, newPos.x.toFixed(1), newPos.y.toFixed(1), newPos.z.toFixed(1));
         }
         entry.targetPos = newPos;
       } else if (isNew) {
-        // Stages not loaded yet — temporary fallback. Leave targetPos null so next sync replaces it.
         entry.group.position.set(0, 5, 0);
         console.warn(`[party] stages not loaded — placeholder at (0,5,0) for ${p.name}, will retry`);
       }
