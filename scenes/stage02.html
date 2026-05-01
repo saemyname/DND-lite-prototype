@@ -663,7 +663,10 @@ async function applyState(snap) {
     if (entry) {
       entry.label.textContent = `${p.name} ${p.hp}/${p.maxHp}`;
       const pos = gridToWorld(p.col, p.row);
-      entry.group.position.set(pos.x, gridData.grid.floorY, pos.z);
+      // Snap on first placement only; subsequent updates let the tick() lerp animate
+      if (!entry.group.userData.targetPos) {
+        entry.group.position.set(pos.x, gridData.grid.floorY, pos.z);
+      }
       entry.group.userData.targetPos = pos;
     }
   }
