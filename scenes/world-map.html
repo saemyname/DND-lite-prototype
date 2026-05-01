@@ -205,6 +205,7 @@ const myPid = localStorage.getItem('player-id');
 const partyMiniatures = new Map(); // pid → { group, stageId, targetPos }
 const inSession = !!localStorage.getItem('session-code');
 let localMoveIntent = null;  // stageId user clicked toward (only this triggers auto-redirect)
+let lastPartyState = null;   // cached so we can re-render after GLB stages load
 
 gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
   mapModel = gltf.scene;
@@ -281,6 +282,8 @@ gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
 
   // Load miniature only in solo mode; multiplayer uses world_map_state party miniatures
   if (!inSession) loadMiniature();
+  // Re-apply any party state that arrived before stages were ready
+  if (lastPartyState) syncPartyMiniatures(lastPartyState);
 }, undefined, (err) => {
   console.error('Map load error:', err);
 });
@@ -452,7 +455,8 @@ if (localStorage.getItem('session-code')) {
   });
 
   on('world_map_state', (msg) => {
-    syncPartyMiniatures(msg.players || []);
+    lastPartyState = msg.players || [];
+    syncPartyMiniatures(lastPartyState);
   });
 }
 
@@ -461,27 +465,21 @@ function syncPartyMiniatures(players) {
   for (const p of players) {
     seen.add(p.pid);
     let entry = partyMiniatures.get(p.pid);
-    if (!entry) {
+    const isNew = !entry;
+    if (isNew) {
       const group = createEmojiMiniature(p.role, 1.5);
       scene.add(group);
       entry = { group, stageId: null, targetPos: null };
       partyMiniatures.set(p.pid, entry);
     }
-    if (p.stageId !== entry.stageId) {
+    if (isNew || p.stageId !== entry.stageId) {
       entry.stageId = p.stageId;
-      const stage = stages[p.stageId];
+      // Resolve target stage: explicit stageId, else default to stage_01
+      const stage = stages[p.stageId] || stages['stage_01'];
       if (stage) {
         entry.targetPos = stage.worldPos.clone();
-        // First placement: snap; subsequent: lerp via tick
-        if (entry.group.position.lengthSq() === 0) {
-          entry.group.position.copy(entry.targetPos);
-        }
-      } else {
-        // Default position when no stage chosen: stage_01 worldPos if available
-        const fallback = stages['stage_01'];
-        if (fallback && entry.group.position.lengthSq() === 0) {
-          entry.group.position.copy(fallback.worldPos);
-        }
+        // First placement: snap so the token doesn't lerp from world origin
+        if (isNew) entry.group.position.copy(entry.targetPos);
       }
     }
   }
