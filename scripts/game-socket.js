@@ -1,11 +1,15 @@
 let _ws = null;
 const _handlers = {};
+const _sendQueue = [];
 
 export function connect(onOpen) {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   _ws = new WebSocket(`${proto}//${location.host}`);
 
-  _ws.addEventListener('open', () => onOpen?.());
+  _ws.addEventListener('open', () => {
+    while (_sendQueue.length) _ws.send(_sendQueue.shift());
+    onOpen?.();
+  });
 
   _ws.addEventListener('message', (e) => {
     let msg;
@@ -20,8 +24,12 @@ export function connect(onOpen) {
 }
 
 export function send(msg) {
+  const data = JSON.stringify(msg);
   if (_ws?.readyState === WebSocket.OPEN) {
-    _ws.send(JSON.stringify(msg));
+    _ws.send(data);
+  } else {
+    // Queue until connect() opens (or if we've never called connect, queue indefinitely)
+    _sendQueue.push(data);
   }
 }
 
