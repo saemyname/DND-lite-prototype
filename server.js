@@ -59,11 +59,13 @@ function makeStageState(stageId) {
     stageId,
     cfg,
     players: new Map(),
-    enemies: cfg.enemies.map(e => ({...e})),
+    enemies: (cfg.enemies || []).map(e => ({...e})),
+    challenges: (cfg.challenges || []).map(c => ({...c, cleared: false})),
     turnOrder: [],
     activeTurnIdx: 0,
     pendingCombat: null,
     pendingHeal: null,
+    pendingChallenge: null,
     outcome: null,
     observers: new Set(),  // extra ws connections (e.g. DM iframe spectators)
   };
@@ -87,10 +89,12 @@ function snapshotState(stageState) {
     stageId: stageState.stageId,
     players: [...stageState.players.entries()].map(([pid, p]) => ({ pid, ...p })),
     enemies: stageState.enemies,
+    challenges: stageState.challenges,
     turnOrder: stageState.turnOrder,
     activeTurnPid: activeTurnPid(stageState),
     pendingCombat: stageState.pendingCombat,
     pendingHeal: stageState.pendingHeal,
+    pendingChallenge: stageState.pendingChallenge,
     outcome: stageState.outcome,
   };
 }
@@ -150,6 +154,15 @@ function adjacentHealableAllyAt(stageState, col, row) {
     }
   }
   return null;
+}
+
+function adjacentChallengeAt(stageState, col, row) {
+  if (!stageState.challenges) return null;
+  return stageState.challenges.find(c =>
+    !c.cleared &&
+    Math.abs(c.col - col) <= 1 &&
+    Math.abs(c.row - row) <= 1
+  );
 }
 
 function advanceTurn(stageState) {
@@ -405,6 +418,53 @@ wss.on('connection', (ws) => {
           break;
         }
 
+        if (msg.kind === 'attempt') {
+          if (!st.pendingChallenge || st.pendingChallenge.actorPid !== pid) return;
+          const ch = st.challenges.find(c => c.id === st.pendingChallenge.challengeId);
+          if (!ch || ch.cleared) return;
+          const me = st.players.get(pid);
+          const statVal = me?.stats?.[ch.stat] ?? 10;
+          const roll = rollD20();
+          const mod = statModifier(statVal);
+          const total = roll + mod;
+          const success = total >= ch.dc;
+
+          let outcomeText, dmgToPlayer = 0;
+          if (success) {
+            outcomeText = ch.successText + (ch.successHp ? ` (${ch.successHp >= 0 ? '+' : ''}${ch.successHp} HP)` : '');
+            if (ch.successHp) {
+              me.hp = Math.max(0, Math.min(me.maxHp, me.hp + ch.successHp));
+            }
+          } else {
+            dmgToPlayer = -ch.failHp;
+            me.hp = Math.max(0, me.hp - dmgToPlayer);
+            outcomeText = ch.failText + ` (-${dmgToPlayer} HP)`;
+          }
+
+          // Mark cleared whether success or fail (one-shot)
+          ch.cleared = true;
+
+          broadcastStage(st, sess, {
+            type: 'skill_check_event',
+            actorPid: pid,
+            challengeId: ch.id,
+            stat: ch.stat,
+            dc: ch.dc,
+            roll, mod, total, success,
+            outcomeText,
+          });
+
+          // Check stage end
+          if (st.players.get(pid).hp <= 0) {
+            st.outcome = 'defeat';
+          } else if (st.challenges.every(c => c.cleared)) {
+            st.outcome = 'victory';
+          }
+
+          broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
+          break;
+        }
+
         if (msg.kind === 'attack') {
           if (!st.pendingCombat || st.pendingCombat.attackerPid !== pid) return;
           const enemy = st.enemies.find(e => e.id === st.pendingCombat.enemyId);
@@ -467,15 +527,16 @@ wss.on('connection', (ws) => {
           const adj = adjacentEnemyAt(st, dstCol, dstRow);
           if (adj) {
             st.pendingCombat = { attackerPid: pid, enemyId: adj.id };
-          } else if (me.role === 'cleric') {
-            const ally = adjacentHealableAllyAt(st, dstCol, dstRow);
+          } else {
+            const ally = me.role === 'cleric' ? adjacentHealableAllyAt(st, dstCol, dstRow) : null;
+            const challenge = adjacentChallengeAt(st, dstCol, dstRow);
             if (ally) {
               st.pendingHeal = { healerPid: pid, targetPid: ally.pid };
+            } else if (challenge) {
+              st.pendingChallenge = { actorPid: pid, challengeId: challenge.id };
             } else {
               advanceTurn(st);
             }
-          } else {
-            advanceTurn(st);
           }
           broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
         }
@@ -487,11 +548,13 @@ wss.on('connection', (ws) => {
         const stageId = msg.stageId;
         const st = sess.stages.get(stageId);
         if (!st) return;
-        const isMyCombat = st.pendingCombat?.attackerPid === pid;
-        const isMyHeal   = st.pendingHeal?.healerPid === pid;
-        if (!isMyCombat && !isMyHeal) return;
+        const isMyCombat    = st.pendingCombat?.attackerPid === pid;
+        const isMyHeal      = st.pendingHeal?.healerPid === pid;
+        const isMyChallenge = st.pendingChallenge?.actorPid === pid;
+        if (!isMyCombat && !isMyHeal && !isMyChallenge) return;
         st.pendingCombat = null;
         st.pendingHeal = null;
+        st.pendingChallenge = null;
         if (!st.outcome) advanceTurn(st);
         broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
         break;
