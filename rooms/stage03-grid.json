@@ -1,0 +1,60 @@
+{
+  "id": "stage03",
+  "name": "Whispering Forest",
+  "grid": {
+    "cols": 5,
+    "rows": 8,
+    "cellSizeX": 6,
+    "cellSizeZ": 6,
+    "originX": -15,
+    "originZ": -48,
+    "floorY": 0
+  },
+  "walkable": [
+    [1,1,1,0,0],
+    [0,1,0,0,0],
+    [0,1,1,1,0],
+    [0,0,0,1,0],
+    [0,1,1,1,0],
+    [0,1,0,0,0],
+    [1,1,0,0,0],
+    [1,1,1,1,1]
+  ],
+  "playerSpawn": [2, 7],
+  "enemies": [],
+  "challenges": [
+    {
+      "id": "chasm",
+      "col": 1, "row": 5,
+      "name": "Yawning Chasm",
+      "stat": "agi",
+      "dc": 12,
+      "description": "A deep ravine cuts the path. The far side is just within leap distance — but only just.",
+      "successText": "You leap clean across, landing in a roll!",
+      "failText": "You slip on the edge — barely catch the lip and haul yourself up, scraped raw.",
+      "successHp": 0, "failHp": -3
+    },
+    {
+      "id": "ogre",
+      "col": 3, "row": 3,
+      "name": "Sleeping Ogre",
+      "stat": "lck",
+      "dc": 11,
+      "description": "An ogre snores across the path, club in hand. One wrong step and it wakes.",
+      "successText": "You tiptoe past in dead silence — the ogre never stirs.",
+      "failText": "A twig snaps. The ogre swings half-awake, catching you a glancing blow.",
+      "successHp": 0, "failHp": -4
+    },
+    {
+      "id": "rune",
+      "col": 1, "row": 0,
+      "name": "Ancient Rune Gate",
+      "stat": "int",
+      "dc": 13,
+      "description": "Glowing runes seal the forest's edge. Decipher them or take the gate's wrath.",
+      "successText": "The runes ripple and the gate dissolves — way is clear!",
+      "failText": "Mistranslation! Arcane backlash sears your mind.",
+      "successHp": 0, "failHp": -2
+    }
+  ]
+}
