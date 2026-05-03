@@ -241,7 +241,7 @@ wss.on('connection', (ws) => {
         sess = {
           dm: null,
           players: new Map(),
-          unlockedStages: new Set(['stage_01', 'stage_02', 'stage_03', 'stage_04']),
+          unlockedStages: new Set(['stage_01', 'stage_02', 'stage_03', 'stage_04', 'stage_05']),
           chatHistory: [],
           stages: new Map(),
           revealedFog: [],
@@ -454,10 +454,10 @@ wss.on('connection', (ws) => {
             outcomeText,
           });
 
-          // Check stage end
+          // Check stage end — victory requires both enemies dead AND challenges cleared
           if (st.players.get(pid).hp <= 0) {
             st.outcome = 'defeat';
-          } else if (st.challenges.every(c => c.cleared)) {
+          } else if (st.enemies.every(e => e.hp <= 0) && st.challenges.every(c => c.cleared)) {
             st.outcome = 'victory';
           }
 
@@ -503,7 +503,7 @@ wss.on('connection', (ws) => {
 
           if (st.players.get(pid).hp <= 0) {
             st.outcome = 'defeat';
-          } else if (st.enemies.every(e => e.hp <= 0)) {
+          } else if (st.enemies.every(e => e.hp <= 0) && st.challenges.every(c => c.cleared)) {
             st.outcome = 'victory';
           }
 
