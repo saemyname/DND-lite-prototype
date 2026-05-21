@@ -392,9 +392,9 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
-import { updateFaceCamera, onResizeFaceCamera, initRotationButtons } from '../scripts/face-camera.js';
 import { send, on } from '../scripts/game-socket.js';
-import { createEmojiMiniature } from '../scripts/miniature.js';
+import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, triggerSlimeAttack, flashEnemyDamage, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
+import { initDebugBots, debugActAs, isControlledBy, debugBotsAreActive } from '../scripts/debug-bots.js';
 import { loadBlockMaterials } from '../scripts/voxel-textures.js';
 
 // ── Grid / combat state (module scope) ──
@@ -410,6 +410,7 @@ const highlightGroup = new THREE.Group();
 const charData = JSON.parse(localStorage.getItem('dndlite-character') || 'null');
 const myPid = localStorage.getItem('player-id');
 let serverState = null;
+initDebugBots({ myPid, getServerState: () => serverState });
 const playerTokens = new Map();   // pid → { group, label, role }
 const loadingPids = new Set();    // pids whose token is mid-load (race guard)
 const blockMats = loadBlockMaterials('../Assets/Tiles/');
@@ -537,6 +538,9 @@ function placeModel(gltfScene, name) {
 
   // Rotate around the model's world center
   LOOK_TARGET.set(0, 0, -finalDepth / 2);
+  camera.position.copy(BASE_CAM_POS);
+  camera.lookAt(LOOK_TARGET);
+  camera.updateProjectionMatrix();
 
   document.getElementById('loading').classList.add('hidden');
 }
@@ -567,7 +571,7 @@ function calcMoveRange(startCol, startRow, range) {
   );
   if (serverState) {
     for (const p of serverState.players) {
-      if (p.pid !== myPid) blockedTiles.add(`${p.col},${p.row}`);
+      if (p.col !== startCol || p.row !== startRow) blockedTiles.add(`${p.col},${p.row}`);
     }
   }
   while (queue.length) {
@@ -591,7 +595,7 @@ function calcMoveRange(startCol, startRow, range) {
 const MOVE_RANGE_BY_ROLE = { warrior: 3, rogue: 5, mage: 4, cleric: 4 };
 
 function loadPlayerTokenForRole(roleName) {
-  return Promise.resolve(createEmojiMiniature(roleName, 4));
+  return Promise.resolve(createSlimeMiniature(roleName, 4));
 }
 
 // ── Enemy tokens ──
@@ -624,11 +628,10 @@ function placeEnemies() {
     const pos = gridToWorld(e.col, e.row);
     mesh.position.set(pos.x, gridData.grid.floorY, pos.z);
     scene.add(mesh);
-    const label = document.createElement('div');
-    label.className = 'enemy-hp';
-    label.textContent = `${e.hp}/${e.maxHp}`;
+    const { label, fillEl } = buildEnemyLabel(e.name || 'Enemy');
     document.body.appendChild(label);
-    enemyTokens.push({ ...e, mesh, label });
+    updatePlayerLabelHp(fillEl, e.hp, e.maxHp);
+    enemyTokens.push({ ...e, mesh, label, fillEl });
   });
 }
 
@@ -750,7 +753,7 @@ async function applyState(snap) {
     indicator.style.display = 'block';
   }
 
-  document.body.classList.toggle('not-my-turn', !!serverState && serverState.activeTurnPid !== myPid && !serverState.outcome);
+  document.body.classList.toggle('not-my-turn', !!serverState && serverState.activeTurnPid !== myPid && !serverState.outcome && !debugBotsAreActive());
 
   const seenPids = new Set();
   for (const p of snap.players) {
@@ -759,23 +762,32 @@ async function applyState(snap) {
     if (!entry && !loadingPids.has(p.pid)) {
       loadingPids.add(p.pid);
       const group = await loadPlayerTokenForRole(p.role);
-      const label = document.createElement('div');
-      label.className = 'player-name-label';
-      label.textContent = `${p.name} ${p.hp}/${p.maxHp}`;
+      const { label, fillEl, nameEl } = buildPlayerLabel(p.name);
       document.body.appendChild(label);
       scene.add(group);
-      entry = { group, label, role: p.role };
+      entry = { group, label, fillEl, nameEl, role: p.role };
       playerTokens.set(p.pid, entry);
       loadingPids.delete(p.pid);
     }
     if (entry) {
-      entry.label.textContent = `${p.name} ${p.hp}/${p.maxHp}`;
+      updatePlayerLabelHp(entry.fillEl, p.hp, p.maxHp);
       const pos = gridToWorld(p.col, p.row);
-      // Snap on first placement only; subsequent updates let the tick() lerp animate
-      if (!entry.group.userData.targetPos) {
+      const ud = entry.group.userData;
+      if (!ud.targetPos) {
         entry.group.position.set(pos.x, gridData.grid.floorY, pos.z);
+      } else if (ud.kind === 'slime') {
+        const dx = pos.x - ud.targetPos.x;
+        const dz = pos.z - ud.targetPos.z;
+        if (Math.abs(dx) > 0.01 || Math.abs(dz) > 0.01) {
+          const cur = entry.group.position;
+          ud.jumpStart = performance.now();
+          ud.jumpFrom = new THREE.Vector3(cur.x, gridData.grid.floorY, cur.z);
+          ud.jumpTo   = new THREE.Vector3(pos.x, gridData.grid.floorY, pos.z);
+          const dist  = Math.hypot(pos.x - cur.x, pos.z - cur.z);
+          ud.jumpDuration = Math.min(750, 320 + dist * 28);
+        }
       }
-      entry.group.userData.targetPos = pos;
+      ud.targetPos = pos;
     }
   }
   for (const [pid, entry] of [...playerTokens.entries()]) {
@@ -792,11 +804,11 @@ async function applyState(snap) {
   const panelOpen = document.getElementById('event-panel').classList.contains('visible');
   if (snap.pendingCombat) {
     const enemy = snap.enemies.find(e => e.id === snap.pendingCombat.enemyId);
-    const isAttacker = snap.pendingCombat.attackerPid === myPid;
+    const isAttacker = isControlledBy(snap.pendingCombat.attackerPid);
     if (enemy && !panelOpen) openCombatPanel(enemy, isAttacker);
   } else if (snap.pendingHeal) {
     const target = snap.players.find(p => p.pid === snap.pendingHeal.targetPid);
-    const isHealer = snap.pendingHeal.healerPid === myPid;
+    const isHealer = isControlledBy(snap.pendingHeal.healerPid);
     if (target && !panelOpen) openHealPanel(target, isHealer);
   } else {
     closeCombatPanel();
@@ -806,10 +818,11 @@ async function applyState(snap) {
   if (snap.outcome === 'victory') document.getElementById('victory').style.display = 'flex';
   if (snap.outcome === 'defeat')  document.getElementById('game-over').style.display = 'flex';
 
-  // Show move range only on local player's turn (not in combat)
-  const me = snap.players.find(p => p.pid === myPid);
-  if (me && snap.activeTurnPid === myPid && !snap.pendingCombat && !snap.outcome) {
-    showMoveRange(me.col, me.row);
+  const turnPid = snap.activeTurnPid;
+  const turnPlayer = snap.players.find(p => p.pid === turnPid);
+  const canDriveTurn = turnPid === myPid || debugBotsAreActive();
+  if (turnPlayer && canDriveTurn && !snap.pendingCombat && !snap.pendingHeal && !snap.outcome) {
+    showMoveRange(turnPlayer.col, turnPlayer.row, turnPlayer.role);
   } else {
     clearHighlights();
   }
@@ -822,7 +835,7 @@ function reconcileEnemies(enemiesFromServer) {
     const local = enemyTokens.find(e => e.id === srvE.id);
     if (!local) continue;
     local.hp = srvE.hp;
-    if (local.label) local.label.textContent = `${srvE.hp}/${srvE.maxHp}`;
+    if (local.fillEl) updatePlayerLabelHp(local.fillEl, srvE.hp, srvE.maxHp);
     if (srvE.hp <= 0 && local.mesh.parent) {
       scene.remove(local.mesh);
       if (local.label) { local.label.remove(); local.label = null; }
@@ -830,9 +843,9 @@ function reconcileEnemies(enemiesFromServer) {
   }
 }
 
-function showMoveRange(col, row) {
+function showMoveRange(col, row, role) {
   clearHighlights();
-  const tiles = calcMoveRange(col, row, MOVE_RANGE_BY_ROLE[charData?.role] || 4);
+  const tiles = calcMoveRange(col, row, MOVE_RANGE_BY_ROLE[role || charData?.role] || 4);
   const { cellSizeX, cellSizeZ, floorY } = gridData.grid;
   tiles.forEach(tile => {
     const isSelf = tile.col === col && tile.row === row;
@@ -899,7 +912,7 @@ buildOutpostScene();
       stats: { str: localChar.str, agi: localChar.agi, int: localChar.int, lck: localChar.lck },
     });
   } else {
-    const soloMini = createEmojiMiniature(charData?.role || 'warrior', 4);
+    const soloMini = createSlimeMiniature(charData?.role || 'warrior', 4);
     const spawnPos = gridToWorld(gridData.playerSpawn[0], gridData.playerSpawn[1]);
     soloMini.position.set(spawnPos.x, gridData.grid.floorY, spawnPos.z);
     scene.add(soloMini);
@@ -915,8 +928,6 @@ buildOutpostScene();
   document.getElementById('loading').textContent = 'Load failed';
 });
 
-// ── Face tracking + rotation buttons ──
-initRotationButtons();
 initHUD();
 
 window.addEventListener('resize', () => {
@@ -924,24 +935,19 @@ window.addEventListener('resize', () => {
   renderer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  onResizeFaceCamera(w, h);
 });
-onResizeFaceCamera(window.innerWidth, window.innerHeight);
 
-// ── Render loop ──
-const faceCamConfig = {
-  basePos: BASE_CAM_POS,
-  lookTarget: LOOK_TARGET,
-  offAxis: false,
-  far: 500,
-};
+// Static camera — face tracking removed (was always-on overhead even without webcam)
+camera.position.copy(BASE_CAM_POS);
+camera.lookAt(LOOK_TARGET);
+camera.updateProjectionMatrix();
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
 canvas.addEventListener('click', (e) => {
   if (!serverState || !gridData) return;
-  if (serverState.activeTurnPid !== myPid) return;       // not my turn
+  if (serverState.activeTurnPid !== myPid && !debugBotsAreActive()) return;
   if (serverState.pendingCombat) return;                 // combat panel handles its own input
   if (serverState.outcome) return;
 
@@ -953,7 +959,7 @@ canvas.addEventListener('click', (e) => {
   const tileHits = raycaster.intersectObjects(highlightMeshes);
   if (tileHits.length > 0) {
     const { col, row } = tileHits[0].object.userData;
-    send({ type: 'action_request', stageId: 'stage04', kind: 'move', col, row });
+    send({ type: 'action_request', stageId: 'stage04', kind: 'move', col, row, actAsPid: debugActAs() });
   }
 });
 
@@ -993,7 +999,7 @@ function openCombatPanel(enemy, isAttacker) {
       panelEl('d20-label').textContent = 'Roll d20';
       const onDiceClick = () => {
         panelEl('d20-hud').removeEventListener('click', onDiceClick);
-        send({ type: 'action_request', stageId: 'stage04', kind: 'attack' });
+        send({ type: 'action_request', stageId: 'stage04', kind: 'attack', actAsPid: debugActAs() });
       };
       panelEl('d20-hud').addEventListener('click', onDiceClick);
     });
@@ -1044,7 +1050,7 @@ function animateCombatEvent(ev, isAttacker) {
         btn.className = 'event-btn';
         btn.textContent = 'Continue';
         btn.addEventListener('click', () => {
-          send({ type: 'turn_continue', stageId: 'stage04' });
+          send({ type: 'turn_continue', stageId: 'stage04', actAsPid: debugActAs() });
           closeCombatPanel();
         });
         panelEl('event-actions').appendChild(btn);
@@ -1055,11 +1061,14 @@ function animateCombatEvent(ev, isAttacker) {
 
 on('combat_event', (msg) => {
   const enemy = enemyTokens.find(e => e.id === msg.enemyId);
-  const isAttacker = msg.attackerPid === myPid;
+  const isAttacker = isControlledBy(msg.attackerPid);
   if (enemy && !panelEl('event-panel').classList.contains('visible')) {
     openCombatPanel(enemy, isAttacker);
   }
   animateCombatEvent(msg, isAttacker);
+  const attackerEntry = playerTokens.get(msg.attackerPid);
+  if (attackerEntry) triggerSlimeAttack(attackerEntry.group);
+  if (msg.success && enemy) flashEnemyDamage(enemy.mesh);
 });
 
 function openHealPanel(target, isHealer) {
@@ -1081,7 +1090,7 @@ function openHealPanel(target, isHealer) {
     healBtn.textContent = `Heal ${target.name}`;
     healBtn.addEventListener('click', () => {
       healBtn.disabled = true;
-      send({ type: 'action_request', stageId: 'stage04', kind: 'heal' });
+      send({ type: 'action_request', stageId: 'stage04', kind: 'heal', actAsPid: debugActAs() });
     });
     panelEl('event-actions').appendChild(healBtn);
 
@@ -1089,7 +1098,7 @@ function openHealPanel(target, isHealer) {
     skipBtn.className = 'event-btn';
     skipBtn.textContent = 'Skip';
     skipBtn.addEventListener('click', () => {
-      send({ type: 'turn_continue', stageId: 'stage04' });
+      send({ type: 'turn_continue', stageId: 'stage04', actAsPid: debugActAs() });
       closeCombatPanel();
     });
     panelEl('event-actions').appendChild(skipBtn);
@@ -1104,7 +1113,7 @@ function openHealPanel(target, isHealer) {
 }
 
 on('heal_event', (msg) => {
-  const isHealer = msg.healerPid === myPid;
+  const isHealer = isControlledBy(msg.healerPid);
   const resultEl = panelEl('event-result');
   resultEl.textContent = `Roll d6: ${msg.roll} ${msg.mod >= 0 ? '+' : ''}${msg.mod} → +${msg.restored} HP`;
   resultEl.className = 'success';
@@ -1115,7 +1124,7 @@ on('heal_event', (msg) => {
     btn.className = 'event-btn';
     btn.textContent = 'Continue';
     btn.addEventListener('click', () => {
-      send({ type: 'turn_continue', stageId: 'stage04' });
+      send({ type: 'turn_continue', stageId: 'stage04', actAsPid: debugActAs() });
       closeCombatPanel();
     });
     panelEl('event-actions').appendChild(btn);
@@ -1124,15 +1133,24 @@ on('heal_event', (msg) => {
 
 function tick() {
   requestAnimationFrame(tick);
-  updateFaceCamera(camera, faceCamConfig);
 
-  // Player token bob animation (positions are set by applyState)
+  // Player token animation — slimes get jump + idle wobble; others fall back to lerp+bob
   if (gridData) {
+    const now = performance.now();
     for (const [pid, entry] of playerTokens) {
-      const target = entry.group.userData.targetPos;
+      const ud = entry.group.userData;
+      const target = ud.targetPos;
       if (!target) continue;
-      entry.group.position.lerp(target, 0.1);
-      entry.group.position.y = gridData.grid.floorY + Math.sin(performance.now() * 0.002) * 0.06;
+      if (ud.kind === 'slime') {
+        if (ud.jumpStart == null) {
+          entry.group.position.x = target.x;
+          entry.group.position.z = target.z;
+        }
+        updateSlimeAnimation(entry.group, now, gridData.grid.floorY);
+      } else {
+        entry.group.position.lerp(target, 0.1);
+        entry.group.position.y = gridData.grid.floorY + Math.sin(now * 0.002) * 0.06;
+      }
     }
   }
 
@@ -1159,7 +1177,7 @@ function tick() {
     const y = (-_pVec.y * 0.5 + 0.5) * window.innerHeight;
     entry.label.style.left = x + 'px';
     entry.label.style.top  = y + 'px';
-    if (pid === myPid) entry.label.classList.add('me');
+    if (pid === myPid && entry.nameEl) entry.nameEl.classList.add('me');
   }
 
   renderer.render(scene, camera);

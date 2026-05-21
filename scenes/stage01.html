@@ -100,7 +100,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
-import { initFaceCamera, updateFaceCamera, onResizeFaceCamera, initRotationButtons } from '../scripts/face-camera.js';
 
 // ── Renderer ──
 const canvas = document.getElementById('canvas');
@@ -204,33 +203,20 @@ gltfLoader.load('../Assets/dnd_typeshyt-01a.glb', (gltf) => {
   document.getElementById('loading').textContent = 'Load failed';
 });
 
-// ── Face tracking + rotation buttons ──
-initFaceCamera();
-initRotationButtons();
-
 window.addEventListener('resize', () => {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  onResizeFaceCamera(w, h);
 });
-onResizeFaceCamera(window.innerWidth, window.innerHeight);
 
-// ── Render loop ──
-const faceCamConfig = {
-  basePos: BASE_CAM_POS,
-  lookTarget: LOOK_TARGET,
-  screenDist: SCREEN_DIST,
-  offAxis: true,
-  far: 500,
-  strength: 20,
-  strengthY: 5,
-};
+// Static camera — face tracking removed
+camera.position.copy(BASE_CAM_POS);
+camera.lookAt(LOOK_TARGET);
+camera.updateProjectionMatrix();
 
 function tick() {
   requestAnimationFrame(tick);
-  updateFaceCamera(camera, faceCamConfig);
   renderer.render(scene, camera);
 }
 tick();

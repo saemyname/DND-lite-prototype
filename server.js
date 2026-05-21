@@ -113,6 +113,57 @@ function isCellWalkable(stageState, col, row, selfPid) {
 
 const MOVE_RANGE_BY_ROLE = { warrior: 3, rogue: 5, mage: 4, cleric: 4 };
 
+const ROLE_STATS = {
+  warrior: { str: 14, agi: 10, int:  8, lck: 10, hp: 20 },
+  rogue:   { str:  8, agi: 14, int: 10, lck: 12, hp: 14 },
+  mage:    { str:  6, agi:  8, int: 14, lck: 12, hp: 12 },
+  cleric:  { str: 10, agi:  8, int: 12, lck: 14, hp: 16 },
+};
+
+// Place a bot player at a free walkable cell. Prefers distance ≥ 2 from spawn
+// so bots don't surround the human and leave them unable to move on turn 1.
+function placeBotInStage(st, botPid, botPlayer) {
+  if (st.players.has(botPid)) return;
+  const [spawnCol, spawnRow] = st.cfg.playerSpawn;
+  const taken = new Set([...st.players.values()].map(p => `${p.col},${p.row}`));
+
+  let placeCol = spawnCol, placeRow = spawnRow;
+  if (taken.has(`${spawnCol},${spawnRow}`)) {
+    // BFS outward, collecting (cell, depth) of free walkable tiles.
+    const visited = new Set([`${spawnCol},${spawnRow}`]);
+    const queue = [[spawnCol, spawnRow, 0]];
+    const candidates = [];
+    while (queue.length) {
+      const [c, r, d] = queue.shift();
+      for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const nc = c + dc, nr = r + dr;
+        const key = `${nc},${nr}`;
+        if (visited.has(key)) continue;
+        visited.add(key);
+        if (isCellWalkable(st, nc, nr, botPid) && !taken.has(key)) {
+          candidates.push({ c: nc, r: nr, d: d + 1 });
+        }
+        queue.push([nc, nr, d + 1]);
+      }
+      if (candidates.length > 20) break; // enough to choose from
+    }
+    // Prefer depth ≥ 2; fall back to nearest if the map is too tight.
+    const pick = candidates.find(x => x.d >= 2) || candidates[0];
+    if (pick) { placeCol = pick.c; placeRow = pick.r; }
+  }
+  const stats = ROLE_STATS[botPlayer.role] || ROLE_STATS.warrior;
+  st.players.set(botPid, {
+    col: placeCol,
+    row: placeRow,
+    hp: stats.hp,
+    maxHp: stats.hp,
+    name: botPlayer.name,
+    role: botPlayer.role,
+    stats: { str: stats.str, agi: stats.agi, int: stats.int, lck: stats.lck },
+  });
+  st.turnOrder.push(botPid);
+}
+
 function reachable(stageState, fromCol, fromRow, range, selfPid) {
   const visited = new Set();
   const result = new Set();
@@ -276,6 +327,43 @@ wss.on('connection', (ws) => {
         break;
       }
 
+      case 'debug_spawn_bots': {
+        if (role !== 'player' || !sess) return;
+        const allRoles = ['warrior', 'rogue', 'mage', 'cleric'];
+        const used = new Set([...sess.players.values()].map(p => p.role));
+        const remaining = allRoles.filter(r => !used.has(r));
+        const created = [];
+        let i = 0;
+        while (sess.players.size < 4 && i < remaining.length) {
+          const botRole = remaining[i++];
+          const botPid = `bot_${Date.now()}_${i}`;
+          const botName = `Bot-${botRole[0].toUpperCase()}${botRole[1]}`;
+          sess.players.set(botPid, {
+            ws: null,
+            name: botName,
+            role: botRole,
+            isBot: true,
+            location: 'world-map',
+            worldMapStage: null,
+          });
+          created.push({ pid: botPid, name: botName, role: botRole });
+        }
+        // Also drop bots into any stage the requester is already in
+        for (const st of sess.stages.values()) {
+          if (!st.players.has(pid)) continue;
+          for (const bot of created) {
+            const botPlayer = sess.players.get(bot.pid);
+            placeBotInStage(st, bot.pid, botPlayer);
+          }
+          broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
+        }
+        send(ws, { type: 'bots_spawned', bots: created });
+        if (sess.dm) send(sess.dm, { type: 'bots_spawned', bots: created });
+        broadcastWorldMapState(sess); // surface bots to world-map party renderer
+        console.log(`[debug_spawn_bots] session=${code} added ${created.length} bots`);
+        break;
+      }
+
       case 'stage_unlock': {
         if (role !== 'dm' || !sess) {
           console.log(`[stage_unlock] REJECTED — role=${role}, sess=${!!sess}`);
@@ -362,6 +450,12 @@ wss.on('connection', (ws) => {
           });
           st.turnOrder.push(pid);
         }
+        // Auto-place any bots in the same session into this stage too
+        for (const [botPid, botPlayer] of sess.players) {
+          if (!botPlayer.isBot) continue;
+          if (st.players.has(botPid)) continue;
+          placeBotInStage(st, botPid, botPlayer);
+        }
         const snap = snapshotState(st);
         broadcastStage(st, sess, { type: 'state_update', state: snap });
         console.log(`[enter_stage] session=${code} stage=${stageId} pid=${pid} players=${st.players.size}`);
@@ -387,17 +481,23 @@ wss.on('connection', (ws) => {
 
       case 'action_request': {
         if (role !== 'player' || !sess || !pid) return;
+        // Debug bot control: a real player may submit actions on behalf of a bot
+        // in the same session by including `actAsPid`. Bots have no WS, so this
+        // is the only way they ever act.
+        const actorPid = (msg.actAsPid && sess.players.get(msg.actAsPid)?.isBot)
+          ? msg.actAsPid
+          : pid;
         const stageId = msg.stageId;
         const st = sess.stages.get(stageId);
         if (!st) return;
         if (st.outcome) return;
-        if (activeTurnPid(st) !== pid) return;
+        if (activeTurnPid(st) !== actorPid) return;
 
         if (msg.kind === 'heal') {
-          if (!st.pendingHeal || st.pendingHeal.healerPid !== pid) return;
+          if (!st.pendingHeal || st.pendingHeal.healerPid !== actorPid) return;
           const target = st.players.get(st.pendingHeal.targetPid);
           if (!target || target.hp <= 0) return;
-          const healer = st.players.get(pid);
+          const healer = st.players.get(actorPid);
           const intVal = healer?.stats?.int ?? 10;
           const roll = rollD6();
           const mod = statModifier(intVal);
@@ -408,7 +508,7 @@ wss.on('connection', (ws) => {
 
           broadcastStage(st, sess, {
             type: 'heal_event',
-            healerPid: pid,
+            healerPid: actorPid,
             targetPid: st.pendingHeal.targetPid,
             roll, mod, restored,
             outcomeText: `${healer.name} restores ${restored} HP to ${target.name}.`,
@@ -419,10 +519,10 @@ wss.on('connection', (ws) => {
         }
 
         if (msg.kind === 'attempt') {
-          if (!st.pendingChallenge || st.pendingChallenge.actorPid !== pid) return;
+          if (!st.pendingChallenge || st.pendingChallenge.actorPid !== actorPid) return;
           const ch = st.challenges.find(c => c.id === st.pendingChallenge.challengeId);
           if (!ch || ch.cleared) return;
-          const me = st.players.get(pid);
+          const me = st.players.get(actorPid);
           const statVal = me?.stats?.[ch.stat] ?? 10;
           const roll = rollD20();
           const mod = statModifier(statVal);
@@ -446,7 +546,7 @@ wss.on('connection', (ws) => {
 
           broadcastStage(st, sess, {
             type: 'skill_check_event',
-            actorPid: pid,
+            actorPid,
             challengeId: ch.id,
             stat: ch.stat,
             dc: ch.dc,
@@ -455,7 +555,7 @@ wss.on('connection', (ws) => {
           });
 
           // Check stage end — victory requires both enemies dead AND challenges cleared
-          if (st.players.get(pid).hp <= 0) {
+          if (st.players.get(actorPid).hp <= 0) {
             st.outcome = 'defeat';
           } else if (st.enemies.every(e => e.hp <= 0) && st.challenges.every(c => c.cleared)) {
             st.outcome = 'victory';
@@ -466,11 +566,11 @@ wss.on('connection', (ws) => {
         }
 
         if (msg.kind === 'attack') {
-          if (!st.pendingCombat || st.pendingCombat.attackerPid !== pid) return;
+          if (!st.pendingCombat || st.pendingCombat.attackerPid !== actorPid) return;
           const enemy = st.enemies.find(e => e.id === st.pendingCombat.enemyId);
           if (!enemy || enemy.hp <= 0) return;
 
-          const attacker = st.players.get(pid);
+          const attacker = st.players.get(actorPid);
           const statVal = attacker?.stats?.[enemy.stat] ?? 10;
           const roll = rollD20();
           const mod = statModifier(statVal);
@@ -486,14 +586,14 @@ wss.on('connection', (ws) => {
               : ' — ENEMY DEFEATED!');
           } else {
             dmgToPlayer = -enemy.failHp;
-            const me = st.players.get(pid);
+            const me = st.players.get(actorPid);
             me.hp = Math.max(0, me.hp - dmgToPlayer);
             outcomeText = enemy.failText + ` (-${dmgToPlayer} HP)`;
           }
 
           broadcastStage(st, sess, {
             type: 'combat_event',
-            attackerPid: pid,
+            attackerPid: actorPid,
             enemyId: enemy.id,
             stat: enemy.stat,
             dc: enemy.dc,
@@ -501,7 +601,7 @@ wss.on('connection', (ws) => {
             outcomeText,
           });
 
-          if (st.players.get(pid).hp <= 0) {
+          if (st.players.get(actorPid).hp <= 0) {
             st.outcome = 'defeat';
           } else if (st.enemies.every(e => e.hp <= 0) && st.challenges.every(c => c.cleared)) {
             st.outcome = 'victory';
@@ -512,28 +612,28 @@ wss.on('connection', (ws) => {
         }
 
         if (msg.kind === 'move') {
-          const me = st.players.get(pid);
+          const me = st.players.get(actorPid);
           if (!me) return;
           if (st.pendingCombat) return;
           const dstCol = Number(msg.col), dstRow = Number(msg.row);
           if (!Number.isInteger(dstCol) || !Number.isInteger(dstRow)) return;
-          if (!isCellWalkable(st, dstCol, dstRow, pid)) return;
+          if (!isCellWalkable(st, dstCol, dstRow, actorPid)) return;
           const range = MOVE_RANGE_BY_ROLE[me.role] || 4;
-          const reach = reachable(st, me.col, me.row, range, pid);
+          const reach = reachable(st, me.col, me.row, range, actorPid);
           if (!reach.has(`${dstCol},${dstRow}`)) return;
           me.col = dstCol;
           me.row = dstRow;
 
           const adj = adjacentEnemyAt(st, dstCol, dstRow);
           if (adj) {
-            st.pendingCombat = { attackerPid: pid, enemyId: adj.id };
+            st.pendingCombat = { attackerPid: actorPid, enemyId: adj.id };
           } else {
             const ally = me.role === 'cleric' ? adjacentHealableAllyAt(st, dstCol, dstRow) : null;
             const challenge = adjacentChallengeAt(st, dstCol, dstRow);
             if (ally) {
-              st.pendingHeal = { healerPid: pid, targetPid: ally.pid };
+              st.pendingHeal = { healerPid: actorPid, targetPid: ally.pid };
             } else if (challenge) {
-              st.pendingChallenge = { actorPid: pid, challengeId: challenge.id };
+              st.pendingChallenge = { actorPid, challengeId: challenge.id };
             } else {
               advanceTurn(st);
             }
@@ -545,12 +645,15 @@ wss.on('connection', (ws) => {
 
       case 'turn_continue': {
         if (role !== 'player' || !sess || !pid) return;
+        const actorPid = (msg.actAsPid && sess.players.get(msg.actAsPid)?.isBot)
+          ? msg.actAsPid
+          : pid;
         const stageId = msg.stageId;
         const st = sess.stages.get(stageId);
         if (!st) return;
-        const isMyCombat    = st.pendingCombat?.attackerPid === pid;
-        const isMyHeal      = st.pendingHeal?.healerPid === pid;
-        const isMyChallenge = st.pendingChallenge?.actorPid === pid;
+        const isMyCombat    = st.pendingCombat?.attackerPid === actorPid;
+        const isMyHeal      = st.pendingHeal?.healerPid === actorPid;
+        const isMyChallenge = st.pendingChallenge?.actorPid === actorPid;
         if (!isMyCombat && !isMyHeal && !isMyChallenge) return;
         st.pendingCombat = null;
         st.pendingHeal = null;

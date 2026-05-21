@@ -1,6 +1,6 @@
 # DND-lite · Project Plan
 
-> Last updated: 2026-04-29
+> Last updated: 2026-05-20
 
 ---
 
@@ -63,6 +63,39 @@ A web-based **D&D Lite** prototype — simplified tabletop D&D focused on **imme
 - Per-token HP labels above enemies; player name labels in own/other colors
 - "Your turn" / "X's turn" indicator; not-my-turn cursor
 
+### Stage 3 — Whispering Forest (`scenes/stage03.html`) · non-combat skill checks
+
+- Voxel forest scene + 3 skill-check encounters (d20 vs DC, role-tagged stat)
+- Server tracks `pendingChallenge` + `attempt` action + `skill_check_event` broadcast
+- Cleared challenges persist in stage state; victory requires all challenges resolved
+
+### Stage 4 — Goblin Outpost (`scenes/stage04.html`)
+
+- Procedural voxel outpost (Kenney textures), 6×7 grid
+- Goblin captain + 3 goblins; reuses stage02 combat architecture
+- DM has Unlock + Redirect; solo mode auto-unlocks
+
+### Stage 5 — Throne of the Goblin King (`scenes/stage05.html`)
+
+- Boss arena: Goblin King + 2 minions + caged Lyra
+- Server victory condition: **all enemies dead AND all challenges cleared** (mixed-stage support)
+- DM session has Unlock + Redirect for stage_05
+
+### Cleric Class (4th playable role)
+
+- Stats: STR 10 / AGI 8 / INT 12 / LCK 14 / HP 16; move range 4
+- Heal action: `d6 + statModifier(int)` on adjacent ally (8-dir, self-heal allowed)
+- Server priority: adjacent enemy > wounded ally (no choice UI)
+- Renamed `combat_continue` → `turn_continue` (handles attack + heal turn endings)
+- Player tokens render HP next to name (`Alice 16/16`)
+- Uses procedural fallback token until `Assets/cleric.glb` is added
+
+### World Map party sync
+
+- Party miniatures arranged in horizontal line; conga-line move (200ms stagger)
+- Full party movement + fog reveal broadcast + history replay
+- Camera follows local player on world map
+
 ### Voxel Dungeon (`scenes/voxel/room.html`) — older single-player system
 
 - Voxel renderer (8 block types, procedural texture atlas)
@@ -98,6 +131,7 @@ A web-based **D&D Lite** prototype — simplified tabletop D&D focused on **imme
 | Warrior | 14 | 10 | 8 | 10 | 20 |
 | Rogue | 8 | 14 | 10 | 12 | 14 |
 | Mage | 6 | 8 | 14 | 12 | 12 |
+| Cleric | 10 | 8 | 12 | 14 | 16 |
 
 Combat: `d20 + floor((stat - 10) / 2) ≥ DC` → success (3 damage to enemy on success; `failHp` to player on miss)
 
@@ -113,11 +147,11 @@ Combat: `d20 + floor((stat - 10) / 2) ≥ DC` → success (3 damage to enemy on 
 | C→S | `player_redirect` (DM) | Move all players to a URL |
 | C→S | `chat_send` | Send chat message |
 | C→S | `enter_stage` | Player enters a stage instance |
-| C→S | `action_request` (move/attack) | Request game action (validated server-side) |
-| C→S | `combat_continue` | Active player advances turn after combat |
+| C→S | `action_request` (move/attack/heal/attempt) | Request game action (validated server-side) |
+| C→S | `turn_continue` | Active player advances turn after combat or heal |
 | C→S | `dm_observe` | DM iframe attaches as stage observer |
-| S→C | `state_update` | Authoritative stage snapshot (positions, HP, turn) |
-| S→C | `combat_event` | Animation cue for d20 roll + damage |
+| S→C | `state_update` | Authoritative stage snapshot (positions, HP, turn, pendingCombat/Heal/Challenge) |
+| S→C | `combat_event` / `heal_event` / `skill_check_event` | Animation cues for d20/d6 rolls |
 | S→C | `chat_message` / `chat_history` | Chat broadcast / replay |
 | S→C | `dm_disconnected` / `dm_reconnected` | Player overlay control |
 | S→C | `stage_unlock` / `fog_reveal` | World-map state changes |
@@ -132,8 +166,11 @@ DND-lite/
 ├── server.js                   ← WebSocket multiplayer + stage state authority
 ├── scenes/
 │   ├── world-map.html          ← 3D world map with stage navigation
-│   ├── stage01.html            ← Stage 01 (Three.js GLB)
-│   ├── stage02.html            ← Stage 02 grid + combat (multiplayer; spectator mode for DM)
+│   ├── stage01.html            ← Stage 01 placeholder (narrative intro — TODO)
+│   ├── stage02.html            ← Stage 02 Luna Ruins — grid + combat (server-authoritative)
+│   ├── stage03.html            ← Stage 03 Whispering Forest — voxel + skill checks
+│   ├── stage04.html            ← Stage 04 Goblin Outpost — voxel + combat
+│   ├── stage05.html            ← Stage 05 Throne of the Goblin King — boss + Lyra rescue
 │   ├── dm/
 │   │   ├── lobby.html          ← DM: create / rejoin session
 │   │   └── session.html        ← DM: redirect + observation panel + spectator iframe
@@ -149,7 +186,10 @@ DND-lite/
 │   ├── off-axis-box.js
 │   └── voxel-textures.js
 ├── rooms/
-│   ├── stage02-grid.json       ← Walkability mask + spawn + enemies for stage02
+│   ├── stage02-grid.json       ← Luna Ruins grid + enemies
+│   ├── stage03-grid.json       ← Whispering Forest grid + challenges
+│   ├── stage04-grid.json       ← Goblin Outpost grid + enemies
+│   ├── stage05-grid.json       ← Throne grid + king + minions + Lyra cage
 │   └── (voxel room JSONs)
 ├── Assets/                     ← GLB models (Draco-compressed)
 └── images/                     ← Parallax layer PNGs
@@ -161,10 +201,11 @@ DND-lite/
 
 Mid-term goal: a **5-stage end-to-end playthrough** with the team (4 players + 1 DM rescuing the kidnapped healer Lyra from the Goblin King). See `docs/superpowers/plans/2026-04-29-prototype-storyline.md` for the full storyline.
 
-- [ ] **Cleric class** — 4th class, role-specific GLB miniature, heal action
-- [ ] **Stage 4 (Goblin Outpost)** — combat stage, reuses stage02 architecture
-- [ ] **Stage 3 (Whispering Forest)** — non-combat skill check (d20 vs DC, branching)
-- [ ] **Stage 5 (Throne of the Goblin King)** — boss + rescue mechanic
-- [ ] **Stage 1 (Eldermoor Village)** — narrative intro (DM-driven)
+- [x] **Cleric class** — 4th class with `d6 + INT mod` heal of adjacent ally (incl. self); `combat_continue` → `turn_continue` covers both attack/heal endings. GLB miniature still uses procedural fallback token.
+- [x] **Stage 4 (Goblin Outpost)** — voxel outpost (Kenney textures), captain + 3 goblins; DM has Unlock + Redirect
+- [x] **Stage 3 (Whispering Forest)** — voxel trees + 3 skill-check panels (server `pendingChallenge` + `attempt` action + `skill_check_event`)
+- [x] **Stage 5 (Throne of the Goblin King)** — king + 2 minions + Lyra cage; server victory now requires enemies dead AND challenges cleared
+- [ ] **Stage 1 (Eldermoor Village)** — narrative intro (DM-driven) — `scenes/stage01.html`은 아직 placeholder
+- [ ] **Cleric GLB miniature** — `Assets/cleric.glb` 추가하면 `loadPlayerTokenForRole`이 자동 픽업
 - [ ] **Voice chat** — WebRTC mesh, push-to-talk / mic toggle, speaking indicator
 - [ ] **End-to-end playtest** with the team

@@ -123,7 +123,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { on, send } from '../scripts/game-socket.js';
-import { createEmojiMiniature } from '../scripts/miniature.js';
+import { createEmojiMiniature, createSlimeMiniature } from '../scripts/miniature.js';
+import { initDebugBots } from '../scripts/debug-bots.js';
 
 // ══════════════════════════════════════
 //   RENDERER
@@ -202,6 +203,7 @@ const charRole = charData?.role?.toLowerCase() || 'warrior';
 
 // Multiplayer party state (other players + self when in a session)
 const myPid = localStorage.getItem('player-id');
+initDebugBots({ myPid, getServerState: () => null });
 const partyMiniatures = new Map(); // pid → { group, stageId, targetPos }
 const inSession = !!localStorage.getItem('session-code');
 let localMoveIntent = null;  // stageId destined for redirect on lerp arrival
@@ -326,7 +328,7 @@ gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
 
 // ── Miniature (emoji sprite) ──
 function loadMiniature() {
-  miniature = createEmojiMiniature(charRole, 1.5);
+  miniature = createSlimeMiniature(charRole, 1.5);
   miniBottomOffset = 0; // group origin is at the bottom (sprite centered at y=height/2)
   if (currentStage) {
     const p = currentStage.worldPos;
@@ -377,7 +379,7 @@ function moveToStage(stageKey) {
 //   FOG OF WAR (particle cloud)
 // ══════════════════════════════════════
 
-const FOG_COUNT = 3000;
+const FOG_COUNT = 800;
 const FOG_SPREAD = 35;  // XZ spread radius
 const FOG_Y_MIN = 1;
 const FOG_Y_MAX = 3;
@@ -521,7 +523,7 @@ function syncPartyMiniatures(players) {
     let entry = partyMiniatures.get(p.pid);
     const isNew = !entry;
     if (isNew) {
-      const group = createEmojiMiniature(p.role, 1);
+      const group = createSlimeMiniature(p.role, 1);
       scene.add(group);
       entry = { group, stageId: null, targetPos: null };
       partyMiniatures.set(p.pid, entry);
@@ -531,7 +533,7 @@ function syncPartyMiniatures(players) {
     const sortedPids = [...players].map(pp => pp.pid).sort();
     const slotIdx = sortedPids.indexOf(p.pid);
     const slotCount = sortedPids.length;
-    const SLOT_SPACING = 0.6;
+    const SLOT_SPACING = 1.4;
     const offsetX = (slotIdx - (slotCount - 1) / 2) * SLOT_SPACING;
     const offsetZ = 0;
 
@@ -717,28 +719,31 @@ function tick() {
   const dt = t - lastTime;
   lastTime = t;
 
-  // Fog particle animation
+  // Fog particle animation — idle drift throttled to every 3rd frame to cut CPU/GPU load.
+  // Dispersing particles still update every frame so reveal feels snappy.
   const fogPos = fogGeo.attributes.position;
+  const idleThisFrame = (Math.floor(t * 20) % 3) === 0;
+  let anyChange = false;
   for (let i = 0; i < FOG_COUNT; i++) {
     const s = fogState[i];
     if (s.state === 'gone') continue;
     if (s.state === 'dispersing') {
       s.progress += dt * 1.5;
-      // Scatter outward on XZ plane
       fogPos.setX(i, fogPos.getX(i) + s.vx * dt);
       fogPos.setZ(i, fogPos.getZ(i) + s.vz * dt);
       if (s.progress >= 1) {
         s.state = 'gone';
         fogPos.setY(i, -999);
       }
-    } else {
-      // Idle drift
+      anyChange = true;
+    } else if (idleThisFrame) {
       const bp = fogBasePositions[i];
       fogPos.setX(i, bp.x + Math.sin(t * 0.3 + i * 0.7) * 1.5);
       fogPos.setZ(i, bp.z + Math.cos(t * 0.25 + i * 0.5) * 1.5);
+      anyChange = true;
     }
   }
-  fogPos.needsUpdate = true;
+  if (anyChange) fogPos.needsUpdate = true;
 
   // Solo miniature movement animation
   if (miniature && miniMoving && miniTargetPos) {
