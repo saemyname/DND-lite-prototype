@@ -1,15 +1,16 @@
 # D&D Lite
 
-A lightweight multiplayer web-based D&D game. Pick a class, join a DM-hosted session, and explore immersive 3D scenes together.
+A lightweight multiplayer web-based D&D game. Pick a class, join a DM-hosted session (or solo), and rescue Lyra from the Goblin King across five stages.
 
 ## Features
 
-- **Multiplayer** — DM creates a session, players join with a 4-digit code
-- **Character creation** — Warrior / Rogue / Mage with stats (STR, AGI, INT, LCK, HP)
-- **World map** — 3D GLB map with clickable stage nodes
-- **Stage scenes** — Face-tracked 3D scenes with off-axis projection (Three.js GLB)
-- **Voxel dungeon** — Grid-based movement + turn-based d20 combat
-- **Solo mode** — Play without a server
+- **Multiplayer** — DM creates a session, up to 4 players join with a 4-digit code. Solo mode also supported.
+- **Four classes** — Warrior / Rogue / Mage / Cleric. Each is a colored slime carrying their weapon emoji.
+- **World map** — 3D GLB map with stage nodes, party miniatures, fog of war.
+- **Five stages** — Eldermoor Village (intro, WIP) → Luna Ruins → Whispering Forest → Goblin Outpost → Throne of the Goblin King.
+- **Server-authoritative combat** — d20 grid combat with turn order, heal action (Cleric), skill checks (Stage 3).
+- **Text chat** — drop-in panel on every player + DM scene.
+- **Debug mode** — `+3 Bots` button on world-map spawns AI-less party fillers so one browser can test the full 4-player flow.
 
 ## Run Locally
 
@@ -21,4 +22,4 @@ node server.js
 
 ## Tech
 
-Three.js, MediaPipe FaceLandmarker, WebSocket (Node.js)
+Three.js, WebSocket (Node.js `ws`), Express (static files), procedural voxel + slime miniatures.
