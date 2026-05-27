@@ -595,7 +595,9 @@ function calcMoveRange(startCol, startRow, range) {
 const MOVE_RANGE_BY_ROLE = { warrior: 3, rogue: 5, mage: 4, cleric: 4 };
 
 function loadPlayerTokenForRole(roleName) {
-  return Promise.resolve(createSlimeMiniature(roleName, 4));
+  const group = createSlimeMiniature(roleName, 4);
+  group.rotation.y = Math.PI;
+  return Promise.resolve(group);
 }
 
 // ── Enemy tokens ──
@@ -965,6 +967,7 @@ buildThroneScene();
     });
   } else {
     const soloMini = createSlimeMiniature(charData?.role || 'warrior', 4);
+    soloMini.rotation.y = Math.PI;
     const spawnPos = gridToWorld(gridData.playerSpawn[0], gridData.playerSpawn[1]);
     soloMini.position.set(spawnPos.x, gridData.grid.floorY, spawnPos.z);
     scene.add(soloMini);

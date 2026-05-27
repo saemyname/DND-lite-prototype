@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D&D Lite — Eldermoor Falls</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Cormorant+Garamond:ital,wght@1,500;1,600&display=swap" rel="stylesheet">
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+    "three/": "https://cdn.jsdelivr.net/npm/three@0.176.0/"
+  }
+}
+</script>
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #000;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    font-family: 'Georgia', serif;
+    color: #c8a96e;
+    user-select: none;
+  }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  #narration {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    max-width: 720px;
+    padding: 18px 30px;
+    background: rgba(0,0,0,.72);
+    border: 1px solid rgba(200,169,110,.35);
+    border-radius: 6px;
+    font-size: 17px;
+    line-height: 1.6;
+    letter-spacing: 1px;
+    color: #e9d8a8;
+    text-align: center;
+    opacity: 0;
+    transition: opacity .4s;
+    min-height: 60px;
+    min-width: 360px;
+  }
+  #narration.visible { opacity: 1; }
+
+  #skip-btn {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 60;
+    padding: 8px 16px;
+    background: rgba(0,0,0,.75);
+    border: 1px solid rgba(200,169,110,.4);
+    border-radius: 4px;
+    color: rgba(200,169,110,.7);
+    font-family: Georgia, serif;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  #skip-btn:hover {
+    background: rgba(200,169,110,.18);
+    border-color: rgba(200,169,110,.7);
+    color: #ffe9a0;
+  }
+
+  /* Title screen — appears after the cutscene ends */
+  #title-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,.55) 0%, rgba(0,0,0,.85) 80%);
+    pointer-events: none;
+  }
+  #title-screen.visible { display: flex; }
+  #title-screen > * { pointer-events: auto; }
+
+  .title-main {
+    font-family: 'Cinzel', 'Cinzel Decorative', serif;
+    font-weight: 900;
+    font-size: clamp(54px, 10vw, 140px);
+    color: #e6c884;
+    text-align: center;
+    letter-spacing: 6px;
+    line-height: 1.05;
+    -webkit-text-stroke: 1.5px #c8a96e;
+    text-shadow:
+      0 4px 20px rgba(0,0,0,.95),
+      0 0 40px rgba(212,160,80,.35),
+      0 0 8px rgba(255,220,150,.45);
+    opacity: 0;
+    transform: translateY(100px);
+    animation: title-rise 2.4s cubic-bezier(.16,.84,.3,1) forwards;
+  }
+  .title-sub {
+    margin-top: 26px;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-style: italic;
+    font-weight: 600;
+    font-size: clamp(22px, 2.6vw, 34px);
+    color: #d4b366;
+    letter-spacing: 12px;
+    text-transform: uppercase;
+    text-shadow: 0 2px 10px rgba(0,0,0,.8);
+    opacity: 0;
+    transform: translateY(50px);
+    animation: title-rise 1.8s cubic-bezier(.16,.84,.3,1) forwards;
+    animation-delay: 1.6s;
+  }
+  #start-btn {
+    margin-top: 90px;
+    padding: 16px 56px;
+    background: rgba(0,0,0,.65);
+    border: 2px solid rgba(230,200,132,.6);
+    border-radius: 3px;
+    color: #ffe9a0;
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    font-size: 24px;
+    letter-spacing: 10px;
+    text-transform: uppercase;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(36px);
+    animation: title-rise 1.4s cubic-bezier(.16,.84,.3,1) forwards;
+    animation-delay: 3.4s;
+    transition: background .2s, border-color .2s, color .2s, box-shadow .2s;
+  }
+  #start-btn:hover {
+    background: rgba(230,200,132,.18);
+    border-color: rgba(255,233,160,.9);
+    color: #fff7d0;
+    box-shadow: 0 0 24px rgba(230,200,132,.35);
+  }
+  @keyframes title-rise {
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="narration"></div>
+<button id="skip-btn">Skip ▶</button>
+<div id="title-screen">
+  <div class="title-main">Dungeons &amp; Dragons</div>
+  <div class="title-sub">Shadows Over Eldermoor</div>
+  <button id="start-btn">Start</button>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { loadBlockMaterials } from '../scripts/voxel-textures.js';
+import { buildVillage, placeLyraSlime, placeGoblinBox } from '../scripts/voxel-village.js';
+import { updateSlimeAnimation } from '../scripts/miniature.js';
+
+// ── Renderer ──
+const canvas = document.getElementById('canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0814);
+scene.fog = new THREE.Fog(0x0a0814, 30, 80);
+
+// Dusk lighting (warmer key, cool fill)
+scene.add(new THREE.AmbientLight(0x665544, 0.6));
+const key = new THREE.DirectionalLight(0xff9966, 1.2);
+key.position.set(8, 18, 12);
+key.castShadow = true;
+key.shadow.mapSize.set(1024, 1024);
+key.shadow.camera.left = -28; key.shadow.camera.right = 28;
+key.shadow.camera.top = 28; key.shadow.camera.bottom = -28;
+scene.add(key);
+const fill = new THREE.DirectionalLight(0x4466aa, 0.5);
+fill.position.set(-10, 10, -6);
+scene.add(fill);
+
+// ── Camera (static isometric) ──
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 30, 34);
+camera.lookAt(0, 0, 0);
+
+window.addEventListener('resize', () => {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+});
+
+// ── Build village (same config as stage01) ──
+const blockMats = loadBlockMaterials('../Assets/Tiles/');
+
+const grid = {
+  cols: 7, rows: 7, cellSizeX: 6, cellSizeZ: 6,
+  originX: -21, originZ: -21, floorY: 0,
+};
+const walkable = [
+  [0,0,0,1,0,0,0],
+  [0,0,1,1,1,0,0],
+  [0,1,1,1,1,1,0],
+  [0,1,1,1,1,1,0],
+  [0,0,1,1,1,0,0],
+  [0,1,1,1,1,1,0],
+  [0,0,0,0,0,0,0],
+];
+buildVillage(scene, blockMats, {
+  ...grid,
+  walkable,
+  houses: [[1,1], [5,1], [1,4], [5,4]],
+  wells:  [[3,5]],
+  paths:  [[3,0], [3,1], [3,2], [3,3], [3,4]],
+});
+
+const cellWorld = (c, r) => new THREE.Vector3(
+  grid.originX + c * grid.cellSizeX + grid.cellSizeX / 2,
+  grid.floorY,
+  grid.originZ + r * grid.cellSizeZ + grid.cellSizeZ / 2,
+);
+
+// ── Cast ──
+const lyra = placeLyraSlime(scene, cellWorld(2, 4), 4);  // starts near a house
+const goblin1 = placeGoblinBox(scene, cellWorld(2, -1.2), 3);  // off-screen north
+const goblin2 = placeGoblinBox(scene, cellWorld(3, -1.5), 3);
+const goblin3 = placeGoblinBox(scene, cellWorld(4, -1.2), 3);
+goblin1.visible = false; goblin2.visible = false; goblin3.visible = false;
+
+// ── Narration / beats ──
+const narrationEl = document.getElementById('narration');
+const skipBtn     = document.getElementById('skip-btn');
+const titleScreen = document.getElementById('title-screen');
+const startBtn    = document.getElementById('start-btn');
+
+const beats = [
+  { duration: 3500, narration: 'Eldermoor village. A quiet evening. Lyra finishes her last rounds.' },
+  { duration: 3000, narration: 'But something stirs in the forest...' },
+  { duration: 3500, narration: 'They take her. Quick, silent, gone.' },
+  { duration: 4000, narration: 'The village wakes empty. Rescue her — before dawn breaks.' },
+];
+
+const TOTAL = beats.reduce((s, b) => s + b.duration, 0);
+let beatStart = 0;       // absolute ms within cutscene
+let cutsceneStart = null;
+let activeBeat = -1;
+let skipped = false;
+
+function setNarration(text, instant = false) {
+  if (instant) {
+    narrationEl.textContent = text;
+    narrationEl.classList.add('visible');
+    return;
+  }
+  narrationEl.classList.remove('visible');
+  setTimeout(() => {
+    narrationEl.textContent = text;
+    narrationEl.classList.add('visible');
+  }, 350);
+}
+
+function endCutscene() {
+  narrationEl.classList.remove('visible');
+  skipBtn.style.display = 'none';
+  titleScreen.classList.add('visible');
+}
+
+function finish(redirect = false) {
+  if (!new URLSearchParams(location.search).get('replay')) {
+    localStorage.setItem('intro-seen', '1');
+  }
+  if (redirect) window.location.href = 'world-map.html';
+}
+
+skipBtn.addEventListener('click', () => {
+  skipped = true;
+  endCutscene();
+});
+startBtn.addEventListener('click', () => finish(true));
+
+// ── Animation paths per beat (positions in world units) ──
+// Lyra walks from house to a spot just IN FRONT of the well (not on it)
+const lyraStart  = cellWorld(2, 4);
+const lyraStop   = cellWorld(3, 4);          // in front of well (well is at row 5)
+// Goblins approach from north (off-screen above)
+const gobStart   = [cellWorld(2, -1.2), cellWorld(3, -1.5), cellWorld(4, -1.2)];
+const gobApproach = [cellWorld(2, 3), cellWorld(3, 3), cellWorld(4, 3)];
+const gobCapture  = [cellWorld(2.4, 4), cellWorld(3, 3.4), cellWorld(3.6, 4)]; // around Lyra (preserve x-order)
+const gobExit     = [cellWorld(2, -2), cellWorld(3, -2), cellWorld(4, -2)];    // drag her offscreen north
+
+const lerp3 = (out, a, b, t) => {
+  out.x = a.x + (b.x - a.x) * t;
+  out.y = a.y + (b.y - a.y) * t;
+  out.z = a.z + (b.z - a.z) * t;
+};
+
+function setActorVisibility(visible) {
+  lyra.visible = visible;
+  goblin1.visible = visible;
+  goblin2.visible = visible;
+  goblin3.visible = visible;
+}
+
+function updateBeat(beatIdx, t) {
+  // t = 0..1 progress within the beat
+  if (beatIdx === 0) {
+    lerp3(lyra.position, lyraStart, lyraStop, t);
+  } else if (beatIdx === 1) {
+    [goblin1, goblin2, goblin3].forEach((g, i) => {
+      g.visible = true;
+      lerp3(g.position, gobStart[i], gobApproach[i], t);
+    });
+  } else if (beatIdx === 2) {
+    [goblin1, goblin2, goblin3].forEach((g, i) => {
+      lerp3(g.position, gobApproach[i], gobCapture[i], t);
+    });
+  } else if (beatIdx === 3) {
+    if (!lyra.userData.crying) {
+      lyra.userData.crying = true;
+      (lyra.userData.normalEyes || []).forEach(e => e.visible = false);
+      (lyra.userData.cryEyes || []).forEach(e => e.visible = true);
+    }
+    // Lyra + goblins exit together, fading out as they pass the village edge
+    const lyraDragEnd = cellWorld(3, -2);
+    lerp3(lyra.position, lyraStop, lyraDragEnd, t);
+    [goblin1, goblin2, goblin3].forEach((g, i) => {
+      lerp3(g.position, gobCapture[i], gobExit[i], t);
+    });
+    // Fade everyone out in the last 40% of the beat
+    const fadeT = Math.max(0, (t - 0.6) / 0.4);
+    const opacity = 1 - fadeT;
+    if (lyra.userData.body?.material) {
+      lyra.userData.body.material.opacity = 0.92 * opacity;
+    }
+    [goblin1, goblin2, goblin3].forEach(g => {
+      (g.userData.materials || []).forEach(m => {
+        m.transparent = true;
+        m.opacity = opacity;
+      });
+    });
+    if (t >= 0.99) setActorVisibility(false);
+  }
+}
+
+function endStateImmediate() {
+  // Used when Skip is pressed — snap to "everyone gone" final state
+  setActorVisibility(false);
+  setNarration('The village wakes empty. Rescue her — before dawn breaks.', true);
+}
+
+// ── Render loop ──
+function tick(now) {
+  requestAnimationFrame(tick);
+  if (cutsceneStart === null) cutsceneStart = now;
+
+  if (skipped) {
+    // Continue to be visible but no more animation updates
+    if (lyra.visible) updateSlimeAnimation(lyra, now, grid.floorY);
+    renderer.render(scene, camera);
+    return;
+  }
+
+  const elapsed = now - cutsceneStart;
+
+  // Determine which beat we're in
+  let acc = 0;
+  let beatIdx = -1;
+  let beatT = 0;
+  for (let i = 0; i < beats.length; i++) {
+    if (elapsed >= acc && elapsed < acc + beats[i].duration) {
+      beatIdx = i;
+      beatT = (elapsed - acc) / beats[i].duration;
+      break;
+    }
+    acc += beats[i].duration;
+  }
+
+  if (beatIdx === -1) {
+    // Past end
+    if (activeBeat !== beats.length) {
+      activeBeat = beats.length;
+      endCutscene();
+    }
+  } else {
+    if (beatIdx !== activeBeat) {
+      activeBeat = beatIdx;
+      setNarration(beats[beatIdx].narration);
+    }
+    updateBeat(beatIdx, beatT);
+  }
+
+  // Idle wobble on Lyra only (goblins are box meshes — static)
+  if (lyra.visible) {
+    lyra.userData.targetPos = lyra.position;
+    updateSlimeAnimation(lyra, now, grid.floorY);
+
+    // Animate teardrops while crying — each tear cycles down + fades out (loops)
+    if (lyra.userData.crying && lyra.userData.tears) {
+      const lyraOpacity = lyra.userData.body?.material?.opacity ?? 1;
+      lyra.userData.tears.forEach((tear, i) => {
+        const phase = ((now / 1100) + i * 0.4) % 1;
+        tear.position.y = 0.32 - phase * 0.14;
+        const op = phase < 0.85 ? 0.9 : 0.9 * (1 - (phase - 0.85) / 0.15);
+        tear.material.opacity = op * (lyraOpacity / 0.92);
+      });
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+
+// Skip-to-end snaps visuals and skips to the Begin button
+const origSkip = skipBtn.onclick;
+skipBtn.addEventListener('click', () => {
+  endStateImmediate();
+}, { once: true });
+
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

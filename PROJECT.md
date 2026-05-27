@@ -166,7 +166,8 @@ DND-lite/
 ├── server.js                   ← WebSocket multiplayer + stage state authority
 ├── scenes/
 │   ├── world-map.html          ← 3D world map with stage navigation
-│   ├── stage01.html            ← Stage 01 placeholder (narrative intro — TODO)
+│   ├── cutscene.html           ← Animated intro (Lyra's capture)
+│   ├── stage01.html            ← Stage 01 Eldermoor Village — voxel + narrative clues
 │   ├── stage02.html            ← Stage 02 Luna Ruins — grid + combat (server-authoritative)
 │   ├── stage03.html            ← Stage 03 Whispering Forest — voxel + skill checks
 │   ├── stage04.html            ← Stage 04 Goblin Outpost — voxel + combat
@@ -186,6 +187,7 @@ DND-lite/
 │   ├── off-axis-box.js
 │   └── voxel-textures.js
 ├── rooms/
+│   ├── stage01-grid.json       ← Eldermoor Village grid + houses/wells/paths + 3 clues
 │   ├── stage02-grid.json       ← Luna Ruins grid + enemies
 │   ├── stage03-grid.json       ← Whispering Forest grid + challenges
 │   ├── stage04-grid.json       ← Goblin Outpost grid + enemies
@@ -205,7 +207,7 @@ Mid-term goal: a **5-stage end-to-end playthrough** with the team (4 players + 1
 - [x] **Stage 4 (Goblin Outpost)** — voxel outpost (Kenney textures), captain + 3 goblins; DM has Unlock + Redirect
 - [x] **Stage 3 (Whispering Forest)** — voxel trees + 3 skill-check panels (server `pendingChallenge` + `attempt` action + `skill_check_event`)
 - [x] **Stage 5 (Throne of the Goblin King)** — king + 2 minions + Lyra cage; server victory now requires enemies dead AND challenges cleared
-- [ ] **Stage 1 (Eldermoor Village)** — narrative intro (DM-driven) — `scenes/stage01.html`은 아직 placeholder
-- [ ] **Cleric GLB miniature** — `Assets/cleric.glb` 추가하면 `loadPlayerTokenForRole`이 자동 픽업
+- [x] **Stage 1 (Eldermoor Village)** — voxel village (houses + well + perimeter trees) + 3 narrative clue investigations (Lyra's bed → goblin tracks → forest edge). Server `auto:true` challenges skip the d20 roll. Victory unlocks stage_02.
+- [x] **Intro cutscene** — animated voxel scene (~14s, skippable) at world-map first-load showing Lyra's capture; localStorage `intro-seen` gates autoplay, `Replay intro` link on world-map.
 - [ ] **Voice chat** — WebRTC mesh, push-to-talk / mic toggle, speaking indicator
 - [ ] **End-to-end playtest** with the team

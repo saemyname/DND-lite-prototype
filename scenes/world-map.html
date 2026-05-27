@@ -113,12 +113,20 @@
 <div id="title">3D Interactive map test</div>
 <div id="nav">
   <a href="../index.html">← Home</a>
+  <a href="cutscene.html?replay=1">Replay intro</a>
 </div>
 <div id="tooltip"></div>
 <div id="vignette"></div>
 <div id="controls-hint">Scroll to zoom</div>
 
 <script type="module">
+// First-load gate: redirect to the intro cutscene unless the player has seen it.
+// Uses `replace` so the back button doesn't ping-pong; ?replay=1 on the cutscene
+// preserves the localStorage flag (replay link doesn't re-gate the user).
+if (!localStorage.getItem('intro-seen')) {
+  window.location.replace('cutscene.html');
+}
+
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';

@@ -592,7 +592,9 @@ function calcMoveRange(startCol, startRow, range) {
 const MOVE_RANGE_BY_ROLE = { warrior: 3, rogue: 5, mage: 4, cleric: 4 };
 
 function loadPlayerTokenForRole(roleName) {
-  return Promise.resolve(createSlimeMiniature(roleName, 4));
+  const group = createSlimeMiniature(roleName, 4);
+  group.rotation.y = Math.PI;
+  return Promise.resolve(group);
 }
 
 // ── Enemy tokens ──
@@ -812,6 +814,7 @@ gltfLoader.load('../Assets/dnd_luna_ruins_02a.glb', async (gltf) => {
     // Solo mode (no session): render local character at spawn for visualization. Combat not playable.
     const role = charData?.role || 'warrior';
     const soloMini = createSlimeMiniature(role, 4);
+    soloMini.rotation.y = Math.PI;
     const spawnPos = gridToWorld(gridData.playerSpawn[0], gridData.playerSpawn[1]);
     soloMini.position.set(spawnPos.x, gridData.grid.floorY, spawnPos.z);
     scene.add(soloMini);

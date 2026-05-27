@@ -129,14 +129,17 @@ function placeBotInStage(st, botPid, botPlayer) {
 
   let placeCol = spawnCol, placeRow = spawnRow;
   if (taken.has(`${spawnCol},${spawnRow}`)) {
-    // BFS outward, collecting (cell, depth) of free walkable tiles.
+    // BFS outward within grid bounds — collect (cell, depth) of free walkable tiles.
+    const { cols, rows } = st.cfg.grid;
     const visited = new Set([`${spawnCol},${spawnRow}`]);
     const queue = [[spawnCol, spawnRow, 0]];
     const candidates = [];
     while (queue.length) {
       const [c, r, d] = queue.shift();
+      if (d > 12) break; // hard cap on search radius
       for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
         const nc = c + dc, nr = r + dr;
+        if (nc < 0 || nr < 0 || nc >= cols || nr >= rows) continue;
         const key = `${nc},${nr}`;
         if (visited.has(key)) continue;
         visited.add(key);
@@ -523,22 +526,31 @@ wss.on('connection', (ws) => {
           const ch = st.challenges.find(c => c.id === st.pendingChallenge.challengeId);
           if (!ch || ch.cleared) return;
           const me = st.players.get(actorPid);
-          const statVal = me?.stats?.[ch.stat] ?? 10;
-          const roll = rollD20();
-          const mod = statModifier(statVal);
-          const total = roll + mod;
-          const success = total >= ch.dc;
 
-          let outcomeText, dmgToPlayer = 0;
-          if (success) {
-            outcomeText = ch.successText + (ch.successHp ? ` (${ch.successHp >= 0 ? '+' : ''}${ch.successHp} HP)` : '');
-            if (ch.successHp) {
-              me.hp = Math.max(0, Math.min(me.maxHp, me.hp + ch.successHp));
-            }
+          // Narrative auto-success (stage_01 clue investigations): skip the
+          // d20 roll, force success, broadcast cosmetic values so the client's
+          // skill-check panel still has something to render.
+          let roll, mod, total, success, outcomeText;
+          let dmgToPlayer = 0;
+          if (ch.auto) {
+            roll = 20; mod = 0; total = 20; success = true;
+            outcomeText = ch.successText;
           } else {
-            dmgToPlayer = -ch.failHp;
-            me.hp = Math.max(0, me.hp - dmgToPlayer);
-            outcomeText = ch.failText + ` (-${dmgToPlayer} HP)`;
+            const statVal = me?.stats?.[ch.stat] ?? 10;
+            roll = rollD20();
+            mod  = statModifier(statVal);
+            total = roll + mod;
+            success = total >= ch.dc;
+            if (success) {
+              outcomeText = ch.successText + (ch.successHp ? ` (${ch.successHp >= 0 ? '+' : ''}${ch.successHp} HP)` : '');
+              if (ch.successHp) {
+                me.hp = Math.max(0, Math.min(me.maxHp, me.hp + ch.successHp));
+              }
+            } else {
+              dmgToPlayer = -ch.failHp;
+              me.hp = Math.max(0, me.hp - dmgToPlayer);
+              outcomeText = ch.failText + ` (-${dmgToPlayer} HP)`;
+            }
           }
 
           // Mark cleared whether success or fail (one-shot)
@@ -548,9 +560,10 @@ wss.on('connection', (ws) => {
             type: 'skill_check_event',
             actorPid,
             challengeId: ch.id,
-            stat: ch.stat,
-            dc: ch.dc,
+            stat: ch.stat || null,
+            dc: ch.dc || 0,
             roll, mod, total, success,
+            auto: !!ch.auto,
             outcomeText,
           });
 
