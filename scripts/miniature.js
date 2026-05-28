@@ -103,10 +103,9 @@ export function createSlimeMiniature(role, height = 3) {
   tex.minFilter = THREE.LinearFilter;
   tex.magFilter = THREE.LinearFilter;
   if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
-  const weapon = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+  const weapon = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
   weapon.scale.set(0.45, 0.45, 1);
-  weapon.position.set(0.5, 0.55, 0.7); // pushed forward (+z) so it sits in front of the slime body
-  weapon.renderOrder = 10;
+  weapon.position.set(0.5, 0.55, 0.45); // pushed forward (+z) but closer to body
   anim.add(weapon);
   group.userData.weapon = weapon;
   group.userData.weaponBaseRot = ((ROLE_EMOJI_ROTATION[String(role || '').toLowerCase()] || 0) * Math.PI) / 180;
@@ -261,6 +260,32 @@ export function updatePlayerLabelHp(fillEl, hp, maxHp) {
   fillEl.style.width = pct + '%';
   const color = pct > 60 ? '#66dd66' : pct > 30 ? '#ddcc44' : '#e85d5d';
   fillEl.style.background = color;
+}
+
+// Death fade for a player token entry — call each frame while entry._dying
+// is true. Caches original opacities once, then multiplies by the remaining
+// fade ratio so transparent materials don't pop to full opacity afterwards.
+// Returns true once the fade has fully completed so the caller can dispose
+// of the token.
+export function fadeOutToken(entry, nowMs, durationMs = 2000) {
+  if (entry._deathStart == null) entry._deathStart = nowMs;
+  const t = Math.min((nowMs - entry._deathStart) / durationMs, 1);
+  const fade = 1 - t;
+  if (!entry._origOpacities) {
+    entry._origOpacities = new Map();
+    entry.group.traverse(child => {
+      if (!child.material) return;
+      const mats = Array.isArray(child.material) ? child.material : [child.material];
+      for (const m of mats) {
+        if (!m) continue;
+        entry._origOpacities.set(m, m.opacity ?? 1);
+        m.transparent = true;
+      }
+    });
+  }
+  entry._origOpacities.forEach((orig, m) => { m.opacity = orig * fade; });
+  if (entry.label) entry.label.style.opacity = String(fade);
+  return t >= 1;
 }
 
 // Trigger an in-place attack animation on a slime token. Call when the

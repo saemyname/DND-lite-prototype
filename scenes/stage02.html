@@ -283,14 +283,20 @@
   /* Overlays */
   #victory, #game-over {
     position: fixed;
-    inset: 0;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     z-index: 800;
     background: rgba(0,0,0,.85);
+    border: 1px solid rgba(255,233,160,.35);
+    border-radius: 8px;
+    padding: 30px 50px;
+    box-shadow: 0 8px 40px rgba(0,0,0,.6);
     display: none;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 20px;
+    gap: 16px;
     font-family: 'Georgia', serif;
   }
   #victory { color: #ffe9a0; }
@@ -385,7 +391,7 @@
 <div id="game-over">
   <div class="overlay-title">YOU HAVE FALLEN</div>
   <div class="overlay-sub">Your adventure ends here...</div>
-  <button class="event-btn" onclick="window.location.href='../../index.html'">Start Over</button>
+  <button class="event-btn" onclick="window.location.href='../index.html'">Start Over</button>
 </div>
 
 <script type="module">
@@ -393,7 +399,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { send, on } from '../scripts/game-socket.js';
-import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, triggerSlimeAttack, flashEnemyDamage, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
+import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, fadeOutToken, triggerSlimeAttack, flashEnemyDamage, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
 import { initDebugBots, debugActAs, isControlledBy, debugBotsAreActive } from '../scripts/debug-bots.js';
 
 // ── Grid / combat state (module scope) ──
@@ -687,10 +693,8 @@ async function applyState(snap) {
     }
   }
   for (const [pid, entry] of [...playerTokens.entries()]) {
-    if (!seenPids.has(pid)) {
-      scene.remove(entry.group);
-      entry.label.remove();
-      playerTokens.delete(pid);
+    if (!seenPids.has(pid) && !entry._dying) {
+      entry._dying = true;
     }
   }
 
@@ -711,7 +715,16 @@ async function applyState(snap) {
   }
 
   // Outcome overlays
-  if (snap.outcome === 'victory') document.getElementById('victory').style.display = 'flex';
+  if (snap.outcome === 'victory') {
+    const v = document.getElementById('victory');
+    v.style.display = 'flex';
+    if (!window._victoryFaded) {
+      window._victoryFaded = true;
+      v.style.transition = 'opacity 0.8s';
+      setTimeout(() => { v.style.opacity = '0'; }, 2000);
+      setTimeout(() => { v.style.display = 'none'; }, 2900);
+    }
+  }
   if (snap.outcome === 'defeat')  document.getElementById('game-over').style.display = 'flex';
 
   // Show move range for the active turn player (self, or any if debug-controlling bots)
@@ -837,10 +850,10 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
 });
 
-// Static camera — face tracking removed (was always-on overhead even without webcam)
 camera.position.copy(BASE_CAM_POS);
 camera.lookAt(LOOK_TARGET);
 camera.updateProjectionMatrix();
+
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -1040,6 +1053,14 @@ function tick() {
   if (gridData) {
     const now = performance.now();
     for (const [pid, entry] of playerTokens) {
+      if (entry._dying) {
+        if (fadeOutToken(entry, now)) {
+          scene.remove(entry.group);
+          entry.label.remove();
+          playerTokens.delete(pid);
+        }
+        continue;
+      }
       const ud = entry.group.userData;
       const target = ud.targetPos;
       if (!target) continue;

@@ -283,14 +283,20 @@
   /* Overlays */
   #victory, #game-over {
     position: fixed;
-    inset: 0;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     z-index: 800;
     background: rgba(0,0,0,.85);
+    border: 1px solid rgba(255,233,160,.35);
+    border-radius: 8px;
+    padding: 30px 50px;
+    box-shadow: 0 8px 40px rgba(0,0,0,.6);
     display: none;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 20px;
+    gap: 16px;
     font-family: 'Georgia', serif;
   }
   #victory { color: #ffe9a0; }
@@ -377,7 +383,7 @@
 <!-- Victory -->
 <div id="victory">
   <div class="overlay-title">VICTORY</div>
-  <div class="overlay-sub">The ruins are cleared.</div>
+  <div class="overlay-sub">The trail leads north. Follow them.</div>
   <button class="event-btn" onclick="window.location.href='world-map.html'">Return to World Map</button>
 </div>
 
@@ -385,15 +391,16 @@
 <div id="game-over">
   <div class="overlay-title">YOU HAVE FALLEN</div>
   <div class="overlay-sub">Your adventure ends here...</div>
-  <button class="event-btn" onclick="window.location.href='../../index.html'">Start Over</button>
+  <button class="event-btn" onclick="window.location.href='../index.html'">Start Over</button>
 </div>
 
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { send, on } from '../scripts/game-socket.js';
-import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
+import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, fadeOutToken, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
 import { initDebugBots, debugActAs, isControlledBy, debugBotsAreActive } from '../scripts/debug-bots.js';
 import { loadBlockMaterials } from '../scripts/voxel-textures.js';
 import { buildVillage } from '../scripts/voxel-village.js';
@@ -413,6 +420,7 @@ const myPid = localStorage.getItem('player-id');
 let serverState = null;
 initDebugBots({ myPid, getServerState: () => serverState });
 const playerTokens = new Map();   // pid → { group, label, role }
+const challengeMarkers = new Map(); // ch.id → THREE.Group (cleared markers get hidden)
 const loadingPids = new Set();    // pids whose token is mid-load (race guard)
 const blockMats = loadBlockMaterials('../Assets/Tiles/');
 
@@ -705,14 +713,20 @@ async function applyState(snap) {
     }
   }
   for (const [pid, entry] of [...playerTokens.entries()]) {
-    if (!seenPids.has(pid)) {
-      scene.remove(entry.group);
-      entry.label.remove();
-      playerTokens.delete(pid);
+    if (!seenPids.has(pid) && !entry._dying) {
+      entry._dying = true; // tick() drives the 2s fade then removes
     }
   }
 
   reconcileEnemies(snap.enemies);
+
+  // Hide cleared challenge markers (clue emojis vanish once investigated)
+  if (snap.challenges) {
+    for (const ch of snap.challenges) {
+      const marker = challengeMarkers.get(ch.id);
+      if (marker) marker.visible = !ch.cleared;
+    }
+  }
 
   // Action panel sync (combat, heal, or challenge — mutually exclusive)
   const panelOpen = document.getElementById('event-panel').classList.contains('visible');
@@ -733,7 +747,16 @@ async function applyState(snap) {
   }
 
   // Outcome overlays
-  if (snap.outcome === 'victory') document.getElementById('victory').style.display = 'flex';
+  if (snap.outcome === 'victory') {
+    const v = document.getElementById('victory');
+    v.style.display = 'flex';
+    if (!window._victoryFaded) {
+      window._victoryFaded = true;
+      v.style.transition = 'opacity 0.8s';
+      setTimeout(() => { v.style.opacity = '0'; }, 2000);
+      setTimeout(() => { v.style.display = 'none'; }, 2900);
+    }
+  }
   if (snap.outcome === 'defeat')  document.getElementById('game-over').style.display = 'flex';
 
   // Show move range for whoever's turn we can drive (self, or any in debug bot mode)
@@ -808,13 +831,13 @@ function clearHighlights() {
   floorPlane.position.y = gridData.grid.floorY;
   scene.add(floorPlane);
 
-  // Render visible challenge markers (floating emoji over each challenge tile)
+  // Render visible challenge markers (floating emoji over each challenge tile).
+  // Stored by id so applyState can hide them when the clue is investigated.
   if (gridData.challenges) {
     const statEmoji = { agi: '🌉', lck: '😴', int: '📜', str: '💪' };
     const idEmoji   = { clue_bed: '🛏️', clue_tracks: '👣', clue_exit: '🌲' };
     for (const ch of gridData.challenges) {
       const emoji = idEmoji[ch.id] || statEmoji[ch.stat] || '❓';
-      // Build a one-off emoji sprite — borrows from createEmojiMiniature's pattern
       const canvas = document.createElement('canvas');
       canvas.width = 256; canvas.height = 256;
       const ctx = canvas.getContext('2d');
@@ -833,6 +856,7 @@ function clearHighlights() {
       const pos = gridToWorld(ch.col, ch.row);
       group.position.set(pos.x, gridData.grid.floorY + 1.0, pos.z);
       scene.add(group);
+      challengeMarkers.set(ch.id, group);
     }
   }
 
@@ -885,10 +909,22 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
 });
 
-// Static camera — face tracking removed (was always-on overhead even without webcam)
+// Initial camera pose (OrbitControls below takes over user interaction)
 camera.position.copy(BASE_CAM_POS);
 camera.lookAt(LOOK_TARGET);
 camera.updateProjectionMatrix();
+
+// Orbit camera: rotate around the stage center, pitch clamped so we never
+// see the floor from underneath. No panning (target stays on the stage).
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(LOOK_TARGET);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.enablePan = false;
+controls.enableZoom = false;
+controls.minPolarAngle = 0.15;
+controls.maxPolarAngle = Math.PI / 2.4;
+controls.update();
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -1195,6 +1231,14 @@ function tick() {
   if (gridData) {
     const now = performance.now();
     for (const [pid, entry] of playerTokens) {
+      if (entry._dying) {
+        if (fadeOutToken(entry, now)) {
+          scene.remove(entry.group);
+          entry.label.remove();
+          playerTokens.delete(pid);
+        }
+        continue;
+      }
       const ud = entry.group.userData;
       const target = ud.targetPos;
       if (!target) continue;
@@ -1237,6 +1281,7 @@ function tick() {
     if (pid === myPid && entry.nameEl) entry.nameEl.classList.add('me');
   }
 
+  controls.update();
   renderer.render(scene, camera);
 }
 tick();

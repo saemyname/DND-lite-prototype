@@ -283,14 +283,20 @@
   /* Overlays */
   #victory, #game-over {
     position: fixed;
-    inset: 0;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     z-index: 800;
     background: rgba(0,0,0,.85);
+    border: 1px solid rgba(255,233,160,.35);
+    border-radius: 8px;
+    padding: 30px 50px;
+    box-shadow: 0 8px 40px rgba(0,0,0,.6);
     display: none;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 20px;
+    gap: 16px;
     font-family: 'Georgia', serif;
   }
   #victory { color: #ffe9a0; }
@@ -377,7 +383,7 @@
 <!-- Victory -->
 <div id="victory">
   <div class="overlay-title">VICTORY</div>
-  <div class="overlay-sub">The ruins are cleared.</div>
+  <div class="overlay-sub">You leave the whispering trees behind.</div>
   <button class="event-btn" onclick="window.location.href='world-map.html'">Return to World Map</button>
 </div>
 
@@ -385,15 +391,16 @@
 <div id="game-over">
   <div class="overlay-title">YOU HAVE FALLEN</div>
   <div class="overlay-sub">Your adventure ends here...</div>
-  <button class="event-btn" onclick="window.location.href='../../index.html'">Start Over</button>
+  <button class="event-btn" onclick="window.location.href='../index.html'">Start Over</button>
 </div>
 
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { send, on } from '../scripts/game-socket.js';
-import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
+import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, fadeOutToken, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
 import { initDebugBots, debugActAs, isControlledBy, debugBotsAreActive } from '../scripts/debug-bots.js';
 import { loadBlockMaterials } from '../scripts/voxel-textures.js';
 
@@ -461,7 +468,7 @@ scene.background = new THREE.Color(0x050210);
 
 // ── Camera ──
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 500);
-const BASE_CAM_POS = new THREE.Vector3(0, 22, 26);
+const BASE_CAM_POS = new THREE.Vector3(0, 32, 32);
 const LOOK_TARGET  = new THREE.Vector3(0, 0, -24);
 
 // ── Lighting ──
@@ -638,18 +645,8 @@ function placeEnemies() {
 }
 
 function buildForestScene() {
-  const cfg = { cols: 5, rows: 8, cellSizeX: 6, cellSizeZ: 6, originX: -15, originZ: -48, floorY: 0 };
-  const walkable = [
-    [1,1,1,0,0],
-    [0,1,0,0,0],
-    [0,1,1,1,0],
-    [0,0,0,1,0],
-    [0,1,1,1,0],
-    [0,1,0,0,0],
-    [1,1,0,0,0],
-    [1,1,1,1,1],
-  ];
-  const { cols, rows, cellSizeX, cellSizeZ, originX, originZ, floorY } = cfg;
+  const { cols, rows, cellSizeX, cellSizeZ, originX, originZ, floorY } = gridData.grid;
+  const walkable = gridData.walkable;
 
   const block = (w, h, d, blockName) => new THREE.Mesh(
     new THREE.BoxGeometry(w, h, d),
@@ -694,10 +691,12 @@ function buildForestScene() {
     }
   }
 
-  // Border posts framing entry (row 7 corners) and exit (row 0 corners)
+  // Border posts framing entry (bottom corners) and exit (top corners)
   const postH = 5;
   const postS = 0.9;
-  for (const [c, r] of [[0, 7], [4, 7], [0, 0], [2, 0]]) {
+  const lastRow = rows - 1;
+  const lastCol = cols - 1;
+  for (const [c, r] of [[0, lastRow], [lastCol, lastRow], [0, 0], [lastCol, 0]]) {
     const x = originX + c * cellSizeX + cellSizeX / 2;
     const z = originZ + r * cellSizeZ + cellSizeZ / 2;
     const post = block(postS, postH, postS, 'wood');
@@ -757,10 +756,8 @@ async function applyState(snap) {
     }
   }
   for (const [pid, entry] of [...playerTokens.entries()]) {
-    if (!seenPids.has(pid)) {
-      scene.remove(entry.group);
-      entry.label.remove();
-      playerTokens.delete(pid);
+    if (!seenPids.has(pid) && !entry._dying) {
+      entry._dying = true;
     }
   }
 
@@ -785,7 +782,16 @@ async function applyState(snap) {
   }
 
   // Outcome overlays
-  if (snap.outcome === 'victory') document.getElementById('victory').style.display = 'flex';
+  if (snap.outcome === 'victory') {
+    const v = document.getElementById('victory');
+    v.style.display = 'flex';
+    if (!window._victoryFaded) {
+      window._victoryFaded = true;
+      v.style.transition = 'opacity 0.8s';
+      setTimeout(() => { v.style.opacity = '0'; }, 2000);
+      setTimeout(() => { v.style.display = 'none'; }, 2900);
+    }
+  }
   if (snap.outcome === 'defeat')  document.getElementById('game-over').style.display = 'flex';
 
   // Show move range for whoever's turn we can drive (self, or any in debug bot mode)
@@ -843,13 +849,13 @@ function clearHighlights() {
   highlightMeshes.length = 0;
 }
 
-// Build the voxel forest scene procedurally (no GLB)
-buildForestScene();
-
 // Async grid + state setup
 (async () => {
   const resp = await fetch('../rooms/stage03-grid.json');
   gridData = await resp.json();
+
+  // Build the voxel forest scene procedurally (no GLB) — depends on gridData
+  buildForestScene();
 
   const floorGeo = new THREE.PlaneGeometry(200, 200);
   floorPlane = new THREE.Mesh(
@@ -936,10 +942,19 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
 });
 
-// Static camera — face tracking removed (was always-on overhead even without webcam)
 camera.position.copy(BASE_CAM_POS);
 camera.lookAt(LOOK_TARGET);
 camera.updateProjectionMatrix();
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(LOOK_TARGET);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.enablePan = false;
+controls.enableZoom = false;
+controls.minPolarAngle = 0.15;
+controls.maxPolarAngle = Math.PI / 2.4;
+controls.update();
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -1211,6 +1226,14 @@ function tick() {
   if (gridData) {
     const now = performance.now();
     for (const [pid, entry] of playerTokens) {
+      if (entry._dying) {
+        if (fadeOutToken(entry, now)) {
+          scene.remove(entry.group);
+          entry.label.remove();
+          playerTokens.delete(pid);
+        }
+        continue;
+      }
       const ud = entry.group.userData;
       const target = ud.targetPos;
       if (!target) continue;
@@ -1253,6 +1276,7 @@ function tick() {
     if (pid === myPid && entry.nameEl) entry.nameEl.classList.add('me');
   }
 
+  controls.update();
   renderer.render(scene, camera);
 }
 tick();

@@ -7,8 +7,11 @@ export function connect(onOpen) {
   _ws = new WebSocket(`${proto}//${location.host}`);
 
   _ws.addEventListener('open', () => {
-    while (_sendQueue.length) _ws.send(_sendQueue.shift());
+    // Run onOpen FIRST so the rejoin handshake goes out before any queued
+    // messages (otherwise stage scenes that queue enter_stage before connect()
+    // is called by player-session.js race ahead of the rejoin and get rejected).
     onOpen?.();
+    while (_sendQueue.length) _ws.send(_sendQueue.shift());
   });
 
   _ws.addEventListener('message', (e) => {

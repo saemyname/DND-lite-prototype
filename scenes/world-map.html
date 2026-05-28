@@ -17,7 +17,7 @@
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    background: #000;
+    background: #cde7f5;
     overflow: hidden;
     width: 100vw;
     height: 100vh;
@@ -117,7 +117,42 @@
 </div>
 <div id="tooltip"></div>
 <div id="vignette"></div>
-<div id="controls-hint">Scroll to zoom</div>
+<div id="controls-hint">Drag to pan · Right-drag to tilt · Scroll to zoom</div>
+<div id="cam-buttons" style="position:fixed;bottom:60px;right:18px;z-index:55;display:flex;flex-direction:column;gap:6px;">
+  <button class="cam-btn" id="btn-recenter">⌖ Recenter</button>
+  <button class="cam-btn" id="btn-topview">▲ Top View</button>
+</div>
+
+<!-- Party vote panel ─────────────────────────────────────────────────────── -->
+<div id="vote-panel" style="position:fixed;top:80px;left:50%;transform:translateX(-50%);z-index:75;background:rgba(15,15,20,.92);border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:14px 20px;font-family:system-ui,-apple-system,sans-serif;color:#eaeaf0;display:none;min-width:300px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.5);">
+  <div id="vote-message" style="font-size:14px;line-height:1.4;margin-bottom:12px;"></div>
+  <div id="vote-buttons" style="display:flex;justify-content:center;gap:10px;margin-bottom:8px;">
+    <button id="vote-yes" style="background:#2d7a3d;border:none;color:#fff;padding:7px 26px;font-family:inherit;font-size:13px;font-weight:600;border-radius:5px;cursor:pointer;">Yes</button>
+    <button id="vote-no"  style="background:#8a2d2d;border:none;color:#fff;padding:7px 26px;font-family:inherit;font-size:13px;font-weight:600;border-radius:5px;cursor:pointer;">No</button>
+  </div>
+  <div id="vote-tally" style="font-size:12px;color:rgba(234,234,240,.55);"></div>
+</div>
+
+<style>
+  .cam-btn {
+    background: rgba(0,0,0,.7);
+    color: rgba(200,169,110,.75);
+    border: 1px solid rgba(200,169,110,.35);
+    padding: 6px 12px;
+    font-family: Georgia, serif;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all .15s;
+  }
+  .cam-btn:hover {
+    background: rgba(200,169,110,.18);
+    border-color: rgba(200,169,110,.7);
+    color: #ffe9a0;
+  }
+</style>
 
 <script type="module">
 // First-load gate: redirect to the intro cutscene unless the player has seen it.
@@ -129,6 +164,7 @@ if (!localStorage.getItem('intro-seen')) {
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { on, send } from '../scripts/game-socket.js';
 import { createEmojiMiniature, createSlimeMiniature } from '../scripts/miniature.js';
@@ -147,16 +183,162 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.NoToneMapping;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xffffff);
-scene.fog = new THREE.FogExp2(0xffffff, 0.003);
+scene.background = new THREE.Color(0xcde7f5); // soft sky blue
+scene.fog = new THREE.FogExp2(0xcde7f5, 0.003);
 
 // ══════════════════════════════════════
 //   CAMERA
 // ══════════════════════════════════════
 
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 300);
-const BASE_CAM_POS = new THREE.Vector3(0, 40, 0);
-const LOOK_TARGET  = new THREE.Vector3(0, 0, 5);
+camera.position.set(0, 12, 16);
+const LOOK_TARGET  = new THREE.Vector3(0, 0, 0);
+camera.lookAt(LOOK_TARGET);
+
+// ── OrbitControls: drag-pan (left), drag-rotate (right), scroll-zoom ──
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(LOOK_TARGET);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.screenSpacePanning = false;     // pan along world XZ plane
+controls.minDistance = 12;               // tighter close-zoom
+controls.maxDistance = 23;               // tighter far-zoom
+controls.minPolarAngle = 0.05;           // near-top view
+controls.maxPolarAngle = Math.PI / 2.2;  // near-side view (don't dip below horizon)
+controls.minAzimuthAngle = 0;            // X-axis camera locked to center column
+controls.maxAzimuthAngle = 0;
+controls.mouseButtons = {
+  LEFT:   THREE.MOUSE.PAN,
+  MIDDLE: THREE.MOUSE.DOLLY,
+  RIGHT:  THREE.MOUSE.ROTATE,
+};
+controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
+
+// Detect interaction so hover tooltip pauses while user drags the camera
+let userInteracting = false;
+controls.addEventListener('start', () => { userInteracting = true; });
+controls.addEventListener('end',   () => { userInteracting = false; });
+
+document.getElementById('btn-recenter').addEventListener('click', () => {
+  const myMini = inSession ? partyMiniatures.get(myPid)?.group : miniature;
+  // X is locked to center; only z follows the player along the map's length
+  const z = myMini ? myMini.position.z : 0;
+  controls.target.set(0, 0, z);
+});
+document.getElementById('btn-topview').addEventListener('click', () => {
+  // Snap to overhead — preserve current z target, X stays at 0
+  const z = controls.target.z;
+  controls.target.set(0, 0, z);
+  camera.position.set(0, 26, z + 0.001); // tiny z offset avoids gimbal lock
+  controls.update();
+});
+
+
+// ── Party vote panel ────────────────────────────────────────────────────
+const STAGE_NAMES = {
+  stage_01: 'Eldermoor Village',
+  stage_02: 'Luna Ruins',
+  stage_03: 'Whispering Forest',
+  stage_04: 'Goblin Outpost',
+  stage_05: 'Throne of the Goblin King',
+};
+const votePanel    = document.getElementById('vote-panel');
+const voteMessage  = document.getElementById('vote-message');
+const voteTally    = document.getElementById('vote-tally');
+const voteButtons  = document.getElementById('vote-buttons');
+const voteYesBtn   = document.getElementById('vote-yes');
+const voteNoBtn    = document.getElementById('vote-no');
+let voteActive = false;
+let voteIsInitiator = false;
+
+function openVotePanel({ initiatorName, stageId, isInitiator, yesCount, requiredYes }) {
+  const stageName = STAGE_NAMES[stageId] || stageId;
+  const who = isInitiator ? 'You' : initiatorName;
+  voteMessage.innerHTML = `<b>${who}</b> wants to move to <b>${stageName}</b>`;
+  voteButtons.style.display = isInitiator ? 'none' : 'flex';
+  voteTally.textContent = `${yesCount} / ${requiredYes}`;
+  votePanel.style.display = 'block';
+  voteActive = true;
+  voteIsInitiator = isInitiator;
+}
+
+function updateVoteTally(yesCount, requiredYes) {
+  voteTally.textContent = `${yesCount} / ${requiredYes}`;
+}
+
+function closeVotePanel(briefMessage) {
+  if (briefMessage) {
+    voteMessage.textContent = briefMessage;
+    voteButtons.style.display = 'none';
+    voteTally.textContent = '';
+    setTimeout(() => { votePanel.style.display = 'none'; }, 1200);
+  } else {
+    votePanel.style.display = 'none';
+  }
+  voteActive = false;
+  voteIsInitiator = false;
+}
+
+voteYesBtn.addEventListener('click', () => {
+  voteButtons.style.display = 'none';
+  send({ type: 'vote_cast', vote: 'yes' });
+});
+voteNoBtn.addEventListener('click', () => {
+  voteButtons.style.display = 'none';
+  send({ type: 'vote_cast', vote: 'no' });
+});
+
+on('vote_state', (msg) => {
+  const isInitiator = msg.initiatorPid === myPid;
+  if (!voteActive) {
+    // First receipt — snapshot every party miniature's current target so we
+    // can snap them back if the vote is cancelled.
+    for (const entry of partyMiniatures.values()) {
+      if (entry.targetPos) entry._preVoteTargetPos = entry.targetPos.clone();
+    }
+    openVotePanel({
+      initiatorName: msg.initiatorName,
+      stageId: msg.stageId,
+      isInitiator,
+      yesCount: msg.yesCount,
+      requiredYes: msg.requiredYes,
+    });
+  } else {
+    updateVoteTally(msg.yesCount, msg.requiredYes);
+  }
+  // Each yes voter's slime "leans" halfway toward the proposed stage as a
+  // visual cue. The existing tick() lerp does the smooth walk.
+  const stage = stages[msg.stageId];
+  if (stage) {
+    const yesSet = new Set(msg.yesPids || []);
+    for (const [pid, entry] of partyMiniatures) {
+      if (!entry._preVoteTargetPos) continue;
+      if (yesSet.has(pid)) {
+        const lean = entry._preVoteTargetPos.clone().lerp(stage.worldPos, 0.55);
+        entry.targetPos = lean;
+      }
+    }
+  }
+});
+
+on('vote_resolved', (msg) => {
+  if (msg.passed) {
+    closeVotePanel();
+    // world_map_state broadcast that follows will set final targets per slot
+    for (const entry of partyMiniatures.values()) delete entry._preVoteTargetPos;
+  } else {
+    closeVotePanel('Cancelled');
+    // Snap every miniature back to where it stood before the vote
+    for (const entry of partyMiniatures.values()) {
+      if (entry._preVoteTargetPos) {
+        entry.targetPos = entry._preVoteTargetPos;
+        delete entry._preVoteTargetPos;
+      }
+    }
+    localMoveIntent = null;
+  }
+});
+
 
 // ══════════════════════════════════════
 //   LIGHTING
@@ -280,7 +462,11 @@ gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
       const clone = baseObj.clone(true);
       clone.position.copy(baseObj.position).addScaledVector(localDelta, i - 2);
       // Per-stage tweaks (world-units offset, divided by mapScale into local coords)
-      const tweaks = { 'stage_03': { x: -1.5 } };
+      const tweaks = {
+        'stage_03': { x: -0.9, z: -1.3 },
+        'stage_04': { x:  0.5, z:  1.0 },
+        'stage_05': { x: -2.6, z:  3.3 },
+      };
       const tw = tweaks[stageKey];
       if (tw?.x) clone.position.x += tw.x / (mapScale || 1);
       if (tw?.z) clone.position.z += tw.z / (mapScale || 1);
@@ -326,6 +512,17 @@ gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
     }
   });
 
+  // Apply initial locked/unlocked appearance (dim + 🔒 sprite for locked)
+  refreshStageLockVisuals();
+
+  // Center camera on stage_01 so the player sees their starting location
+  // (X is locked to 0 — only the z-axis follows the map's south-to-north axis)
+  const s01stage = stages['stage_01'];
+  if (s01stage) {
+    controls.target.set(0, 0, s01stage.worldPos.z);
+    controls.update();
+  }
+
   // Load miniature only in solo mode; multiplayer uses world_map_state party miniatures
   if (!inSession) loadMiniature();
   // Re-apply any party state that arrived before stages were ready
@@ -359,10 +556,12 @@ function moveToStage(stageKey) {
   const stage = stages[stageKey];
   if (!stage) return;
 
-  // In multiplayer: tell the server; everyone (including self) updates via world_map_state broadcast
+  // In multiplayer: propose a party vote. Server skips the vote for solo+bots
+  // (only one human) and executes the move directly.
   if (inSession) {
+    if (voteActive) return; // already a vote in flight
     localMoveIntent = stageKey;
-    send({ type: 'world_map_move', stageId: stageKey });
+    send({ type: 'vote_start', stageId: stageKey });
   }
 
   if (!miniature) return; // multiplayer: own miniature is in partyMiniatures, no local lerp needed here
@@ -497,6 +696,7 @@ if (localStorage.getItem('session-code')) {
     serverUnlocked.add(msg.stageKey);
     localStorage.setItem('unlocked-stages', JSON.stringify([...serverUnlocked]));
     console.log('[ws] Stage unlocked:', msg.stageKey);
+    refreshStageLockVisuals();
   });
 
   on('fog_reveal', (msg) => {
@@ -589,23 +789,7 @@ function syncPartyMiniatures(players) {
 //   ZOOM + ROTATION
 // ══════════════════════════════════════
 
-let zoomLevel = 0;
-
-// Zoom camera params
-const zoomParams = {
-  min: -20,
-  max: 30,
-  inY: 13,   // camY when fully zoomed in
-  outY: 7,   // camY when fully zoomed out
-  inZ: 13,   // camZ when fully zoomed in
-  outZ: 18,  // camZ when fully zoomed out
-};
-
-canvas.addEventListener('wheel', e => {
-  e.preventDefault();
-  zoomLevel -= e.deltaY * 0.03;
-  zoomLevel = Math.max(zoomParams.min, Math.min(zoomParams.max, zoomLevel));
-}, { passive: false });
+// Zoom/pan/rotate handled by OrbitControls
 
 // ══════════════════════════════════════
 //   RAYCASTER + TOOLTIP
@@ -617,13 +801,25 @@ const tooltipEl = document.getElementById('tooltip');
 
 let hoveredStageKey = null;
 
+function isStageUnlocked(stageId) {
+  // stage_01 is always open; everything else requires a server-broadcast unlock
+  // (auto-fired on the previous stage's victory, or DM-triggered in DM mode).
+  return stageId === 'stage_01' || serverUnlocked.has(stageId);
+}
+
+function refreshStageLockVisuals() {
+  // Locked stages keep their natural size; the only differentiation is the
+  // hover state (gray emissive) and tooltip ("🔒 — Locked"). Nothing to do here
+  // at present; kept as a hook for future visual changes.
+}
+
 function setStageHover(stageKey, hover) {
   const stage = stages[stageKey];
   if (!stage) return;
+  const unlocked = isStageUnlocked(stageKey);
 
   stage.object.traverse(c => {
     if (!c.isMesh) return;
-    // Clone material once per mesh to isolate shared instances
     if (!c.userData._matCloned) {
       c.material = Array.isArray(c.material)
         ? c.material.map(m => m.clone())
@@ -632,9 +828,18 @@ function setStageHover(stageKey, hover) {
     }
     const mats = Array.isArray(c.material) ? c.material : [c.material];
     mats.forEach(m => {
-      if (m.emissive) {
-        m.emissive.setRGB(hover ? 1 : 0, 0, 0);
-        m.emissiveIntensity = hover ? 1 : 0;
+      if (!m.emissive) return;
+      if (hover) {
+        if (unlocked) {
+          m.emissive.setRGB(1, 0, 0);
+          m.emissiveIntensity = 1;
+        } else {
+          m.emissive.setRGB(0.25, 0.25, 0.25);
+          m.emissiveIntensity = 0.5;
+        }
+      } else {
+        m.emissive.setRGB(0, 0, 0);
+        m.emissiveIntensity = 0;
       }
     });
   });
@@ -658,6 +863,14 @@ function nearestStageKey(clientX, clientY) {
 }
 
 canvas.addEventListener('pointermove', e => {
+  if (userInteracting) {
+    // Suppress hover updates while the user is dragging the camera around
+    if (hoveredStageKey) setStageHover(hoveredStageKey, false);
+    hoveredStageKey = null;
+    tooltipEl.classList.remove('visible');
+    canvas.style.cursor = 'grabbing';
+    return;
+  }
   const stageKey = nearestStageKey(e.clientX, e.clientY);
 
   if (stageKey !== hoveredStageKey) {
@@ -667,11 +880,13 @@ canvas.addEventListener('pointermove', e => {
   }
 
   if (stageKey) {
-    tooltipEl.textContent = stages[stageKey].object.name;
+    const unlocked = isStageUnlocked(stageKey);
+    const name = stages[stageKey].object.name;
+    tooltipEl.textContent = unlocked ? name : `🔒 ${name} — Locked`;
     tooltipEl.style.left = (e.clientX + 16) + 'px';
     tooltipEl.style.top = (e.clientY - 10) + 'px';
     tooltipEl.classList.add('visible');
-    canvas.style.cursor = 'pointer';
+    canvas.style.cursor = unlocked ? 'pointer' : 'not-allowed';
   } else {
     tooltipEl.classList.remove('visible');
     canvas.style.cursor = 'default';
@@ -687,12 +902,15 @@ groundPlane.rotation.x = -Math.PI / 2;
 groundPlane.position.y = 0;
 scene.add(groundPlane);
 
+// Track pointer-down to distinguish a click from a camera drag
+let _downX = 0, _downY = 0;
+canvas.addEventListener('pointerdown', e => { _downX = e.clientX; _downY = e.clientY; });
+
 canvas.addEventListener('click', e => {
+  if (Math.hypot(e.clientX - _downX, e.clientY - _downY) > 5) return; // was a drag
   const stageId = nearestStageKey(e.clientX, e.clientY);
   if (stageId && !miniMoving) {
-    const num = parseInt(stageId.replace(/\D/g, ''));
-    const prevKey = Object.keys(stages).find(k => k.includes(String(num - 1).padStart(2, '0')));
-    if (num === 1 || clearedStages.has(prevKey) || serverUnlocked.has(stageId)) {
+    if (isStageUnlocked(stageId)) {
       moveToStage(stageId);
     } else {
       console.log('Stage locked:', stageId, '— clear previous first');
@@ -793,28 +1011,29 @@ function tick() {
     }
   }
 
-  // Update face camera config with zoom
-  const zoomRange = zoomParams.max - zoomParams.min || 1;
-  const zoomRatio = 1 - (zoomLevel - zoomParams.min) / zoomRange; // 0 = zoom in, 1 = zoom out
-  const camY = zoomParams.inY + zoomRatio * (zoomParams.outY - zoomParams.inY);
-  const camZ = zoomParams.inZ + zoomRatio * (zoomParams.outZ - zoomParams.inZ);
-  BASE_CAM_POS.set(0, camY, camZ);
+  // Fog density tied to camera distance (closer = clearer)
+  const camDist = camera.position.distanceTo(controls.target);
+  const distRatio = Math.min(1, Math.max(0, (camDist - 6) / 44));
+  scene.fog.density = 0.001 + distRatio * 0.008;
 
-  // Fog density: thicker when zoomed out, clear when zoomed in
-  scene.fog.density = 0.001 + zoomRatio * 0.008;
-
-  // Camera follows my own miniature (lerp for smoothness)
-  const myMini = inSession ? partyMiniatures.get(myPid)?.group : miniature;
-  if (myMini) {
-    LOOK_TARGET.lerp(myMini.position, 0.06);
+  controls.update();
+  // Hard-lock X to center
+  if (controls.target.x !== 0) {
+    const dx = controls.target.x;
+    controls.target.x = 0;
+    camera.position.x -= dx;
   }
-  const targetCamPos = new THREE.Vector3(
-    LOOK_TARGET.x + BASE_CAM_POS.x,
-    BASE_CAM_POS.y,
-    LOOK_TARGET.z + BASE_CAM_POS.z,
-  );
-  camera.position.lerp(targetCamPos, 0.06);
-  camera.lookAt(LOOK_TARGET);
+  // Clamp Z within the map's north-south span (stage_05 ≈ -10, stage_01 ≈ 7)
+  const Z_MIN = -13, Z_MAX = 10;
+  if (controls.target.z < Z_MIN) {
+    const dz = controls.target.z - Z_MIN;
+    controls.target.z = Z_MIN;
+    camera.position.z -= dz;
+  } else if (controls.target.z > Z_MAX) {
+    const dz = controls.target.z - Z_MAX;
+    controls.target.z = Z_MAX;
+    camera.position.z -= dz;
+  }
   renderer.render(scene, camera);
 }
 tick();

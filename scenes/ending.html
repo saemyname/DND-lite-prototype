@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D&D Lite — Eldermoor Restored</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Cormorant+Garamond:ital,wght@1,500;1,600&display=swap" rel="stylesheet">
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+    "three/": "https://cdn.jsdelivr.net/npm/three@0.176.0/"
+  }
+}
+</script>
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #000;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    font-family: 'Georgia', serif;
+    color: #c8a96e;
+    user-select: none;
+  }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  #narration {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    max-width: 720px;
+    padding: 18px 30px;
+    background: rgba(0,0,0,.72);
+    border: 1px solid rgba(200,169,110,.35);
+    border-radius: 6px;
+    font-size: 17px;
+    line-height: 1.6;
+    letter-spacing: 1px;
+    color: #e9d8a8;
+    text-align: center;
+    opacity: 0;
+    transition: opacity .4s;
+    min-height: 60px;
+    min-width: 360px;
+  }
+  #narration.visible { opacity: 1; }
+
+  #skip-btn {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 60;
+    padding: 8px 16px;
+    background: rgba(0,0,0,.75);
+    border: 1px solid rgba(200,169,110,.4);
+    border-radius: 4px;
+    color: rgba(200,169,110,.7);
+    font-family: Georgia, serif;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  #skip-btn:hover {
+    background: rgba(200,169,110,.18);
+    border-color: rgba(200,169,110,.7);
+    color: #ffe9a0;
+  }
+
+  #title-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,.55) 0%, rgba(0,0,0,.85) 80%);
+    pointer-events: none;
+  }
+  #title-screen.visible { display: flex; }
+  #title-screen > * { pointer-events: auto; }
+
+  .title-main {
+    font-family: 'Cinzel', serif;
+    font-weight: 900;
+    font-size: clamp(64px, 11vw, 160px);
+    color: #e6c884;
+    text-align: center;
+    letter-spacing: 12px;
+    line-height: 1.05;
+    -webkit-text-stroke: 1.5px #c8a96e;
+    text-shadow:
+      0 4px 20px rgba(0,0,0,.95),
+      0 0 40px rgba(212,160,80,.35),
+      0 0 8px rgba(255,220,150,.45);
+    opacity: 0;
+    transform: translateY(100px);
+    animation: title-rise 2.4s cubic-bezier(.16,.84,.3,1) forwards;
+  }
+  .title-sub {
+    margin-top: 26px;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-style: italic;
+    font-weight: 600;
+    font-size: clamp(22px, 2.6vw, 34px);
+    color: #d4b366;
+    letter-spacing: 12px;
+    text-transform: uppercase;
+    text-shadow: 0 2px 10px rgba(0,0,0,.8);
+    opacity: 0;
+    transform: translateY(50px);
+    animation: title-rise 1.8s cubic-bezier(.16,.84,.3,1) forwards;
+    animation-delay: 1.6s;
+  }
+  #play-again-btn {
+    margin-top: 90px;
+    padding: 16px 56px;
+    background: rgba(0,0,0,.65);
+    border: 2px solid rgba(230,200,132,.6);
+    border-radius: 3px;
+    color: #ffe9a0;
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    font-size: 24px;
+    letter-spacing: 10px;
+    text-transform: uppercase;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(36px);
+    animation: title-rise 1.4s cubic-bezier(.16,.84,.3,1) forwards;
+    animation-delay: 3.4s;
+    transition: background .2s, border-color .2s, color .2s, box-shadow .2s;
+  }
+  #play-again-btn:hover {
+    background: rgba(230,200,132,.18);
+    border-color: rgba(255,233,160,.9);
+    color: #fff7d0;
+    box-shadow: 0 0 24px rgba(230,200,132,.35);
+  }
+  @keyframes title-rise {
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="narration"></div>
+<button id="skip-btn">Skip ▶</button>
+<div id="title-screen">
+  <div class="title-main">The End</div>
+  <div class="title-sub">Eldermoor is Safe</div>
+  <button id="play-again-btn">Play Again</button>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { loadBlockMaterials } from '../scripts/voxel-textures.js';
+import { buildVillage, placeLyraSlime } from '../scripts/voxel-village.js';
+import { createSlimeMiniature, updateSlimeAnimation } from '../scripts/miniature.js';
+
+// ── Renderer ──
+const canvas = document.getElementById('canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+// Morning sky — warmer than the dusk in the intro
+scene.background = new THREE.Color(0x1a1428);
+scene.fog = new THREE.Fog(0x2a2238, 35, 90);
+
+// Dawn lighting — gold key + cool fill
+scene.add(new THREE.AmbientLight(0xffeec8, 0.75));
+const key = new THREE.DirectionalLight(0xffd699, 1.6);
+key.position.set(-10, 22, 14);
+key.castShadow = true;
+key.shadow.mapSize.set(1024, 1024);
+key.shadow.camera.left = -28; key.shadow.camera.right = 28;
+key.shadow.camera.top = 28; key.shadow.camera.bottom = -28;
+scene.add(key);
+const fill = new THREE.DirectionalLight(0x88aaff, 0.4);
+fill.position.set(10, 10, -6);
+scene.add(fill);
+
+// ── Camera ──
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 30, 34);
+camera.lookAt(0, 0, 0);
+
+window.addEventListener('resize', () => {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+});
+
+// ── Build village (same layout as the intro for visual continuity) ──
+const blockMats = loadBlockMaterials('../Assets/Tiles/');
+
+const grid = {
+  cols: 7, rows: 7, cellSizeX: 6, cellSizeZ: 6,
+  originX: -21, originZ: -21, floorY: 0,
+};
+const walkable = [
+  [0,0,0,1,0,0,0],
+  [0,0,1,1,1,0,0],
+  [0,1,1,1,1,1,0],
+  [0,1,1,1,1,1,0],
+  [0,0,1,1,1,0,0],
+  [0,1,1,1,1,1,0],
+  [0,0,0,0,0,0,0],
+];
+buildVillage(scene, blockMats, {
+  ...grid,
+  walkable,
+  houses: [[1,1], [5,1], [1,4], [5,4]],
+  wells:  [],
+  paths:  [[3,0], [3,1], [3,2], [3,3], [3,4], [3,5]],
+});
+
+const cellWorld = (c, r) => new THREE.Vector3(
+  grid.originX + c * grid.cellSizeX + grid.cellSizeX / 2,
+  grid.floorY,
+  grid.originZ + r * grid.cellSizeZ + grid.cellSizeZ / 2,
+);
+
+// ── Cast ──
+// 4 hero slimes returning home + Lyra meeting them at the village center
+const heroes = [
+  { role: 'warrior', slot: 0 },
+  { role: 'rogue',   slot: 1 },
+  { role: 'mage',    slot: 2 },
+  { role: 'cleric',  slot: 3 },
+].map(({ role, slot }) => {
+  const g = createSlimeMiniature(role, 3.4);
+  g.position.copy(cellWorld(slot * 0.6 + 1.2, -1.5)); // off-screen south
+  g.visible = false;
+  scene.add(g);
+  return g;
+});
+
+const lyra = placeLyraSlime(scene, cellWorld(3, -1.5), 4);
+lyra.visible = false;
+
+// Final village positions (party gathered around Lyra at the center)
+const heroFinal = [
+  cellWorld(2,   3.2),
+  cellWorld(2.4, 4.0),
+  cellWorld(3.6, 4.0),
+  cellWorld(4,   3.2),
+];
+const lyraFinal = cellWorld(3, 3.6);
+
+// Starting positions (south, off-screen, walking IN)
+const heroStart = [
+  cellWorld(2,   6.5),
+  cellWorld(2.4, 6.8),
+  cellWorld(3.6, 6.8),
+  cellWorld(4,   6.5),
+];
+const lyraStart = cellWorld(3, 7.0);
+
+// ── Narration / beats ──
+const narrationEl = document.getElementById('narration');
+const skipBtn     = document.getElementById('skip-btn');
+const titleScreen = document.getElementById('title-screen');
+const playBtn     = document.getElementById('play-again-btn');
+
+const beats = [
+  { duration: 3500, narration: 'The Goblin King falls. Lyra is free.' },
+  { duration: 5000, narration: 'The heroes return home, weary but alive.' },
+  { duration: 4500, narration: 'Eldermoor wakes to a brighter dawn.' },
+];
+
+let cutsceneStart = null;
+let activeBeat = -1;
+let skipped = false;
+let titleShown = false;
+
+function setNarration(text, instant = false) {
+  if (instant) {
+    narrationEl.textContent = text;
+    narrationEl.classList.add('visible');
+    return;
+  }
+  narrationEl.classList.remove('visible');
+  setTimeout(() => {
+    narrationEl.textContent = text;
+    narrationEl.classList.add('visible');
+  }, 350);
+}
+
+function showTitle() {
+  if (titleShown) return;
+  titleShown = true;
+  narrationEl.classList.remove('visible');
+  skipBtn.style.display = 'none';
+  titleScreen.classList.add('visible');
+}
+
+function playAgain() {
+  // Clear intro gate so the next playthrough starts fresh
+  localStorage.removeItem('intro-seen');
+  window.location.href = '../index.html';
+}
+
+skipBtn.addEventListener('click', () => {
+  skipped = true;
+  // Snap everyone to the final village pose
+  heroes.forEach((g, i) => { g.visible = true; g.position.copy(heroFinal[i]); });
+  lyra.visible = true; lyra.position.copy(lyraFinal);
+  showTitle();
+});
+playBtn.addEventListener('click', playAgain);
+
+const lerp3 = (out, a, b, t) => {
+  out.x = a.x + (b.x - a.x) * t;
+  out.y = a.y + (b.y - a.y) * t;
+  out.z = a.z + (b.z - a.z) * t;
+};
+
+// Smoothstep eases the arrival so the party glides to a stop
+const ease = (t) => t * t * (3 - 2 * t);
+
+function updateBeat(beatIdx, t) {
+  if (beatIdx === 0) {
+    // Establish — empty village, no movement yet
+  } else if (beatIdx === 1) {
+    // Heroes + Lyra walk in from the south
+    heroes.forEach((g, i) => {
+      g.visible = true;
+      lerp3(g.position, heroStart[i], heroFinal[i], ease(t));
+    });
+    lyra.visible = true;
+    lerp3(lyra.position, lyraStart, lyraFinal, ease(t));
+  } else if (beatIdx === 2) {
+    // Settle — gentle drift, glow up on Lyra
+    if (lyra.userData.body?.material) {
+      const m = lyra.userData.body.material;
+      m.emissiveIntensity = 0.35 + Math.sin(t * Math.PI * 2) * 0.15;
+    }
+  }
+}
+
+// ── Render loop ──
+function tick(now) {
+  requestAnimationFrame(tick);
+  if (cutsceneStart === null) cutsceneStart = now;
+
+  if (skipped) {
+    [lyra, ...heroes].forEach(g => {
+      if (!g.visible) return;
+      g.userData.targetPos = g.position;
+      updateSlimeAnimation(g, now, grid.floorY);
+    });
+    renderer.render(scene, camera);
+    return;
+  }
+
+  const elapsed = now - cutsceneStart;
+  let acc = 0;
+  let beatIdx = -1;
+  let beatT = 0;
+  for (let i = 0; i < beats.length; i++) {
+    if (elapsed >= acc && elapsed < acc + beats[i].duration) {
+      beatIdx = i;
+      beatT = (elapsed - acc) / beats[i].duration;
+      break;
+    }
+    acc += beats[i].duration;
+  }
+
+  if (beatIdx === -1) {
+    if (activeBeat !== beats.length) {
+      activeBeat = beats.length;
+      showTitle();
+    }
+  } else {
+    if (beatIdx !== activeBeat) {
+      activeBeat = beatIdx;
+      setNarration(beats[beatIdx].narration);
+    }
+    updateBeat(beatIdx, beatT);
+  }
+
+  // Idle wobble on all visible slimes
+  [lyra, ...heroes].forEach(g => {
+    if (!g.visible) return;
+    g.userData.targetPos = g.position;
+    updateSlimeAnimation(g, now, grid.floorY);
+  });
+
+  renderer.render(scene, camera);
+}
+
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
