@@ -898,12 +898,11 @@ function showMoveRange(col, row, role) {
     highlightMeshes.push(plane);
   });
 
-  // Sky-blue tiles for enemies attackable from any reachable cell (incl. current)
+  // Sky-blue tiles for enemies attackable from current position (instant attack).
   const atkRange = ATTACK_RANGE_BY_ROLE[effRole] || 1;
   enemyTokens.forEach(e => {
     if (e.hp <= 0) return;
-    const reachable = tiles.some(t => inAtkRange(t.col, t.row, e.col, e.row, atkRange));
-    if (!reachable) return;
+    if (!inAtkRange(col, row, e.col, e.row, atkRange)) return;
     const plane = new THREE.Mesh(
       new THREE.PlaneGeometry(cellSizeX * 0.9, cellSizeZ * 0.9),
       new THREE.MeshBasicMaterial({
