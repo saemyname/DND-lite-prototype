@@ -942,7 +942,7 @@ function tick() {
   // Solo miniature
   if (miniature) {
     const target = (miniMoving && miniTargetPos) ? miniTargetPos : null;
-    const floorY = miniature.userData._floorY ?? (miniature.userData._floorY = miniature.position.y);
+    const floorY = target ? target.y : miniature.position.y;
     const arrived = stepHop(miniature, target, floorY);
     if (arrived && miniMoving) {
       miniMoving = false;
@@ -957,7 +957,7 @@ function tick() {
   // Party miniatures
   for (const [pid, entry] of partyMiniatures) {
     if (entry._moveStartTime && nowMs < entry._moveStartTime) continue; // conga delay
-    const floorY = entry._floorY ?? (entry._floorY = entry.group.position.y);
+    const floorY = entry.targetPos ? entry.targetPos.y : entry.group.position.y;
     const arrived = stepHop(entry.group, entry.targetPos || null, floorY);
     if (arrived && pid === myPid && entry.stageId && entry.stageId === localMoveIntent) {
       const url = entry.stageId.replace('_', '') + '.html';

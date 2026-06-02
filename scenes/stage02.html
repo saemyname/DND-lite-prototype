@@ -782,6 +782,31 @@ function showMoveRange(col, row, role) {
     highlightGroup.add(plane);
     highlightMeshes.push(plane);
   });
+
+  // Sky-blue tiles for enemies attackable from any reachable cell (incl. current)
+  const atkRange = ATTACK_RANGE_BY_ROLE[effRole] || 1;
+  enemyTokens.forEach(e => {
+    if (e.hp <= 0) return;
+    const reachable = tiles.some(t =>
+      Math.max(Math.abs(e.col - t.col), Math.abs(e.row - t.row)) <= atkRange
+    );
+    if (!reachable) return;
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(cellSizeX * 0.9, cellSizeZ * 0.9),
+      new THREE.MeshBasicMaterial({
+        color: 0x66ccff,
+        transparent: true,
+        opacity: 0.5,
+        side: THREE.DoubleSide,
+      })
+    );
+    plane.rotation.x = -Math.PI / 2;
+    const pos = gridToWorld(e.col, e.row);
+    plane.position.set(pos.x, floorY + 0.06, pos.z);
+    plane.userData = { kind: 'attack', col: e.col, row: e.row };
+    highlightGroup.add(plane);
+    highlightMeshes.push(plane);
+  });
 }
 
 function clearHighlights() {
