@@ -191,6 +191,15 @@ function chebyshev(c1, r1, c2, r2) {
   return Math.max(Math.abs(c1 - c2), Math.abs(r1 - r2));
 }
 
+// Attack-range shape: melee (range=1) hits all 8 neighbors (Chebyshev),
+// ranged (range≥2) uses a diamond — orthogonal up to `range`, diagonal
+// only 1 tile (Manhattan ≤ range).
+function inAttackRange(c1, r1, c2, r2, range) {
+  const dc = Math.abs(c1 - c2), dr = Math.abs(r1 - r2);
+  if (range <= 1) return Math.max(dc, dr) <= 1;
+  return dc + dr <= range;
+}
+
 const ROLE_STATS = {
   warrior: { str: 14, agi: 10, int:  8, lck: 10, hp: 20 },
   rogue:   { str:  8, agi: 14, int: 10, lck: 12, hp: 14 },
@@ -272,9 +281,7 @@ function reachable(stageState, fromCol, fromRow, range, selfPid) {
 
 function adjacentEnemyAt(stageState, col, row, range = 1) {
   return stageState.enemies.find(e =>
-    e.hp > 0 &&
-    Math.abs(e.col - col) <= range &&
-    Math.abs(e.row - row) <= range
+    e.hp > 0 && inAttackRange(col, row, e.col, e.row, range)
   );
 }
 
@@ -824,7 +831,7 @@ wss.on('connection', (ws) => {
           const enemy = st.enemies.find(e => e.id === msg.enemyId);
           if (!enemy || enemy.hp <= 0) return;
           const range = ATTACK_RANGE_BY_ROLE[me.role] || 1;
-          if (chebyshev(me.col, me.row, enemy.col, enemy.row) > range) return;
+          if (!inAttackRange(me.col, me.row, enemy.col, enemy.row, range)) return;
           st.pendingCombat = { attackerPid: actorPid, enemyId: enemy.id };
           broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
           break;

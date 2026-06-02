@@ -600,6 +600,14 @@ function calcMoveRange(startCol, startRow, range) {
 // ── Player token ──
 const MOVE_RANGE_BY_ROLE   = { warrior: 3, rogue: 5, mage: 4, cleric: 4 };
 const ATTACK_RANGE_BY_ROLE = { warrior: 1, rogue: 2, mage: 2, cleric: 1 };
+// Diamond range: orthogonal up to `range`, diagonal only 1 (Manhattan ≤ range).
+// Melee range=1 falls back to 8-neighbor Chebyshev so warriors can still hit
+// diagonally adjacent enemies.
+function inAtkRange(c1, r1, c2, r2, range) {
+  const dc = Math.abs(c1 - c2), dr = Math.abs(r1 - r2);
+  if (range <= 1) return Math.max(dc, dr) <= 1;
+  return dc + dr <= range;
+}
 
 function loadPlayerTokenForRole(roleName) {
   const group = createSlimeMiniature(roleName, 4);
@@ -797,9 +805,7 @@ function showMoveRange(col, row, role) {
   const atkRange = ATTACK_RANGE_BY_ROLE[effRole] || 1;
   enemyTokens.forEach(e => {
     if (e.hp <= 0) return;
-    const reachable = tiles.some(t =>
-      Math.max(Math.abs(e.col - t.col), Math.abs(e.row - t.row)) <= atkRange
-    );
+    const reachable = tiles.some(t => inAtkRange(t.col, t.row, e.col, e.row, atkRange));
     if (!reachable) return;
     const plane = new THREE.Mesh(
       new THREE.PlaneGeometry(cellSizeX * 0.9, cellSizeZ * 0.9),
@@ -921,8 +927,7 @@ canvas.addEventListener('click', (e) => {
       const me = serverState.players.find(p => p.pid === serverState.activeTurnPid);
       if (!me) return;
       const atkRange = ATTACK_RANGE_BY_ROLE[me.role] || 1;
-      const d = Math.max(Math.abs(col - me.col), Math.abs(row - me.row));
-      if (d > atkRange) return;
+      if (!inAtkRange(me.col, me.row, col, row, atkRange)) return;
       send({ type: 'action_request', stageId: 'stage02', kind: 'move', col: me.col, row: me.row, actAsPid: debugActAs() });
     } else {
       send({ type: 'action_request', stageId: 'stage02', kind: 'move', col, row, actAsPid: debugActAs() });
