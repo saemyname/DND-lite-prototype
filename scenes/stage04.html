@@ -402,6 +402,8 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { send, on } from '../scripts/game-socket.js';
 import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, fadeOutToken, triggerSlimeAttack, flashEnemyDamage, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
 import { initDebugBots, debugActAs, isControlledBy, debugBotsAreActive } from '../scripts/debug-bots.js';
+import { playBGM, playSFX } from '../scripts/audio.js';
+playBGM('adventure');
 import { loadBlockMaterials } from '../scripts/voxel-textures.js';
 
 // ── Grid / combat state (module scope) ──
@@ -599,7 +601,8 @@ function calcMoveRange(startCol, startRow, range) {
 }
 
 // ── Player token ──
-const MOVE_RANGE_BY_ROLE = { warrior: 3, rogue: 5, mage: 4, cleric: 4 };
+const MOVE_RANGE_BY_ROLE   = { warrior: 3, rogue: 5, mage: 4, cleric: 4 };
+const ATTACK_RANGE_BY_ROLE = { warrior: 1, rogue: 2, mage: 2, cleric: 1 };
 
 function loadPlayerTokenForRole(roleName) {
   const group = createSlimeMiniature(roleName, 4);
@@ -798,7 +801,6 @@ async function applyState(snap) {
 
   reconcileEnemies(snap.enemies);
 
-  // Action panel sync (combat or heal — mutually exclusive)
   const panelOpen = document.getElementById('event-panel').classList.contains('visible');
   if (snap.pendingCombat) {
     const enemy = snap.enemies.find(e => e.id === snap.pendingCombat.enemyId);
@@ -808,6 +810,9 @@ async function applyState(snap) {
     const target = snap.players.find(p => p.pid === snap.pendingHeal.targetPid);
     const isHealer = isControlledBy(snap.pendingHeal.healerPid);
     if (target && !panelOpen) openHealPanel(target, isHealer);
+  } else if (snap.pendingChoice) {
+    const isActor = isControlledBy(snap.pendingChoice.actorPid);
+    openChoicePanel(snap.pendingChoice, snap, isActor);
   } else {
     closeCombatPanel();
   }
@@ -852,7 +857,8 @@ function reconcileEnemies(enemiesFromServer) {
 
 function showMoveRange(col, row, role) {
   clearHighlights();
-  const tiles = calcMoveRange(col, row, MOVE_RANGE_BY_ROLE[role || charData?.role] || 4);
+  const effRole = role || charData?.role;
+  const tiles = calcMoveRange(col, row, MOVE_RANGE_BY_ROLE[effRole] || 4);
   const { cellSizeX, cellSizeZ, floorY } = gridData.grid;
   tiles.forEach(tile => {
     const isSelf = tile.col === col && tile.row === row;
@@ -868,7 +874,7 @@ function showMoveRange(col, row, role) {
     plane.rotation.x = -Math.PI / 2;
     const pos = gridToWorld(tile.col, tile.row);
     plane.position.set(pos.x, floorY + 0.05, pos.z);
-    plane.userData = { col: tile.col, row: tile.row };
+    plane.userData = { kind: 'move', col: tile.col, row: tile.row };
     highlightGroup.add(plane);
     highlightMeshes.push(plane);
   });
@@ -972,7 +978,6 @@ canvas.addEventListener('click', (e) => {
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
 
-  // Click on a highlight tile -> request move
   const tileHits = raycaster.intersectObjects(highlightMeshes);
   if (tileHits.length > 0) {
     const { col, row } = tileHits[0].object.userData;
@@ -1123,6 +1128,62 @@ function openHealPanel(target, isHealer) {
     const note = document.createElement('div');
     note.style.fontSize = '11px';
     note.style.opacity = '0.5';
+    note.textContent = 'Watching...';
+    panelEl('event-actions').appendChild(note);
+  }
+  panelEl('event-panel').classList.add('visible');
+}
+
+function openChoicePanel(pc, snap, isActor) {
+  panelEl('event-desc').textContent = isActor
+    ? (pc.step === 'pick_action' ? 'Choose your action' : 'Heal whom?')
+    : `${snap.players.find(p => p.pid === pc.actorPid)?.name || 'Cleric'} ponders…`;
+  panelEl('event-actions').innerHTML = '';
+  panelEl('event-result').textContent = '';
+  panelEl('event-result').className = '';
+  panelEl('event-outcome').textContent = '';
+  panelEl('d20-label').textContent = '';
+  panelEl('d20-value').textContent = '—';
+  panelEl('d20-dice-shape').setAttribute('class', '');
+  panelEl('d20-hud').classList.remove('active');
+  if (isActor) {
+    if (pc.step === 'pick_action') {
+      const enemy = snap.enemies.find(e => e.id === pc.attackEnemyId);
+      if (enemy) {
+        const atk = document.createElement('button');
+        atk.className = 'event-btn';
+        atk.textContent = `Attack ${enemy.name}`;
+        atk.addEventListener('click', () => {
+          atk.disabled = true;
+          send({ type: 'action_request', stageId: 'stage04', kind: 'choice_pick', choice: 'attack', actAsPid: debugActAs() });
+        });
+        panelEl('event-actions').appendChild(atk);
+      }
+      if (pc.healTargets.length > 0) {
+        const heal = document.createElement('button');
+        heal.className = 'event-btn';
+        heal.textContent = 'Heal';
+        heal.addEventListener('click', () => {
+          heal.disabled = true;
+          send({ type: 'action_request', stageId: 'stage04', kind: 'choice_pick', choice: 'heal', actAsPid: debugActAs() });
+        });
+        panelEl('event-actions').appendChild(heal);
+      }
+    } else if (pc.step === 'pick_target') {
+      for (const t of pc.healTargets) {
+        const btn = document.createElement('button');
+        btn.className = 'event-btn';
+        btn.textContent = `${t.name} (${t.hp}/${t.maxHp})`;
+        btn.addEventListener('click', () => {
+          btn.disabled = true;
+          send({ type: 'action_request', stageId: 'stage04', kind: 'choice_pick', targetPid: t.pid, actAsPid: debugActAs() });
+        });
+        panelEl('event-actions').appendChild(btn);
+      }
+    }
+  } else {
+    const note = document.createElement('div');
+    note.style.cssText = 'font-size:11px;opacity:0.5';
     note.textContent = 'Watching...';
     panelEl('event-actions').appendChild(note);
   }

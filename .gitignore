@@ -3,3 +3,5 @@ node_modules/
 .claude/
 *_original.glb
 docs/superpowers/
+Assets/audio/candidates/
+Assets/audio/preview.html

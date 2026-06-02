@@ -402,6 +402,8 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { send, on } from '../scripts/game-socket.js';
 import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, fadeOutToken, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
 import { initDebugBots, debugActAs, isControlledBy, debugBotsAreActive } from '../scripts/debug-bots.js';
+import { playBGM, playSFX } from '../scripts/audio.js';
+playBGM('adventure');
 import { loadBlockMaterials } from '../scripts/voxel-textures.js';
 import { buildVillage } from '../scripts/voxel-village.js';
 

@@ -168,6 +168,8 @@ import * as THREE from 'three';
 import { loadBlockMaterials } from '../scripts/voxel-textures.js';
 import { buildVillage, placeLyraSlime } from '../scripts/voxel-village.js';
 import { createSlimeMiniature, updateSlimeAnimation } from '../scripts/miniature.js';
+import { playBGM } from '../scripts/audio.js';
+playBGM('ending');
 
 // ── Renderer ──
 const canvas = document.getElementById('canvas');

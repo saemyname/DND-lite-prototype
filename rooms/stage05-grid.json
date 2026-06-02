@@ -11,7 +11,7 @@
     "floorY": 0
   },
   "walkable": [
-    [1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,0,1,1,1,1,1,1,1,1],
     [1,1,1,1,1,1,1,1,1,1,1],
     [1,0,1,1,1,1,1,1,1,0,1],
     [1,1,1,1,1,1,1,1,1,1,1],
@@ -65,9 +65,10 @@
       "name": "Lyra's Cage",
       "stat": "int",
       "dc": 11,
+      "retryOnFail": true,
       "description": "Lyra is locked in a goblin-iron cage beside the throne. The lock is crude but stubborn. \"Hurry — pick it!\"",
       "successText": "The lock clicks open. Lyra steps free, gasping in relief. \"You came!\"",
-      "failText": "The lock jams. You scrape your knuckles on the rough iron.",
+      "failText": "The lock jams. You scrape your knuckles on the rough iron — try again.",
       "successHp": 0, "failHp": -1
     }
   ]

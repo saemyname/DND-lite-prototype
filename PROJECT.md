@@ -209,5 +209,18 @@ Mid-term goal: a **5-stage end-to-end playthrough** with the team (4 players + 1
 - [x] **Stage 5 (Throne of the Goblin King)** — king + 2 minions + Lyra cage; server victory now requires enemies dead AND challenges cleared
 - [x] **Stage 1 (Eldermoor Village)** — voxel village (houses + well + perimeter trees) + 3 narrative clue investigations (Lyra's bed → goblin tracks → forest edge). Server `auto:true` challenges skip the d20 roll. Victory unlocks stage_02.
 - [x] **Intro cutscene** — animated voxel scene (~14s, skippable) at world-map first-load showing Lyra's capture; localStorage `intro-seen` gates autoplay, `Replay intro` link on world-map.
+- [x] **Ending cutscene** — heroes return to Eldermoor at dawn + "The End" title screen with Play Again. stage_05 victory routes here.
+- [x] **HP persistence + party defeat** — session-level HP carries across stages; dead players become spectators (slime fades out over 2s) and stop blocking tiles. Defeat fires only when every player is down. `pruneDeadFromStage` also clears any pending* state for the dying actor.
+- [x] **Auto-unlock chain** — stage_N victory broadcasts stage_unlock for stage_N+1 (solo starts with only stage_01 unlocked).
+- [x] **Party vote on world-map** — clicking a stage proposes a vote when there are 2+ humans; yes-voter slimes "lean" toward the destination live; any nay snaps everyone back. Solo+bots skip the vote.
+- [x] **Ranged attacks (Rogue/Mage)** — `ATTACK_RANGE_BY_ROLE = {warrior:1, rogue:2, mage:2, cleric:1}`; move-adjacency check uses the actor's range.
+- [x] **Cleric Choice Panel** — when Cleric moves with both attack + heal options available, a dialog asks Attack/Heal; Heal opens a target picker for multi-ally case. Single options auto-trigger as before.
+- [x] **Audio system + cross-page BGM continuity** — `scripts/audio.js`. Same-track navigation resumes from saved playback position so world-map → stage_01-04 share one continuous "adventure" track. Per-stage BGM via `playBGM('name')`. Tracks downloaded into `Assets/audio/bgm/`.
+- [x] **OrbitControls cameras** — world-map: drag-pan / right-drag tilt / scroll zoom (X locked center, Z clamped); stages 01/03/04/05: rotation-only with pitch clamp so the floor never shows from below. stage_02 keeps its fixed camera.
+- [x] **Larger maps for stages 03/04/05** — 10×10 (stage_05: 11×10) for elbow room; `build*Scene` reads `gridData` directly. stage_04 difficulty rebalance (DC=10 across the board, Captain failHp -3).
+- [x] **Stage_05 Lyra slime in throne room** — same crying expression as the capture beat (>< eyes + tears) in place of the old voxel cage; her tile is non-walkable; `retryOnFail` on the lock challenge so a failed unlock doesn't satisfy victory.
 - [ ] **Voice chat** — WebRTC mesh, push-to-talk / mic toggle, speaking indicator
 - [ ] **End-to-end playtest** with the team
+- [ ] **SFX layer** — dice rolls, slime jump/attack/heal, hit/miss, victory/defeat (audio system ready, just needs wiring)
+- [ ] **Bot AI** — autonomous bot turns (random move/attack) for solo testing convenience
+- [ ] **Cleric revive mechanic** — currently dead players cannot be brought back this run; consider altar/revival challenge
