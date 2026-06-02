@@ -1171,6 +1171,15 @@ function openChallengePanel(challenge, isActor) {
       panelEl('d20-hud').addEventListener('click', onDiceClick);
     });
     panelEl('event-actions').appendChild(btn);
+
+    const skipBtn = document.createElement('button');
+    skipBtn.className = 'event-btn';
+    skipBtn.textContent = 'Skip';
+    skipBtn.addEventListener('click', () => {
+      send({ type: 'turn_continue', stageId: 'stage03', actAsPid: debugActAs() });
+      closeCombatPanel();
+    });
+    panelEl('event-actions').appendChild(skipBtn);
   } else {
     const note = document.createElement('div');
     note.style.cssText = 'font-size:11px;opacity:0.5';
