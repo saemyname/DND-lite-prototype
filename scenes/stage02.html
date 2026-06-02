@@ -902,8 +902,21 @@ canvas.addEventListener('click', (e) => {
 
   const tileHits = raycaster.intersectObjects(highlightMeshes);
   if (tileHits.length > 0) {
-    const { col, row } = tileHits[0].object.userData;
-    send({ type: 'action_request', stageId: 'stage02', kind: 'move', col, row, actAsPid: debugActAs() });
+    const { kind, col, row } = tileHits[0].object.userData;
+    if (kind === 'attack') {
+      // Quick attack: enemy already in range from current position → move to self,
+      // server will resolve combat. (Sky-blue tiles also include enemies reachable
+      // only after moving; those clicks fall through and do nothing — pick a red
+      // tile instead.)
+      const me = serverState.players.find(p => p.pid === serverState.activeTurnPid);
+      if (!me) return;
+      const atkRange = ATTACK_RANGE_BY_ROLE[me.role] || 1;
+      const d = Math.max(Math.abs(col - me.col), Math.abs(row - me.row));
+      if (d > atkRange) return;
+      send({ type: 'action_request', stageId: 'stage02', kind: 'move', col: me.col, row: me.row, actAsPid: debugActAs() });
+    } else {
+      send({ type: 'action_request', stageId: 'stage02', kind: 'move', col, row, actAsPid: debugActAs() });
+    }
   }
 });
 
