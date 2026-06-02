@@ -417,6 +417,7 @@ const highlightGroup = new THREE.Group();
 const charData = JSON.parse(localStorage.getItem('dndlite-character') || 'null');
 const myPid = localStorage.getItem('player-id');
 let serverState = null;
+let lastPendingKey = null;
 const playerTokens = new Map();   // pid → { group, label, role }
 const loadingPids = new Set();    // pids whose token is mid-load (race guard)
 
@@ -703,22 +704,31 @@ async function applyState(snap) {
 
   reconcileEnemies(snap.enemies);
 
-  // Action panel sync (mutually exclusive)
+  // Action panel sync (mutually exclusive).
+  // pendingKey lets us re-render when one pending kind transitions to another
+  // (e.g. cleric pendingChoice → pendingHeal) — without it the old panel sat
+  // there because `panelOpen` was already true.
+  const pendingKey = snap.pendingCombat ? `combat:${snap.pendingCombat.enemyId}` :
+                     snap.pendingHeal   ? `heal:${snap.pendingHeal.healerPid}>${snap.pendingHeal.targetPid}` :
+                     snap.pendingChoice ? `choice:${snap.pendingChoice.step}:${snap.pendingChoice.actorPid}` :
+                     null;
   const panelOpen = document.getElementById('event-panel').classList.contains('visible');
+  const needsReopen = pendingKey && pendingKey !== lastPendingKey;
   if (snap.pendingCombat) {
     const enemy = snap.enemies.find(e => e.id === snap.pendingCombat.enemyId);
     const isAttacker = isControlledBy(snap.pendingCombat.attackerPid);
-    if (enemy && !panelOpen) openCombatPanel(enemy, isAttacker);
+    if (enemy && (!panelOpen || needsReopen)) openCombatPanel(enemy, isAttacker);
   } else if (snap.pendingHeal) {
     const target = snap.players.find(p => p.pid === snap.pendingHeal.targetPid);
     const isHealer = isControlledBy(snap.pendingHeal.healerPid);
-    if (target && !panelOpen) openHealPanel(target, isHealer);
+    if (target && (!panelOpen || needsReopen)) openHealPanel(target, isHealer);
   } else if (snap.pendingChoice) {
     const isActor = isControlledBy(snap.pendingChoice.actorPid);
     openChoicePanel(snap.pendingChoice, snap, isActor);
   } else {
     closeCombatPanel();
   }
+  lastPendingKey = pendingKey;
 
   // Outcome overlays
   if (snap.outcome === 'victory') {
