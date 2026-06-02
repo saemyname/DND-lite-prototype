@@ -27,19 +27,6 @@
   }
   canvas { display: block; width: 100%; height: 100%; }
 
-  #title {
-    position: fixed;
-    top: 24px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 50;
-    font-size: 14px;
-    letter-spacing: 5px;
-    text-transform: uppercase;
-    color: rgba(200,169,110,.5);
-    pointer-events: none;
-  }
-
   #nav {
     position: fixed;
     top: 24px;
@@ -92,36 +79,17 @@
     box-shadow: inset 0 0 120px 40px rgba(0,0,0,.7);
   }
 
-  #controls-hint {
-    position: fixed;
-    bottom: 24px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 50;
-    font-size: 10px;
-    letter-spacing: 2px;
-    color: rgba(200,169,110,.3);
-    pointer-events: none;
-    text-transform: uppercase;
-  }
-
 </style>
 </head>
 <body>
 
 <canvas id="canvas"></canvas>
-<div id="title">3D Interactive map test</div>
 <div id="nav">
   <a href="../index.html">← Home</a>
   <a href="cutscene.html?replay=1">Replay intro</a>
 </div>
 <div id="tooltip"></div>
 <div id="vignette"></div>
-<div id="controls-hint">Drag to pan · Right-drag to tilt · Scroll to zoom</div>
-<div id="cam-buttons" style="position:fixed;bottom:60px;right:18px;z-index:55;display:flex;flex-direction:column;gap:6px;">
-  <button class="cam-btn" id="btn-recenter">⌖ Recenter</button>
-  <button class="cam-btn" id="btn-topview">▲ Top View</button>
-</div>
 
 <!-- Party vote panel ─────────────────────────────────────────────────────── -->
 <div id="vote-panel" style="position:fixed;top:80px;left:50%;transform:translateX(-50%);z-index:75;background:rgba(15,15,20,.92);border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:14px 20px;font-family:system-ui,-apple-system,sans-serif;color:#eaeaf0;display:none;min-width:300px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.5);">
@@ -132,27 +100,6 @@
   </div>
   <div id="vote-tally" style="font-size:12px;color:rgba(234,234,240,.55);"></div>
 </div>
-
-<style>
-  .cam-btn {
-    background: rgba(0,0,0,.7);
-    color: rgba(200,169,110,.75);
-    border: 1px solid rgba(200,169,110,.35);
-    padding: 6px 12px;
-    font-family: Georgia, serif;
-    font-size: 11px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    cursor: pointer;
-    border-radius: 3px;
-    transition: all .15s;
-  }
-  .cam-btn:hover {
-    background: rgba(200,169,110,.18);
-    border-color: rgba(200,169,110,.7);
-    color: #ffe9a0;
-  }
-</style>
 
 <script type="module">
 // First-load gate: redirect to the intro cutscene unless the player has seen it.
@@ -167,7 +114,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { on, send } from '../scripts/game-socket.js';
-import { createEmojiMiniature, createSlimeMiniature } from '../scripts/miniature.js';
+import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation } from '../scripts/miniature.js';
 import { initDebugBots } from '../scripts/debug-bots.js';
 import { playBGM } from '../scripts/audio.js';
 playBGM('adventure');
@@ -220,21 +167,6 @@ controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
 let userInteracting = false;
 controls.addEventListener('start', () => { userInteracting = true; });
 controls.addEventListener('end',   () => { userInteracting = false; });
-
-document.getElementById('btn-recenter').addEventListener('click', () => {
-  const myMini = inSession ? partyMiniatures.get(myPid)?.group : miniature;
-  // X is locked to center; only z follows the player along the map's length
-  const z = myMini ? myMini.position.z : 0;
-  controls.target.set(0, 0, z);
-});
-document.getElementById('btn-topview').addEventListener('click', () => {
-  // Snap to overhead — preserve current z target, X stays at 0
-  const z = controls.target.z;
-  controls.target.set(0, 0, z);
-  camera.position.set(0, 26, z + 0.001); // tiny z offset avoids gimbal lock
-  controls.update();
-});
-
 
 // ── Party vote panel ────────────────────────────────────────────────────
 const STAGE_NAMES = {
@@ -743,7 +675,7 @@ function syncPartyMiniatures(players) {
     const sortedPids = [...players].map(pp => pp.pid).sort();
     const slotIdx = sortedPids.indexOf(p.pid);
     const slotCount = sortedPids.length;
-    const SLOT_SPACING = 1.4;
+    const SLOT_SPACING = 2.1;
     const offsetX = (slotIdx - (slotCount - 1) / 2) * SLOT_SPACING;
     const offsetZ = 0;
 
@@ -1011,6 +943,13 @@ function tick() {
         }
       }
     }
+  }
+
+  // Idle breathing for all slimes
+  const nowMs = performance.now();
+  if (miniature) updateSlimeAnimation(miniature, nowMs, miniature.position.y);
+  for (const entry of partyMiniatures.values()) {
+    updateSlimeAnimation(entry.group, nowMs, entry.group.position.y);
   }
 
   // Fog density tied to camera distance (closer = clearer)
