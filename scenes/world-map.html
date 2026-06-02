@@ -675,7 +675,7 @@ function syncPartyMiniatures(players) {
     const sortedPids = [...players].map(pp => pp.pid).sort();
     const slotIdx = sortedPids.indexOf(p.pid);
     const slotCount = sortedPids.length;
-    const SLOT_SPACING = 2.1;
+    const SLOT_SPACING = 1.8;
     const offsetX = (slotIdx - (slotCount - 1) / 2) * SLOT_SPACING;
     const offsetZ = 0;
 
@@ -905,15 +905,46 @@ function tick() {
   }
   if (anyChange) fogPos.needsUpdate = true;
 
-  // Solo miniature movement animation
-  if (miniature && miniMoving && miniTargetPos) {
-    miniature.position.x += (miniTargetPos.x - miniature.position.x) * MINI_SPEED;
-    miniature.position.z += (miniTargetPos.z - miniature.position.z) * MINI_SPEED;
-    const dx = miniTargetPos.x - miniature.position.x;
-    const dz = miniTargetPos.z - miniature.position.z;
-    if (Math.sqrt(dx * dx + dz * dz) < 0.1) {
-      miniature.position.x = miniTargetPos.x;
-      miniature.position.z = miniTargetPos.z;
+  const nowMs = performance.now();
+  const HOP_LEN = 1.4;
+  const HOP_MS = 320;
+
+  // Step a slime one hop toward its target. Returns true when arrived this frame.
+  function stepHop(group, targetPos, floorY) {
+    const ud = group.userData;
+    if (!targetPos) { updateSlimeAnimation(group, nowMs, floorY); return false; }
+    const dx = targetPos.x - group.position.x;
+    const dz = targetPos.z - group.position.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    // Start a new hop if idle and not yet at target
+    if (ud.jumpStart == null && dist > 0.05) {
+      const step = Math.min(HOP_LEN, dist);
+      const nx = group.position.x + (dx / dist) * step;
+      const nz = group.position.z + (dz / dist) * step;
+      ud.jumpFrom = new THREE.Vector3(group.position.x, floorY, group.position.z);
+      ud.jumpTo   = new THREE.Vector3(nx, floorY, nz);
+      ud.jumpStart = nowMs;
+      ud.jumpDuration = HOP_MS;
+      ud.targetPos = targetPos;
+    }
+    updateSlimeAnimation(group, nowMs, floorY);
+    // Snap + arrival check after the animation step
+    const ndx = targetPos.x - group.position.x;
+    const ndz = targetPos.z - group.position.z;
+    if (ud.jumpStart == null && Math.sqrt(ndx * ndx + ndz * ndz) < 0.05) {
+      group.position.x = targetPos.x;
+      group.position.z = targetPos.z;
+      return true;
+    }
+    return false;
+  }
+
+  // Solo miniature
+  if (miniature) {
+    const target = (miniMoving && miniTargetPos) ? miniTargetPos : null;
+    const floorY = miniature.userData._floorY ?? (miniature.userData._floorY = miniature.position.y);
+    const arrived = stepHop(miniature, target, floorY);
+    if (arrived && miniMoving) {
       miniMoving = false;
       if (miniArrivalCallback) {
         const cb = miniArrivalCallback;
@@ -923,33 +954,18 @@ function tick() {
     }
   }
 
-  // Multiplayer: lerp all party miniatures toward their target stage positions
+  // Party miniatures
   for (const [pid, entry] of partyMiniatures) {
-    if (!entry.targetPos) continue;
-    if (entry._moveStartTime && performance.now() < entry._moveStartTime) continue; // wait for our turn in the conga line
-    entry.group.position.x += (entry.targetPos.x - entry.group.position.x) * MINI_SPEED;
-    entry.group.position.z += (entry.targetPos.z - entry.group.position.z) * MINI_SPEED;
-    const dx = entry.targetPos.x - entry.group.position.x;
-    const dz = entry.targetPos.z - entry.group.position.z;
-    if (Math.sqrt(dx * dx + dz * dz) < 0.1) {
-      entry.group.position.x = entry.targetPos.x;
-      entry.group.position.z = entry.targetPos.z;
-      // If this is me AND I clicked to move (not just initial state), redirect to stage HTML
-      if (pid === myPid && entry.stageId && entry.stageId === localMoveIntent) {
-        const url = entry.stageId.replace('_', '') + '.html'; // stage_01 → stage01.html
-        localMoveIntent = null;
-        if (serverUnlocked.has(entry.stageId) || entry.stageId === 'stage_01') {
-          setTimeout(() => { window.location.href = url; }, 200);
-        }
+    if (entry._moveStartTime && nowMs < entry._moveStartTime) continue; // conga delay
+    const floorY = entry._floorY ?? (entry._floorY = entry.group.position.y);
+    const arrived = stepHop(entry.group, entry.targetPos || null, floorY);
+    if (arrived && pid === myPid && entry.stageId && entry.stageId === localMoveIntent) {
+      const url = entry.stageId.replace('_', '') + '.html';
+      localMoveIntent = null;
+      if (serverUnlocked.has(entry.stageId) || entry.stageId === 'stage_01') {
+        setTimeout(() => { window.location.href = url; }, 200);
       }
     }
-  }
-
-  // Idle breathing for all slimes
-  const nowMs = performance.now();
-  if (miniature) updateSlimeAnimation(miniature, nowMs, miniature.position.y);
-  for (const entry of partyMiniatures.values()) {
-    updateSlimeAnimation(entry.group, nowMs, entry.group.position.y);
   }
 
   // Fog density tied to camera distance (closer = clearer)
