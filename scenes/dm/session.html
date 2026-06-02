@@ -155,11 +155,17 @@
   .entity-row.active-turn { border-color: rgba(255,233,160,.6); background: rgba(255,233,160,.06); }
   .entity-row.dead { opacity: .35; }
   .entity-row.enemy { border-color: rgba(232,93,93,.18); }
+  .entity-row.challenge { border-color: rgba(120,170,255,.2); }
+  .entity-row.challenge.cleared { opacity: .4; }
   .entity-name { color: #ffe9a0; letter-spacing: 1px; }
   .entity-name .role { font-size: 9px; color: rgba(200,169,110,.5); margin-left: 6px; }
   .entity-pos { font-size: 10px; color: rgba(200,169,110,.5); font-family: monospace; }
   .entity-hp { font-size: 11px; color: #c8a96e; font-family: monospace; min-width: 56px; text-align: right; }
   .entity-row.enemy .entity-hp { color: #e85d5d; }
+  .entity-row.challenge .entity-hp { color: #88b8ff; font-size: 10px; letter-spacing: 1px; }
+  .pending-pill.heal      { background: rgba(120,200,120,.18); color: #9fe89f; border-color: rgba(120,200,120,.4); }
+  .pending-pill.challenge { background: rgba(120,170,255,.18); color: #a5c4ff; border-color: rgba(120,170,255,.4); }
+  .pending-pill.choice    { background: rgba(232,180,80,.18); color: #ffd58c; border-color: rgba(232,180,80,.4); }
 </style>
 </head>
 <body>
@@ -219,6 +225,10 @@
     <div data-active-only>
       <div style="font-size:9px;letter-spacing:3px;color:rgba(200,169,110,.4);margin-bottom:6px;text-transform:uppercase">Enemies</div>
       <div class="entity-grid" id="enemy-list"></div>
+    </div>
+    <div data-active-only id="challenge-section" style="margin-top:14px;display:none">
+      <div style="font-size:9px;letter-spacing:3px;color:rgba(200,169,110,.4);margin-bottom:6px;text-transform:uppercase">Challenges</div>
+      <div class="entity-grid" id="challenge-list"></div>
     </div>
   </section>
 </main>
@@ -313,6 +323,8 @@ const turnPill    = document.getElementById('turn-pill');
 const pendingPill = document.getElementById('pending-pill');
 const partyList   = document.getElementById('enemy-list') ? document.getElementById('party-list') : null;
 const enemyList   = document.getElementById('enemy-list');
+const challengeSection = document.getElementById('challenge-section');
+const challengeList    = document.getElementById('challenge-list');
 
 const stageFrame = document.getElementById('stage-frame');
 let frameStageId = null;
@@ -329,7 +341,31 @@ function renderStageState(state) {
 
   const activeP = state.players.find(p => p.pid === state.activeTurnPid);
   turnPill.textContent = activeP ? `${activeP.name}'s turn` : 'No active turn';
-  pendingPill.style.display = state.pendingCombat ? 'inline-block' : 'none';
+
+  // pending-pill reflects every pending kind, not just combat
+  pendingPill.className = 'pending-pill';
+  const nameOf = (pid) => state.players.find(p => p.pid === pid)?.name || '?';
+  if (state.pendingCombat) {
+    const en = state.enemies.find(e => e.id === state.pendingCombat.enemyId);
+    pendingPill.textContent = `Combat: ${nameOf(state.pendingCombat.attackerPid)} vs ${en?.name || '?'}`;
+    pendingPill.style.display = 'inline-block';
+  } else if (state.pendingHeal) {
+    pendingPill.classList.add('heal');
+    pendingPill.textContent = `Heal: ${nameOf(state.pendingHeal.healerPid)} → ${nameOf(state.pendingHeal.targetPid)}`;
+    pendingPill.style.display = 'inline-block';
+  } else if (state.pendingChallenge) {
+    pendingPill.classList.add('challenge');
+    const ch = (state.challenges || []).find(c => c.id === state.pendingChallenge.challengeId);
+    pendingPill.textContent = `Challenge: ${nameOf(state.pendingChallenge.actorPid)} — ${ch?.name || '?'}`;
+    pendingPill.style.display = 'inline-block';
+  } else if (state.pendingChoice) {
+    pendingPill.classList.add('choice');
+    const step = state.pendingChoice.step === 'pick_target' ? 'pick heal target' : 'pick action';
+    pendingPill.textContent = `Cleric (${nameOf(state.pendingChoice.actorPid)}): ${step}`;
+    pendingPill.style.display = 'inline-block';
+  } else {
+    pendingPill.style.display = 'none';
+  }
 
   partyList.innerHTML = '';
   for (const p of state.players) {
@@ -362,8 +398,30 @@ function renderStageState(state) {
     `;
     row.querySelector('.entity-name').textContent = e.name + (e.hp <= 0 ? ' (defeated)' : '');
     row.querySelector('.entity-pos').textContent = `[${e.col},${e.row}]`;
-    row.querySelector('.entity-hp').textContent = `${e.hp}/${e.maxHp} HP`;
+    row.querySelector('.entity-hp').textContent = `DC ${e.dc} · ${e.hp}/${e.maxHp} HP`;
     enemyList.appendChild(row);
+  }
+
+  // Challenges (stage_03 skill checks, stage_05 Lyra cage, etc.)
+  const challenges = state.challenges || [];
+  challengeList.innerHTML = '';
+  if (challenges.length === 0) {
+    challengeSection.style.display = 'none';
+  } else {
+    challengeSection.style.display = '';
+    for (const c of challenges) {
+      const row = document.createElement('div');
+      row.className = 'entity-row challenge' + (c.cleared ? ' cleared' : '');
+      row.innerHTML = `
+        <div class="entity-name"></div>
+        <div class="entity-pos"></div>
+        <div class="entity-hp"></div>
+      `;
+      row.querySelector('.entity-name').textContent = c.name + (c.cleared ? ' ✓' : '');
+      row.querySelector('.entity-pos').textContent = `[${c.col},${c.row}]`;
+      row.querySelector('.entity-hp').textContent = c.cleared ? 'cleared' : `DC ${c.dc} ${c.stat}`;
+      challengeList.appendChild(row);
+    }
   }
 }
 
