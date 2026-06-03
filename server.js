@@ -825,7 +825,7 @@ wss.on('connection', (ws) => {
         if (msg.kind === 'ranged_attack') {
           // Stand-still attack from the actor's current tile against an enemy
           // within their role's attack range (Chebyshev distance).
-          if (st.pendingCombat || st.pendingHeal || st.pendingChallenge) return;
+          if (st.pendingCombat || st.pendingHeal || st.pendingChallenge || st.pendingChoice) return;
           const me = st.players.get(actorPid);
           if (!me) return;
           const enemy = st.enemies.find(e => e.id === msg.enemyId);
@@ -872,7 +872,7 @@ wss.on('connection', (ws) => {
         if (msg.kind === 'ranged_heal') {
           // Cleric-only: heal a wounded ally within 1 tile (incl. self) without
           // moving. Lets the cleric pick "heal" when an enemy is also adjacent.
-          if (st.pendingCombat || st.pendingHeal || st.pendingChallenge) return;
+          if (st.pendingCombat || st.pendingHeal || st.pendingChallenge || st.pendingChoice) return;
           const me = st.players.get(actorPid);
           if (!me || me.role !== 'cleric') return;
           const target = st.players.get(msg.targetPid);
@@ -948,10 +948,12 @@ wss.on('connection', (ws) => {
         const isMyCombat    = st.pendingCombat?.attackerPid === actorPid;
         const isMyHeal      = st.pendingHeal?.healerPid === actorPid;
         const isMyChallenge = st.pendingChallenge?.actorPid === actorPid;
-        if (!isMyCombat && !isMyHeal && !isMyChallenge) return;
+        const isMyChoice    = st.pendingChoice?.actorPid === actorPid;
+        if (!isMyCombat && !isMyHeal && !isMyChallenge && !isMyChoice) return;
         st.pendingCombat = null;
         st.pendingHeal = null;
         st.pendingChallenge = null;
+        st.pendingChoice = null;
         if (!st.outcome) advanceTurn(st);
         broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
         break;

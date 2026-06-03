@@ -85,16 +85,21 @@ A web-based **D&D Lite** prototype — simplified tabletop D&D focused on **imme
 
 - Stats: STR 10 / AGI 8 / INT 12 / LCK 14 / HP 16; move range 4
 - Heal action: `d6 + statModifier(int)` on adjacent ally (8-dir, self-heal allowed)
-- Server priority: adjacent enemy > wounded ally (no choice UI)
-- Renamed `combat_continue` → `turn_continue` (handles attack + heal turn endings)
+- Choice panel (`pendingChoice`): when both an enemy and a wounded ally are in range,
+  the server stages a 2-step pick (Attack / Heal → heal target). Single-option cases
+  fast-path to `pendingCombat` / `pendingHeal`.
+- `turn_continue` handles all 4 pending kinds (combat / heal / challenge / choice)
 - Player tokens render HP next to name (`Alice 16/16`)
 - Uses procedural fallback token until `Assets/cleric.glb` is added
 
 ### World Map party sync
 
-- Party miniatures arranged in horizontal line; conga-line move (200ms stagger)
+- Party miniatures arranged in horizontal line (`SLOT_SPACING = 1.8`); conga-line move (200ms stagger)
+- Travel uses chained parabolic tile-hops (`stepHop` in `world-map.html`,
+  `updateSlimeAnimation` jump pipeline from `miniature.js`) — same bounce as
+  in-stage tile movement. Idle slimes breathe via the same anim.
 - Full party movement + fog reveal broadcast + history replay
-- Camera follows local player on world map
+- OrbitControls camera with X locked to 0, Z clamped ±13, scroll zoom 12-23
 
 ### Voxel Dungeon (`scenes/voxel/room.html`) — older single-player system
 
@@ -115,12 +120,16 @@ A web-based **D&D Lite** prototype — simplified tabletop D&D focused on **imme
 
 | File | Responsibility |
 |------|---------------|
-| `face-camera.js` | MediaPipe face tracking + off-axis projection + mouse fallback (used by world-map; disabled in stage02) |
+| `audio.js` | BGM/SFX manager with cross-page continuity via `dnd-audio-state` localStorage |
 | `game-socket.js` | WebSocket client singleton (`connect`, `send`, `on`) |
 | `player-session.js` | Auto-rejoin on page load, DM redirect listener, DM disconnect overlay |
 | `chat-panel.js` | Drop-in text chat UI module |
-| `off-axis-box.js` | Off-axis projection helper |
+| `miniature.js` | Slime + emoji token builders, jump/idle/attack anim (`updateSlimeAnimation`) |
+| `voxel-village.js` | Procedural village builder (huts, paths, props, Lyra slime placer) |
+| `debug-bots.js` | Solo-mode bot drivers (`+3 Bots` button), `debugActAs` / `isControlledBy` helpers |
 | `voxel-textures.js` | Procedural voxel texture atlas |
+| `face-camera.js` | MediaPipe face tracking (deprecated — only stage02 voxel demo) |
+| `off-axis-box.js` | Off-axis projection helper (legacy) |
 
 ---
 
