@@ -960,7 +960,7 @@ function tick() {
     const floorY = entry.targetPos ? entry.targetPos.y : entry.group.position.y;
     const arrived = stepHop(entry.group, entry.targetPos || null, floorY);
     if (arrived && pid === myPid && entry.stageId && entry.stageId === localMoveIntent) {
-      const url = entry.stageId.replace('_', '') + '.html';
+      const url = entry.stageId.replace(/^stage_/, 'stage') + '.html';
       localMoveIntent = null;
       if (serverUnlocked.has(entry.stageId) || entry.stageId === 'stage_01') {
         setTimeout(() => { window.location.href = url; }, 200);

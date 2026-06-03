@@ -298,17 +298,6 @@ function healableAlliesAt(stageState, col, row) {
   return out;
 }
 
-function adjacentHealableAllyAt(stageState, col, row) {
-  for (const [pid, p] of stageState.players) {
-    if (p.hp <= 0) continue;
-    if (p.hp >= p.maxHp) continue;
-    if (Math.abs(p.col - col) <= 1 && Math.abs(p.row - row) <= 1) {
-      return { pid, ...p };
-    }
-  }
-  return null;
-}
-
 function adjacentChallengeAt(stageState, col, row) {
   if (!stageState.challenges) return null;
   return stageState.challenges.find(c =>
