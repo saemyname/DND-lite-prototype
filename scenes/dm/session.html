@@ -8,137 +8,181 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     background: #0a0a0a;
-    min-height: 100vh;
+    height: 100vh;
     font-family: 'Georgia', serif;
     color: #c8a96e;
     display: grid;
-    grid-template-columns: 280px 1fr;
-    grid-template-rows: 56px 1fr;
+    /* sidebar · observation dashboard (chat panel is foldable, floats on top) */
+    grid-template-columns: 320px minmax(0, 1fr);
+    grid-template-rows: 66px 1fr;
   }
+
+  /* ── Header ─────────────────────────────────────────── */
   header {
     grid-column: 1 / -1;
     display: flex;
     align-items: center;
-    padding: 0 24px;
-    border-bottom: 1px solid rgba(200,169,110,.12);
-    gap: 16px;
+    padding: 0 28px;
+    border-bottom: 1px solid rgba(200,169,110,.14);
+    gap: 18px;
   }
   header h1 {
-    font-size: 11px;
+    font-size: 14px;
     letter-spacing: 5px;
     text-transform: uppercase;
-    color: rgba(200,169,110,.5);
+    color: rgba(200,169,110,.6);
   }
   .code-badge {
-    font-size: 18px;
-    letter-spacing: 6px;
+    font-size: 24px;
+    letter-spacing: 7px;
     color: #ffe9a0;
     font-family: monospace;
-    border: 1px solid rgba(200,169,110,.2);
-    padding: 2px 12px;
-    border-radius: 4px;
+    border: 1px solid rgba(200,169,110,.25);
+    padding: 4px 16px;
+    border-radius: 5px;
   }
   #status {
     margin-left: auto;
-    font-size: 10px;
+    font-size: 12px;
     letter-spacing: 2px;
-    color: rgba(200,169,110,.3);
+    color: rgba(200,169,110,.4);
     text-transform: uppercase;
   }
 
+  /* ── Sidebar (players + controls) ───────────────────── */
   aside {
-    border-right: 1px solid rgba(200,169,110,.1);
-    padding: 20px 16px;
+    grid-column: 1;
+    border-right: 1px solid rgba(200,169,110,.12);
+    padding: 22px 18px;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
   }
-  aside h2 {
-    font-size: 10px;
+  .panel-title {
+    font-size: 12px;
     letter-spacing: 4px;
     text-transform: uppercase;
-    color: rgba(200,169,110,.35);
+    color: rgba(200,169,110,.42);
     margin-bottom: 12px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid rgba(200,169,110,.1);
+    padding-bottom: 7px;
+    border-bottom: 1px solid rgba(200,169,110,.12);
   }
   .player-row {
-    padding: 8px 0;
+    padding: 10px 0;
     border-bottom: 1px solid rgba(200,169,110,.07);
-    font-size: 11px;
-    letter-spacing: 1px;
+    font-size: 14px;
+    letter-spacing: .5px;
   }
-  .player-row .name { color: rgba(200,169,110,.9); }
-  .player-row .loc  { font-size: 10px; color: rgba(200,169,110,.3); margin-top: 2px; }
-  #no-players { font-size: 10px; color: rgba(200,169,110,.25); letter-spacing: 1px; }
+  .player-row .name { color: rgba(200,169,110,.92); }
+  .player-row .loc  { font-size: 12px; color: rgba(200,169,110,.4); margin-top: 3px; }
+  #no-players { font-size: 13px; color: rgba(200,169,110,.28); letter-spacing: 1px; }
 
-  main {
-    padding: 24px;
-    overflow-y: auto;
-  }
-  section { margin-bottom: 32px; }
-  section h2 {
-    font-size: 10px;
-    letter-spacing: 4px;
-    text-transform: uppercase;
-    color: rgba(200,169,110,.35);
-    margin-bottom: 14px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid rgba(200,169,110,.1);
-  }
-  .btn-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
+  .btn-grid { display: flex; flex-wrap: wrap; gap: 8px; }
   button.dm-btn {
-    display: inline-block;
-    padding: 8px 18px;
+    flex: 1 1 calc(50% - 4px);
+    padding: 11px 12px;
     background: rgba(200,169,110,.07);
     border: 1px solid rgba(200,169,110,.25);
-    border-radius: 4px;
-    color: rgba(200,169,110,.7);
-    font-size: 10px;
-    letter-spacing: 3px;
+    border-radius: 5px;
+    color: rgba(200,169,110,.75);
+    font-size: 13px;
+    letter-spacing: 2px;
     text-transform: uppercase;
     cursor: pointer;
     font-family: 'Georgia', serif;
     transition: all .2s;
+    text-align: center;
+    white-space: nowrap;
   }
   button.dm-btn:hover { background: rgba(200,169,110,.18); color: #ffe9a0; border-color: rgba(200,169,110,.5); }
   button.dm-btn.active { background: rgba(200,169,110,.25); color: #ffe9a0; border-color: rgba(200,169,110,.7); }
 
-  /* Stage observation panel */
-  #stage-empty { font-size: 10px; color: rgba(200,169,110,.3); letter-spacing: 1px; padding: 16px 0; }
+  /* ── Main: stage observation dashboard ─────────────── */
+  main {
+    grid-column: 2;
+    padding: 22px 26px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .main-title {
+    font-size: 13px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: rgba(200,169,110,.45);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(200,169,110,.12);
+  }
+
+  #stage-empty {
+    font-size: 16px;
+    color: rgba(200,169,110,.3);
+    letter-spacing: 1px;
+    padding: 60px 0;
+    text-align: center;
+  }
   #stage-view.active #stage-empty { display: none; }
   #stage-view:not(.active) .stage-header,
-  #stage-view:not(.active) .entity-grid,
   #stage-view:not(.active) [data-active-only] { display: none; }
+
   .stage-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
+    gap: 12px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
   }
-  .stage-header .label { font-size: 12px; color: rgba(200,169,110,.85); letter-spacing: 2px; }
+  .stage-header .label { font-size: 19px; color: #ffe9a0; letter-spacing: 2px; }
   .turn-pill {
-    font-size: 10px;
-    letter-spacing: 2px;
+    font-size: 13px;
+    letter-spacing: 1px;
     text-transform: uppercase;
-    padding: 4px 10px;
-    border-radius: 3px;
+    padding: 6px 14px;
+    border-radius: 4px;
     background: rgba(200,169,110,.12);
     color: #ffe9a0;
     border: 1px solid rgba(200,169,110,.3);
   }
   .pending-pill {
-    font-size: 10px;
-    letter-spacing: 2px;
+    font-size: 13px;
+    letter-spacing: 1px;
     text-transform: uppercase;
-    padding: 4px 10px;
-    border-radius: 3px;
+    padding: 6px 14px;
+    border-radius: 4px;
     background: rgba(232,93,93,.15);
     color: #ff9090;
     border: 1px solid rgba(232,93,93,.4);
-    margin-left: 8px;
+  }
+  .pending-pill.heal      { background: rgba(120,200,120,.18); color: #9fe89f; border-color: rgba(120,200,120,.4); }
+  .pending-pill.challenge { background: rgba(120,170,255,.18); color: #a5c4ff; border-color: rgba(120,170,255,.4); }
+  .pending-pill.choice    { background: rgba(232,180,80,.18); color: #ffd58c; border-color: rgba(232,180,80,.4); }
+
+  /* iframe (left, large) + live entity panels (right column) */
+  .observe-body {
+    display: grid;
+    /* iframe fills all remaining width; entity column stays a readable fixed band */
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
+    gap: 22px;
+    align-items: start;
+  }
+  #stage-frame {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 1px solid rgba(200,169,110,.18);
+    border-radius: 8px;
+    background: #000;
+    display: block;
+  }
+  .observe-right { display: flex; flex-direction: column; gap: 18px; }
+  .entity-section-label {
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: rgba(200,169,110,.45);
+    margin-bottom: 8px;
+    text-transform: uppercase;
   }
   .entity-grid { display: flex; flex-direction: column; gap: 8px; }
   .entity-row {
@@ -146,26 +190,31 @@
     grid-template-columns: 1fr auto auto;
     align-items: center;
     gap: 12px;
-    padding: 8px 12px;
+    padding: 11px 14px;
     background: rgba(0,0,0,.35);
     border: 1px solid rgba(200,169,110,.1);
-    border-radius: 4px;
-    font-size: 11px;
+    border-radius: 5px;
+    font-size: 14px;
   }
   .entity-row.active-turn { border-color: rgba(255,233,160,.6); background: rgba(255,233,160,.06); }
   .entity-row.dead { opacity: .35; }
   .entity-row.enemy { border-color: rgba(232,93,93,.18); }
   .entity-row.challenge { border-color: rgba(120,170,255,.2); }
   .entity-row.challenge.cleared { opacity: .4; }
-  .entity-name { color: #ffe9a0; letter-spacing: 1px; }
-  .entity-name .role { font-size: 9px; color: rgba(200,169,110,.5); margin-left: 6px; }
-  .entity-pos { font-size: 10px; color: rgba(200,169,110,.5); font-family: monospace; }
-  .entity-hp { font-size: 11px; color: #c8a96e; font-family: monospace; min-width: 56px; text-align: right; }
+  .entity-name { color: #ffe9a0; letter-spacing: .5px; font-size: 14px; }
+  .entity-name .role { font-size: 11px; color: rgba(200,169,110,.5); margin-left: 6px; }
+  .entity-pos { font-size: 12px; color: rgba(200,169,110,.5); font-family: monospace; }
+  .entity-hp { font-size: 13px; color: #c8a96e; font-family: monospace; min-width: 70px; text-align: right; }
   .entity-row.enemy .entity-hp { color: #e85d5d; }
-  .entity-row.challenge .entity-hp { color: #88b8ff; font-size: 10px; letter-spacing: 1px; }
-  .pending-pill.heal      { background: rgba(120,200,120,.18); color: #9fe89f; border-color: rgba(120,200,120,.4); }
-  .pending-pill.challenge { background: rgba(120,170,255,.18); color: #a5c4ff; border-color: rgba(120,170,255,.4); }
-  .pending-pill.choice    { background: rgba(232,180,80,.18); color: #ffd58c; border-color: rgba(232,180,80,.4); }
+  .entity-row.challenge .entity-hp { color: #88b8ff; font-size: 12px; letter-spacing: 1px; }
+
+  /* Narrow screens: drop the chat gutter and stack the dashboard */
+  @media (max-width: 1180px) {
+    body { grid-template-columns: 300px 1fr; }
+    main { grid-column: 2; }
+    .observe-body { grid-template-columns: 1fr; }
+    #stage-frame { max-width: 720px; }
+  }
 </style>
 </head>
 <body>
@@ -177,24 +226,24 @@
 </header>
 
 <aside>
-  <h2>Players</h2>
-  <div id="player-list"><span id="no-players">None connected</span></div>
-</aside>
+  <div>
+    <div class="panel-title">Players</div>
+    <div id="player-list"><span id="no-players">None connected</span></div>
+  </div>
 
-<main>
-  <section>
-    <h2>Stage Control</h2>
+  <div>
+    <div class="panel-title">Unlock Stages</div>
     <div class="btn-grid" id="stage-btns">
-      <button class="dm-btn" data-action="unlock" data-stage="stage_01">Unlock Stage 01</button>
-      <button class="dm-btn" data-action="unlock" data-stage="stage_02">Unlock Stage 02</button>
-      <button class="dm-btn" data-action="unlock" data-stage="stage_03">Unlock Stage 03</button>
-      <button class="dm-btn" data-action="unlock" data-stage="stage_04">Unlock Stage 04</button>
-      <button class="dm-btn" data-action="unlock" data-stage="stage_05">Unlock Stage 05</button>
+      <button class="dm-btn" data-action="unlock" data-stage="stage_01">Stage 01</button>
+      <button class="dm-btn" data-action="unlock" data-stage="stage_02">Stage 02</button>
+      <button class="dm-btn" data-action="unlock" data-stage="stage_03">Stage 03</button>
+      <button class="dm-btn" data-action="unlock" data-stage="stage_04">Stage 04</button>
+      <button class="dm-btn" data-action="unlock" data-stage="stage_05">Stage 05</button>
     </div>
-  </section>
+  </div>
 
-  <section>
-    <h2>Navigate Players To</h2>
+  <div>
+    <div class="panel-title">Send Players To</div>
     <div class="btn-grid">
       <button class="dm-btn" data-action="redirect" data-url="world-map.html">World Map</button>
       <button class="dm-btn" data-action="redirect" data-url="stage01.html">Stage 01</button>
@@ -203,32 +252,38 @@
       <button class="dm-btn" data-action="redirect" data-url="stage04.html">Stage 04</button>
       <button class="dm-btn" data-action="redirect" data-url="stage05.html">Stage 05</button>
     </div>
-  </section>
+  </div>
+</aside>
 
+<main>
+  <div class="main-title">Stage Observation</div>
   <section id="stage-view">
-    <h2>Stage Observation</h2>
     <div id="stage-empty">No players in a combat stage yet.</div>
+
     <div class="stage-header">
       <span class="label" id="stage-label"></span>
-      <span>
-        <span class="turn-pill" id="turn-pill"></span>
-        <span class="pending-pill" id="pending-pill" style="display:none">Combat</span>
-      </span>
+      <span class="turn-pill" id="turn-pill"></span>
+      <span class="pending-pill" id="pending-pill" style="display:none">Combat</span>
     </div>
-    <div data-active-only style="margin-bottom:14px">
-      <iframe id="stage-frame" style="width:480px;max-width:100%;aspect-ratio:16/9;border:1px solid rgba(200,169,110,.15);border-radius:6px;background:#000;display:block"></iframe>
-    </div>
-    <div style="margin-bottom:14px" data-active-only>
-      <div style="font-size:9px;letter-spacing:3px;color:rgba(200,169,110,.4);margin-bottom:6px;text-transform:uppercase">Party</div>
-      <div class="entity-grid" id="party-list"></div>
-    </div>
-    <div data-active-only>
-      <div style="font-size:9px;letter-spacing:3px;color:rgba(200,169,110,.4);margin-bottom:6px;text-transform:uppercase">Enemies</div>
-      <div class="entity-grid" id="enemy-list"></div>
-    </div>
-    <div data-active-only id="challenge-section" style="margin-top:14px;display:none">
-      <div style="font-size:9px;letter-spacing:3px;color:rgba(200,169,110,.4);margin-bottom:6px;text-transform:uppercase">Challenges</div>
-      <div class="entity-grid" id="challenge-list"></div>
+
+    <div class="observe-body" data-active-only>
+      <div class="observe-left">
+        <iframe id="stage-frame"></iframe>
+      </div>
+      <div class="observe-right">
+        <div>
+          <div class="entity-section-label">Party</div>
+          <div class="entity-grid" id="party-list"></div>
+        </div>
+        <div>
+          <div class="entity-section-label">Enemies</div>
+          <div class="entity-grid" id="enemy-list"></div>
+        </div>
+        <div id="challenge-section" style="display:none">
+          <div class="entity-section-label">Challenges</div>
+          <div class="entity-grid" id="challenge-list"></div>
+        </div>
+      </div>
     </div>
   </section>
 </main>
@@ -261,7 +316,7 @@ function renderPlayers() {
     const nameDiv = document.createElement('div');
     nameDiv.className = 'name';
     const roleSpan = document.createElement('span');
-    roleSpan.style.cssText = 'opacity:.4;font-size:9px';
+    roleSpan.style.cssText = 'opacity:.4;font-size:11px';
     roleSpan.textContent = p.role;
     nameDiv.appendChild(document.createTextNode(p.name + ' '));
     nameDiv.appendChild(roleSpan);

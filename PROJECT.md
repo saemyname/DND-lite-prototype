@@ -135,14 +135,14 @@ A web-based **D&D Lite** prototype — simplified tabletop D&D focused on **imme
 
 ## Roles & Stats
 
-| Role | STR | AGI | INT | LCK | HP |
-|------|-----|-----|-----|-----|----|
-| Warrior | 14 | 10 | 8 | 10 | 20 |
-| Rogue | 8 | 14 | 10 | 12 | 14 |
-| Mage | 6 | 8 | 14 | 12 | 12 |
-| Cleric | 10 | 8 | 12 | 14 | 16 |
+| Role | STR | AGI | INT | LCK | HP | Attack stat |
+|------|-----|-----|-----|-----|----|-------------|
+| Warrior | 14 | 10 | 8 | 10 | 20 | STR (+2) |
+| Rogue | 8 | 14 | 10 | 12 | 14 | AGI (+2) |
+| Mage | 6 | 8 | 14 | 12 | 12 | INT (+2) |
+| Cleric | 10 | 8 | 12 | 14 | 16 | INT (+1) |
 
-Combat: `d20 + floor((stat - 10) / 2) ≥ DC` → success (3 damage to enemy on success; `failHp` to player on miss)
+Combat: `d20 + floor((stat - 10) / 2) ≥ DC` → success (3 damage to enemy on success; `failHp` to player on miss). Each class attacks with its **signature stat** (`ATTACK_STAT_BY_ROLE` in `server.js`), not the enemy's tagged stat — so the mage rolls INT, not STR. `enemy.dc` still varies per enemy.
 
 ---
 
@@ -230,6 +230,6 @@ Mid-term goal: a **5-stage end-to-end playthrough** with the team (4 players + 1
 - [x] **Stage_05 Lyra slime in throne room** — same crying expression as the capture beat (>< eyes + tears) in place of the old voxel cage; her tile is non-walkable; `retryOnFail` on the lock challenge so a failed unlock doesn't satisfy victory.
 - [ ] **Voice chat** — WebRTC mesh, push-to-talk / mic toggle, speaking indicator
 - [ ] **End-to-end playtest** with the team
-- [ ] **SFX layer** — dice rolls, slime jump/attack/heal, hit/miss, victory/defeat (audio system ready, just needs wiring)
+- [x] **SFX layer** — 13 retro 8-bit one-shots in `Assets/audio/sfx/*.wav`, synthesized by `scripts/gen-sfx.mjs` (mirrors the `scenes/sfx-preview.html` picker). Wired across stages + world-map + chat: `dice_roll`, `attack_melee`/`attack_ranged` (by attacker role), `fail` (shared miss/skill-fail/fumble), `enemy_down`, `heal`, `skill_success`, `jump`, `ui_click`, `victory`, `defeat`, `unlock`, `chat_ping`. `playSFX` now loads `.wav`.
 - [ ] **Bot AI** — autonomous bot turns (random move/attack) for solo testing convenience
 - [ ] **Cleric revive mechanic** — currently dead players cannot be brought back this run; consider altar/revival challenge

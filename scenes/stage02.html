@@ -125,6 +125,17 @@
     white-space: nowrap;
   }
   .player-name-label.me { color: #ffe9a0; border-color: rgba(255,233,160,.5); }
+  .player-name-label.active-turn {
+    color: #fff;
+    background: rgba(255,233,160,.22);
+    border-color: #ffe97a;
+    font-weight: bold;
+    animation: turn-pulse 1.1s ease-in-out infinite;
+  }
+  @keyframes turn-pulse {
+    0%, 100% { box-shadow: 0 0 7px rgba(255,233,160,.55); }
+    50%      { box-shadow: 0 0 18px rgba(255,233,160,1); }
+  }
 
   /* Status message */
   #status-msg {
@@ -134,7 +145,7 @@
     transform: translate(-50%, -50%);
     z-index: 60;
     font-family: 'Georgia', serif;
-    font-size: 13px;
+    font-size: 17px;
     letter-spacing: 3px;
     text-transform: uppercase;
     color: #e85d5d;
@@ -176,12 +187,12 @@
     left: 50%;
     transform: translateX(-50%) translateY(20px);
     z-index: 50;
-    width: 480px;
+    width: 620px;
     max-width: calc(100vw - 340px);
     background: rgba(0,0,0,.65);
     border: 1px solid rgba(200,169,110,.2);
     border-radius: 8px;
-    padding: 20px 24px;
+    padding: 28px 34px;
     backdrop-filter: blur(6px);
     display: flex;
     flex-direction: column;
@@ -196,20 +207,20 @@
     pointer-events: all;
     transform: translateX(-50%) translateY(0);
   }
-  #event-desc { font-size: 14px; line-height: 1.7; color: rgba(200,169,110,.8); letter-spacing: .5px; }
+  #event-desc { font-size: 19px; line-height: 1.7; color: rgba(200,169,110,.8); letter-spacing: .5px; }
   #event-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-  #event-result { font-size: 15px; letter-spacing: 1px; color: #ffe9a0; }
+  #event-result { font-size: 21px; letter-spacing: 1px; color: #ffe9a0; }
   #event-result.success { color: #66bb6a; }
   #event-result.fail { color: #e85d5d; }
-  #event-outcome { font-size: 13px; line-height: 1.6; color: rgba(200,169,110,.7); }
+  #event-outcome { font-size: 18px; line-height: 1.6; color: rgba(200,169,110,.7); }
   .event-btn {
-    padding: 10px 20px;
+    padding: 14px 28px;
     background: rgba(200,169,110,.08);
     border: 1px solid rgba(200,169,110,.3);
     border-radius: 4px;
     color: #c8a96e;
     font-family: 'Georgia', serif;
-    font-size: 13px;
+    font-size: 17px;
     letter-spacing: 2px;
     text-transform: uppercase;
     cursor: pointer;
@@ -233,7 +244,7 @@
   }
   #d20-hud.active { pointer-events: all; cursor: pointer; transform: scale(1.5) translateY(-16px); }
   #d20-hud.active:hover #d20-dice-shape { filter: brightness(1.4) drop-shadow(0 0 8px rgba(200,169,110,.5)); }
-  #d20-dice-shape { width: 80px; height: 80px; transition: filter .2s; }
+  #d20-dice-shape { width: 100px; height: 100px; transition: filter .2s; }
   #d20-dice-shape polygon { fill: rgba(30,22,12,.85); stroke: rgba(200,169,110,.85); stroke-width: 1.4; }
   #d20-dice-shape line { stroke: rgba(200,169,110,.85); stroke-width: 1.4; }
   #d20-dice-shape.success polygon { fill: rgba(102,187,106,.15); stroke: rgba(102,187,106,.8); }
@@ -248,18 +259,18 @@
     100% { transform: rotate(360deg) scale(1); }
   }
   #d20-dice-shape.rolling { animation: d20-roll .5s ease-out; }
-  #d20-wrapper { position: relative; width: 80px; height: 80px; }
+  #d20-wrapper { position: relative; width: 100px; height: 100px; }
   #d20-value {
     position: absolute;
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
-    font-size: 22px;
+    font-size: 28px;
     font-family: 'Georgia', serif;
     color: #ffe9a0;
     pointer-events: none;
     text-shadow: 0 0 10px rgba(200,169,110,.8);
   }
-  #d20-label { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: rgba(200,169,110,.4); height: 14px; font-family: 'Georgia', serif; }
+  #d20-label { font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: rgba(200,169,110,.4); height: 14px; font-family: 'Georgia', serif; }
 
   /* Turn indicator */
   #turn-indicator {
@@ -268,10 +279,10 @@
     left: 50%;
     transform: translateX(-50%);
     z-index: 60;
-    padding: 6px 18px;
+    padding: 9px 24px;
     border-radius: 4px;
     font-family: 'Georgia', serif;
-    font-size: 13px;
+    font-size: 18px;
     letter-spacing: 3px;
     text-transform: uppercase;
     background: rgba(0,0,0,.6);
@@ -301,8 +312,8 @@
   }
   #victory { color: #ffe9a0; }
   #game-over { color: #e85d5d; }
-  .overlay-title { font-size: 36px; letter-spacing: 6px; text-shadow: 0 0 40px currentColor; }
-  .overlay-sub { font-size: 14px; letter-spacing: 2px; opacity: .5; }
+  .overlay-title { font-size: 48px; letter-spacing: 6px; text-shadow: 0 0 40px currentColor; }
+  .overlay-sub { font-size: 19px; letter-spacing: 2px; opacity: .5; }
 </style>
 </head>
 <body>
@@ -402,6 +413,9 @@ import { send, on } from '../scripts/game-socket.js';
 import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, fadeOutToken, triggerSlimeAttack, flashEnemyDamage, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
 import { initDebugBots, debugActAs, isControlledBy, debugBotsAreActive } from '../scripts/debug-bots.js';
 import { playBGM, playSFX } from '../scripts/audio.js';
+document.addEventListener('click', (e) => {
+  if (e.target.closest && e.target.closest('.event-btn')) playSFX('ui_click');
+}, true);
 playBGM('adventure');
 
 // ── Grid / combat state (module scope) ──
@@ -695,6 +709,7 @@ async function applyState(snap) {
         if (Math.abs(dx) > 0.01 || Math.abs(dz) > 0.01) {
           const cur = entry.group.position;
           ud.jumpStart = performance.now();
+          playSFX('jump');
           ud.jumpFrom = new THREE.Vector3(cur.x, gridData.grid.floorY, cur.z);
           ud.jumpTo   = new THREE.Vector3(pos.x, gridData.grid.floorY, pos.z);
           const dist  = Math.hypot(pos.x - cur.x, pos.z - cur.z);
@@ -744,12 +759,16 @@ async function applyState(snap) {
     v.style.display = 'flex';
     if (!window._victoryFaded) {
       window._victoryFaded = true;
+      playSFX('victory');
       v.style.transition = 'opacity 0.8s';
       setTimeout(() => { v.style.opacity = '0'; }, 2000);
       setTimeout(() => { v.style.display = 'none'; }, 2900);
     }
   }
-  if (snap.outcome === 'defeat')  document.getElementById('game-over').style.display = 'flex';
+  if (snap.outcome === 'defeat') {
+    document.getElementById('game-over').style.display = 'flex';
+    if (!window._defeatPlayed) { window._defeatPlayed = true; playSFX('defeat'); }
+  }
 
   // Show move range for the active turn player (self, or any if debug-controlling bots)
   const turnPid = snap.activeTurnPid;
@@ -992,6 +1011,9 @@ function closeCombatPanel() {
 }
 
 function animateCombatEvent(ev, isAttacker) {
+  playSFX('dice_roll');
+  { const _ar = playerTokens.get(ev.attackerPid)?.role;
+    playSFX(_ar === 'rogue' || _ar === 'mage' ? 'attack_ranged' : 'attack_melee'); }
   const diceShape = panelEl('d20-dice-shape');
   const diceValue = panelEl('d20-value');
   diceShape.setAttribute('class', '');
@@ -1010,6 +1032,8 @@ function animateCombatEvent(ev, isAttacker) {
       diceValue.style.color = ev.roll === 20 ? '#ffe97a' : ev.roll === 1 ? '#ff6b6b' : '#ffe9a0';
       diceShape.classList.remove('rolling');
       diceShape.classList.add(ev.success ? 'success' : 'fail');
+      if (!ev.success) playSFX('fail');
+      else if (/DEFEATED/i.test(ev.outcomeText || '')) playSFX('enemy_down');
       const modStr = ev.mod >= 0 ? `+${ev.mod}` : `${ev.mod}`;
       const statLabel = STAT_NAMES_C[ev.stat] || ev.stat.toUpperCase();
       const resultEl = panelEl('event-result');
@@ -1089,16 +1113,14 @@ function openHealPanel(target, isHealer) {
 // Cleric choice panel — step 'pick_action' shows Attack/Heal; step
 // 'pick_target' shows one button per healable ally.
 function openChoicePanel(pc, snap, isActor) {
-  if (pc.step === 'pick_action') {
-    const enemy = snap.enemies.find(e => e.id === pc.attackEnemyId);
-    panelEl('event-desc').textContent = isActor
-      ? `Choose your action`
-      : `${snap.players.find(p => p.pid === pc.actorPid)?.name || 'Cleric'} ponders…`;
-  } else {
-    panelEl('event-desc').textContent = isActor
-      ? `Heal whom?`
-      : `Choosing a heal target…`;
-  }
+  const actorName = snap.players.find(p => p.pid === pc.actorPid)?.name || 'Cleric';
+  // Resolve enemy stubs ({id,name}) against live enemy state for HP labels.
+  const enemies = (pc.attackEnemies || []).map(ae => snap.enemies.find(e => e.id === ae.id) || ae);
+  let desc;
+  if (pc.step === 'pick_enemy')       desc = isActor ? 'Attack whom?' : actorName + ' picks a target…';
+  else if (pc.step === 'pick_target') desc = isActor ? 'Heal whom?'   : 'Choosing a heal target…';
+  else                                desc = isActor ? 'Choose your action' : actorName + ' ponders…';
+  panelEl('event-desc').textContent = desc;
   panelEl('event-actions').innerHTML = '';
   panelEl('event-result').textContent = '';
   panelEl('event-result').className = '';
@@ -1108,40 +1130,26 @@ function openChoicePanel(pc, snap, isActor) {
   panelEl('d20-dice-shape').setAttribute('class', '');
   panelEl('d20-hud').classList.remove('active');
 
+  const pick = (payload) => send({ type: 'action_request', stageId: 'stage02', kind: 'choice_pick', actAsPid: debugActAs(), ...payload });
+  const addBtn = (label, onClick) => {
+    const b = document.createElement('button');
+    b.className = 'event-btn';
+    b.textContent = label;
+    b.addEventListener('click', () => { b.disabled = true; onClick(); });
+    panelEl('event-actions').appendChild(b);
+  };
+
   if (isActor) {
     if (pc.step === 'pick_action') {
-      const enemy = snap.enemies.find(e => e.id === pc.attackEnemyId);
-      if (enemy) {
-        const atk = document.createElement('button');
-        atk.className = 'event-btn';
-        atk.textContent = `Attack ${enemy.name}`;
-        atk.addEventListener('click', () => {
-          atk.disabled = true;
-          send({ type: 'action_request', stageId: 'stage02', kind: 'choice_pick', choice: 'attack', actAsPid: debugActAs() });
-        });
-        panelEl('event-actions').appendChild(atk);
+      if (enemies.length > 0) addBtn(enemies.length === 1 ? 'Attack ' + enemies[0].name : 'Attack', () => pick({ choice: 'attack' }));
+      if ((pc.healTargets || []).length > 0) addBtn('Heal', () => pick({ choice: 'heal' }));
+    } else if (pc.step === 'pick_enemy') {
+      for (const e of enemies) {
+        const hp = (e.hp != null && e.maxHp != null) ? ' (' + e.hp + '/' + e.maxHp + ')' : '';
+        addBtn('Attack ' + e.name + hp, () => pick({ choice: 'attack', enemyId: e.id }));
       }
-      if (pc.healTargets.length > 0) {
-        const heal = document.createElement('button');
-        heal.className = 'event-btn';
-        heal.textContent = 'Heal';
-        heal.addEventListener('click', () => {
-          heal.disabled = true;
-          send({ type: 'action_request', stageId: 'stage02', kind: 'choice_pick', choice: 'heal', actAsPid: debugActAs() });
-        });
-        panelEl('event-actions').appendChild(heal);
-      }
-    } else if (pc.step === 'pick_target') {
-      for (const t of pc.healTargets) {
-        const btn = document.createElement('button');
-        btn.className = 'event-btn';
-        btn.textContent = `${t.name} (${t.hp}/${t.maxHp})`;
-        btn.addEventListener('click', () => {
-          btn.disabled = true;
-          send({ type: 'action_request', stageId: 'stage02', kind: 'choice_pick', targetPid: t.pid, actAsPid: debugActAs() });
-        });
-        panelEl('event-actions').appendChild(btn);
-      }
+    } else { // pick_target — heal ally
+      for (const t of (pc.healTargets || [])) addBtn(t.name + ' (' + t.hp + '/' + t.maxHp + ')', () => pick({ targetPid: t.pid }));
     }
   } else {
     const note = document.createElement('div');
@@ -1153,6 +1161,7 @@ function openChoicePanel(pc, snap, isActor) {
 }
 
 on('heal_event', (msg) => {
+  playSFX('heal');
   const isHealer = isControlledBy(msg.healerPid);
   const resultEl = panelEl('event-result');
   resultEl.textContent = `Roll d6: ${msg.roll} ${msg.mod >= 0 ? '+' : ''}${msg.mod} → +${msg.restored} HP`;
@@ -1227,8 +1236,36 @@ function tick() {
     entry.label.style.left = x + 'px';
     entry.label.style.top  = y + 'px';
     if (pid === myPid && entry.nameEl) entry.nameEl.classList.add('me');
+    if (entry.nameEl) entry.nameEl.classList.toggle('active-turn', !!serverState && !serverState.outcome && pid === serverState.activeTurnPid);
   }
 
+  // ── Active-turn ground ring under the current player's slime ──
+  if (gridData) {
+    let ring = scene.userData.turnRing;
+    if (!ring) {
+      ring = new THREE.Mesh(
+        new THREE.RingGeometry(1.5, 2.1, 48),
+        new THREE.MeshBasicMaterial({ color: 0xffe97a, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false })
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.renderOrder = 4;
+      scene.add(ring);
+      scene.userData.turnRing = ring;
+    }
+    const activePid = (serverState && !serverState.outcome) ? serverState.activeTurnPid : null;
+    const activeEntry = activePid ? playerTokens.get(activePid) : null;
+    if (activeEntry) {
+      const gp = activeEntry.group.position;
+      ring.position.set(gp.x, gridData.grid.floorY + 0.08, gp.z);
+      const tt = performance.now() * 0.005;
+      const s = 1 + Math.sin(tt) * 0.12;
+      ring.scale.set(s, s, 1);
+      ring.material.opacity = 0.45 + (Math.sin(tt) * 0.5 + 0.5) * 0.4;
+      ring.visible = true;
+    } else {
+      ring.visible = false;
+    }
+  }
   renderer.render(scene, camera);
 }
 tick();

@@ -8,7 +8,7 @@
 //
 // File layout:
 //   Assets/audio/bgm/<name>.mp3   — looped background music
-//   Assets/audio/sfx/<name>.mp3   — one-shot sound effects
+//   Assets/audio/sfx/<name>.wav   — one-shot sound effects
 //
 // Mute state + volumes persist in localStorage ('dnd-audio').
 
@@ -80,7 +80,15 @@ function fadeAudio(audio, from, to, durMs, onDone) {
 // Play a BGM by name. If the same BGM is already playing, no-op. Otherwise
 // crossfades. Browsers may block playback until a user gesture — if so, we
 // retry on the next click anywhere on the page.
-export function playBGM(name, fadeMs = BGM_FADE_MS) {
+// Per-track volume balance vs SFX (default 1). Keyed by track name so every
+// page that plays the same track stays consistent — e.g. 'adventure' is shared
+// across world-map + stage01-04 via cross-page continuity, so it must sound the
+// same everywhere. Tune here, not at call sites.
+const BGM_VOL_SCALE = { adventure: 0.25 };
+
+// volScale overrides the per-track default above; stored on currentBgm so live
+// mute/volume changes keep the per-track balance.
+export function playBGM(name, fadeMs = BGM_FADE_MS, volScale = BGM_VOL_SCALE[name] ?? 1) {
   if (currentBgm?.name === name) return;
   if (currentBgm) {
     const old = currentBgm.audio;
@@ -89,7 +97,7 @@ export function playBGM(name, fadeMs = BGM_FADE_MS) {
   const audio = new Audio(BGM_DIR + name + '.mp3');
   audio.loop = true;
   audio.volume = 0;
-  const target = muted ? 0 : bgmVol;
+  const target = (muted ? 0 : bgmVol) * volScale;
 
   // Cross-page continuity: if the saved state names the same track and is
   // fresh, resume from the saved position (advanced by the time the page took
@@ -131,7 +139,7 @@ export function playBGM(name, fadeMs = BGM_FADE_MS) {
       window.addEventListener('pointerdown', onGesture, { once: true });
       window.addEventListener('keydown',     onGesture, { once: true });
     });
-  currentBgm = { name, audio };
+  currentBgm = { name, audio, scale: volScale };
   tryPlay();
 }
 
@@ -150,7 +158,7 @@ export function playSFX(name) {
   let audio = pool.find(a => a.paused || a.ended);
   if (!audio) {
     if (pool.length < SFX_POOL_MAX) {
-      audio = new Audio(SFX_DIR + name + '.mp3');
+      audio = new Audio(SFX_DIR + name + '.wav');
       pool.push(audio);
     } else {
       audio = pool[0];
@@ -163,7 +171,7 @@ export function playSFX(name) {
 
 export function setMuted(value) {
   muted = !!value;
-  if (currentBgm) currentBgm.audio.volume = muted ? 0 : bgmVol;
+  if (currentBgm) currentBgm.audio.volume = (muted ? 0 : bgmVol) * (currentBgm.scale ?? 1);
   savePrefs();
   refreshToggleUI();
 }
@@ -172,7 +180,7 @@ export function isMuted()    { return muted; }
 
 export function setBGMVolume(v) {
   bgmVol = Math.max(0, Math.min(1, v));
-  if (currentBgm && !muted) currentBgm.audio.volume = bgmVol;
+  if (currentBgm && !muted) currentBgm.audio.volume = bgmVol * (currentBgm.scale ?? 1);
   savePrefs();
 }
 export function setSFXVolume(v) {

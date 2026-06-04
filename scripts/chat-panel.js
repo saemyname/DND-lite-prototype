@@ -1,4 +1,5 @@
 import { send, on } from './game-socket.js';
+import { playSFX } from './audio.js';
 
 const COLLAPSED_KEY = 'chat-collapsed';
 
@@ -153,7 +154,7 @@ function init() {
     if (e.key === 'Enter') { e.preventDefault(); submit(); }
   });
 
-  on('chat_message', (msg) => appendMessage(panel, msg));
+  on('chat_message', (msg) => { appendMessage(panel, msg); playSFX('chat_ping'); });
   on('chat_history', (msg) => {
     const list = panel.querySelector('#chat-messages');
     list.innerHTML = '';

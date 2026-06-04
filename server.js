@@ -62,11 +62,9 @@ function executeWorldMapMove(sess, stageId) {
   broadcastWorldMapState(sess);
 }
 
-function broadcastVoteState(sess) {
-  const v = sess.activeVote;
-  if (!v) return;
+function voteStateMsg(v) {
   const yesPids = [...v.votes.entries()].filter(([_, c]) => c === 'yes').map(([pid]) => pid);
-  broadcastPlayers(sess, {
+  return {
     type: 'vote_state',
     stageId: v.stageId,
     initiatorName: v.initiatorName,
@@ -74,7 +72,12 @@ function broadcastVoteState(sess) {
     yesPids,
     yesCount: yesPids.length,
     requiredYes: v.requiredYes,
-  });
+  };
+}
+
+function broadcastVoteState(sess) {
+  if (!sess.activeVote) return;
+  broadcastPlayers(sess, voteStateMsg(sess.activeVote));
 }
 
 function makeStageState(stageId) {
@@ -186,6 +189,9 @@ function isCellWalkable(stageState, col, row, selfPid) {
 
 const MOVE_RANGE_BY_ROLE   = { warrior: 3, rogue: 5, mage: 4, cleric: 4 };
 const ATTACK_RANGE_BY_ROLE = { warrior: 1, rogue: 2, mage: 2, cleric: 1 };
+// Each class attacks with its signature stat (not the enemy's). Falls back to
+// the enemy's tagged stat, then 'str', for safety.
+const ATTACK_STAT_BY_ROLE  = { warrior: 'str', rogue: 'agi', mage: 'int', cleric: 'int' };
 
 function chebyshev(c1, r1, c2, r2) {
   return Math.max(Math.abs(c1 - c2), Math.abs(r1 - r2));
@@ -285,6 +291,14 @@ function adjacentEnemyAt(stageState, col, row, range = 1) {
   );
 }
 
+// All alive enemies within attack range — used to offer a target picker when
+// more than one is reachable.
+function adjacentEnemiesAt(stageState, col, row, range = 1) {
+  return stageState.enemies.filter(e =>
+    e.hp > 0 && inAttackRange(col, row, e.col, e.row, range)
+  );
+}
+
 function rollD6() { return Math.floor(Math.random() * 6) + 1; }
 
 // Returns ALL healable allies (wounded + alive + within 1 tile incl. self).
@@ -355,15 +369,23 @@ function allPlayersDead(stageState) {
 }
 
 function startTurnAutoCombat(stageState) {
-  if (stageState.outcome || stageState.pendingCombat) return;
+  if (stageState.outcome || stageState.pendingCombat || stageState.pendingChoice) return;
   const activePid = activeTurnPid(stageState);
   if (!activePid) return;
   const me = stageState.players.get(activePid);
   if (!me) return;
   const range = ATTACK_RANGE_BY_ROLE[me.role] || 1;
-  const adj = adjacentEnemyAt(stageState, me.col, me.row, range);
-  if (adj) {
-    stageState.pendingCombat = { attackerPid: activePid, enemyId: adj.id };
+  const enemies = adjacentEnemiesAt(stageState, me.col, me.row, range);
+  if (enemies.length === 1) {
+    stageState.pendingCombat = { attackerPid: activePid, enemyId: enemies[0].id };
+  } else if (enemies.length > 1) {
+    // Multiple in range → let the player choose which to attack.
+    stageState.pendingChoice = {
+      actorPid: activePid,
+      attackEnemies: enemies.map(e => ({ id: e.id, name: e.name })),
+      healTargets: [],
+      step: 'pick_enemy',
+    };
   }
 }
 
@@ -767,7 +789,8 @@ wss.on('connection', (ws) => {
           if (!enemy || enemy.hp <= 0) return;
 
           const attacker = st.players.get(actorPid);
-          const statVal = attacker?.stats?.[enemy.stat] ?? 10;
+          const atkStat = ATTACK_STAT_BY_ROLE[attacker?.role] || enemy.stat || 'str';
+          const statVal = attacker?.stats?.[atkStat] ?? 10;
           const roll = rollD20();
           const mod = statModifier(statVal);
           const total = roll + mod;
@@ -793,7 +816,7 @@ wss.on('connection', (ws) => {
             type: 'combat_event',
             attackerPid: actorPid,
             enemyId: enemy.id,
-            stat: enemy.stat,
+            stat: atkStat,
             dc: enemy.dc,
             roll, mod, total, success,
             outcomeText,
@@ -830,12 +853,15 @@ wss.on('connection', (ws) => {
           // Cleric: pick attack/heal, or pick a heal target after choosing heal.
           if (!st.pendingChoice || st.pendingChoice.actorPid !== actorPid) return;
           const pc = st.pendingChoice;
+          const choiceEnemies = pc.attackEnemies || [];
           if (pc.step === 'pick_action') {
-            if (msg.choice === 'attack' && pc.attackEnemyId) {
-              const enemy = st.enemies.find(e => e.id === pc.attackEnemyId);
-              if (!enemy || enemy.hp <= 0) return;
-              st.pendingCombat = { attackerPid: actorPid, enemyId: pc.attackEnemyId };
-              st.pendingChoice = null;
+            if (msg.choice === 'attack' && choiceEnemies.length > 0) {
+              if (choiceEnemies.length === 1) {
+                st.pendingCombat = { attackerPid: actorPid, enemyId: choiceEnemies[0].id };
+                st.pendingChoice = null;
+              } else {
+                pc.step = 'pick_enemy'; // multiple → ask which enemy next
+              }
             } else if (msg.choice === 'heal' && pc.healTargets.length > 0) {
               if (pc.healTargets.length === 1) {
                 st.pendingHeal = { healerPid: actorPid, targetPid: pc.healTargets[0].pid };
@@ -846,6 +872,12 @@ wss.on('connection', (ws) => {
             } else {
               return;
             }
+          } else if (pc.step === 'pick_enemy') {
+            const chosen = choiceEnemies.find(e => e.id === msg.enemyId);
+            const enemy = chosen && st.enemies.find(e => e.id === chosen.id);
+            if (!enemy || enemy.hp <= 0) return;
+            st.pendingCombat = { attackerPid: actorPid, enemyId: enemy.id };
+            st.pendingChoice = null;
           } else if (pc.step === 'pick_target') {
             const tgt = pc.healTargets.find(t => t.pid === msg.targetPid);
             if (!tgt) return;
@@ -886,40 +918,38 @@ wss.on('connection', (ws) => {
           me.row = dstRow;
 
           const atkRange = ATTACK_RANGE_BY_ROLE[me.role] || 1;
-          const adj = adjacentEnemyAt(st, dstCol, dstRow, atkRange);
-          if (me.role === 'cleric') {
-            // Cleric: if both attack AND heal options exist, show a choice
-            // panel (attack vs heal, then heal-target picker if >1 ally).
-            const healables = healableAlliesAt(st, dstCol, dstRow);
-            if (adj && healables.length > 0) {
-              st.pendingChoice = {
-                actorPid,
-                attackEnemyId: adj.id,
-                healTargets: healables,
-                step: 'pick_action',
-              };
-            } else if (adj) {
-              st.pendingCombat = { attackerPid: actorPid, enemyId: adj.id };
-            } else if (healables.length === 1) {
-              st.pendingHeal = { healerPid: actorPid, targetPid: healables[0].pid };
-            } else if (healables.length > 1) {
-              st.pendingChoice = {
-                actorPid,
-                attackEnemyId: null,
-                healTargets: healables,
-                step: 'pick_target',
-              };
-            } else {
-              const challenge = adjacentChallengeAt(st, dstCol, dstRow);
-              if (challenge) st.pendingChallenge = { actorPid, challengeId: challenge.id };
-              else advanceTurn(st);
-            }
-          } else if (adj) {
-            st.pendingCombat = { attackerPid: actorPid, enemyId: adj.id };
-          } else {
+          const enemies = adjacentEnemiesAt(st, dstCol, dstRow, atkRange);
+          const enemyList = enemies.map(e => ({ id: e.id, name: e.name }));
+          const startChallengeOrEnd = () => {
             const challenge = adjacentChallengeAt(st, dstCol, dstRow);
             if (challenge) st.pendingChallenge = { actorPid, challengeId: challenge.id };
             else advanceTurn(st);
+          };
+          if (me.role === 'cleric') {
+            // Cleric: if both attack AND heal options exist, show a choice
+            // panel (attack vs heal). Multi-enemy attack and >1 ally both get
+            // their own target pickers.
+            const healables = healableAlliesAt(st, dstCol, dstRow);
+            if (enemies.length > 0 && healables.length > 0) {
+              st.pendingChoice = { actorPid, attackEnemies: enemyList, healTargets: healables, step: 'pick_action' };
+            } else if (enemies.length === 1) {
+              st.pendingCombat = { attackerPid: actorPid, enemyId: enemies[0].id };
+            } else if (enemies.length > 1) {
+              st.pendingChoice = { actorPid, attackEnemies: enemyList, healTargets: [], step: 'pick_enemy' };
+            } else if (healables.length === 1) {
+              st.pendingHeal = { healerPid: actorPid, targetPid: healables[0].pid };
+            } else if (healables.length > 1) {
+              st.pendingChoice = { actorPid, attackEnemies: [], healTargets: healables, step: 'pick_target' };
+            } else {
+              startChallengeOrEnd();
+            }
+          } else if (enemies.length === 1) {
+            st.pendingCombat = { attackerPid: actorPid, enemyId: enemies[0].id };
+          } else if (enemies.length > 1) {
+            // Multiple enemies in range → ask which one to attack.
+            st.pendingChoice = { actorPid, attackEnemies: enemyList, healTargets: [], step: 'pick_enemy' };
+          } else {
+            startChallengeOrEnd();
           }
           broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
         }
@@ -997,6 +1027,9 @@ wss.on('connection', (ws) => {
         send(ws, { type: 'chat_history', messages: sess.chatHistory });
         send(ws, { type: 'fog_history', points: sess.revealedFog || [] });
         send(ws, buildWorldMapState(sess));
+        // Replay an in-progress party vote so a late-arriving teammate (who was
+        // still in a stage when the vote was proposed) sees the panel on landing.
+        if (sess.activeVote) send(ws, voteStateMsg(sess.activeVote));
         if (sess.dm) send(sess.dm, { type: 'player_location', playerId: pid, location: ep.location });
         break;
       }

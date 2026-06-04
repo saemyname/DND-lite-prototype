@@ -92,13 +92,13 @@
 <div id="vignette"></div>
 
 <!-- Party vote panel ─────────────────────────────────────────────────────── -->
-<div id="vote-panel" style="position:fixed;top:80px;left:50%;transform:translateX(-50%);z-index:75;background:rgba(15,15,20,.92);border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:14px 20px;font-family:system-ui,-apple-system,sans-serif;color:#eaeaf0;display:none;min-width:300px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.5);">
-  <div id="vote-message" style="font-size:14px;line-height:1.4;margin-bottom:12px;"></div>
+<div id="vote-panel" style="position:fixed;top:80px;left:50%;transform:translateX(-50%);z-index:75;background:rgba(15,15,20,.92);border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:20px 28px;font-family:system-ui,-apple-system,sans-serif;color:#eaeaf0;display:none;min-width:400px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.5);">
+  <div id="vote-message" style="font-size:19px;line-height:1.4;margin-bottom:12px;"></div>
   <div id="vote-buttons" style="display:flex;justify-content:center;gap:10px;margin-bottom:8px;">
-    <button id="vote-yes" style="background:#2d7a3d;border:none;color:#fff;padding:7px 26px;font-family:inherit;font-size:13px;font-weight:600;border-radius:5px;cursor:pointer;">Yes</button>
-    <button id="vote-no"  style="background:#8a2d2d;border:none;color:#fff;padding:7px 26px;font-family:inherit;font-size:13px;font-weight:600;border-radius:5px;cursor:pointer;">No</button>
+    <button id="vote-yes" style="background:#2d7a3d;border:none;color:#fff;padding:10px 32px;font-family:inherit;font-size:16px;font-weight:600;border-radius:5px;cursor:pointer;">Yes</button>
+    <button id="vote-no"  style="background:#8a2d2d;border:none;color:#fff;padding:10px 32px;font-family:inherit;font-size:16px;font-weight:600;border-radius:5px;cursor:pointer;">No</button>
   </div>
-  <div id="vote-tally" style="font-size:12px;color:rgba(234,234,240,.55);"></div>
+  <div id="vote-tally" style="font-size:15px;color:rgba(234,234,240,.55);"></div>
 </div>
 
 <script type="module">
@@ -116,8 +116,8 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { on, send } from '../scripts/game-socket.js';
 import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation } from '../scripts/miniature.js';
 import { initDebugBots } from '../scripts/debug-bots.js';
-import { playBGM } from '../scripts/audio.js';
-playBGM('adventure');
+import { playBGM, playSFX } from '../scripts/audio.js';
+playBGM('adventure'); // volume balanced centrally in audio.js (BGM_VOL_SCALE)
 
 // ══════════════════════════════════════
 //   RENDERER
@@ -627,10 +627,12 @@ if (localStorage.getItem('session-code')) {
   });
 
   on('stage_unlock', (msg) => {
+    const _wasLocked = !serverUnlocked.has(msg.stageKey);
     serverUnlocked.add(msg.stageKey);
     localStorage.setItem('unlocked-stages', JSON.stringify([...serverUnlocked]));
     console.log('[ws] Stage unlocked:', msg.stageKey);
     refreshStageLockVisuals();
+    if (_wasLocked) playSFX('unlock');
   });
 
   on('fog_reveal', (msg) => {
@@ -926,6 +928,7 @@ function tick() {
       ud.jumpStart = nowMs;
       ud.jumpDuration = HOP_MS;
       ud.targetPos = targetPos;
+      playSFX('jump'); // one hop sound per tile-hop (stepHop chains hops per journey)
     }
     updateSlimeAnimation(group, nowMs, floorY);
     // Snap + arrival check after the animation step
