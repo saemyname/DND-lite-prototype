@@ -429,15 +429,10 @@ gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
     if (child.name) console.log('  obj:', child.name);
   });
 
-  // Clear fog around stage_01
+  // Clear fog around every already-unlocked stage (stage_01 + any progress so far)
   const s01 = Object.values(stages).find(s => s.object.name.toLowerCase().includes('01'));
-  if (s01) {
-    revealFog(s01.worldPos.x, s01.worldPos.z);
-    currentStage = s01;
-  } else {
-    // Fallback: clear center
-    revealFog(0, 0);
-  }
+  if (s01) currentStage = s01;
+  revealFogForUnlockedStages();
 
   // Collect stage meshes for raycasting (direct hit on model geometry)
   mapModel.traverse(c => {
@@ -525,7 +520,7 @@ const FOG_SPREAD = 35;  // XZ spread radius
 const FOG_Y_MIN = 1;
 const FOG_Y_MAX = 3;
 const FOG_PARTICLE_SIZE = 12;
-const FOG_REVEAL_RADIUS = 10; // world units
+const FOG_REVEAL_RADIUS = 6; // world units
 
 // Soft circle sprite texture
 const spriteCanvas = document.createElement('canvas');
@@ -615,6 +610,18 @@ function syncUnlockedStages(list) {
   serverUnlocked.clear();
   for (const key of list) serverUnlocked.add(key);
   localStorage.setItem('unlocked-stages', JSON.stringify(list));
+  revealFogForUnlockedStages();
+}
+
+// Fog is derived from progress: every unlocked stage has the mist around its
+// node cleared. Pure function of serverUnlocked, computed on each client
+// (fromBroadcast=true → no server echo needed). Safe to call before the map
+// GLB finishes loading: `stages` is empty then and the GLB-load path re-runs it.
+function revealFogForUnlockedStages() {
+  for (const key of serverUnlocked) {
+    const s = stages[key];
+    if (s) revealFog(s.worldPos.x, s.worldPos.z, true);
+  }
 }
 
 if (localStorage.getItem('session-code')) {
@@ -632,6 +639,8 @@ if (localStorage.getItem('session-code')) {
     localStorage.setItem('unlocked-stages', JSON.stringify([...serverUnlocked]));
     console.log('[ws] Stage unlocked:', msg.stageKey);
     refreshStageLockVisuals();
+    const s = stages[msg.stageKey];
+    if (s) revealFog(s.worldPos.x, s.worldPos.z, true); // mist around the new stage lifts
     if (_wasLocked) playSFX('unlock');
   });
 
@@ -851,14 +860,9 @@ canvas.addEventListener('click', e => {
     } else {
       console.log('Stage locked:', stageId, '— clear previous first');
     }
-  } else {
-    // Fog reveal on ground
-    mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
-    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObjects([groundPlane], false);
-    if (hits.length > 0) revealFog(hits[0].point.x, hits[0].point.z);
   }
+  // Fog now clears automatically around unlocked stages (see revealFogForUnlockedStages),
+  // so click-to-reveal on the ground was removed.
 });
 
 window.addEventListener('resize', () => {
