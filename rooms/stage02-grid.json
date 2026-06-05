@@ -8,39 +8,86 @@
     "cellSizeZ": 6,
     "originX": -32,
     "originZ": -43,
-    "floorY": -16.0
+    "floorY": -16
   },
   "walkable": [
-    [0,1,1,1,0],
-    [0,1,1,1,0],
-    [1,1,1,1,0],
-    [0,1,1,1,0],
-    [0,1,1,1,0],
-    [0,1,1,1,0]
+    [
+      0,
+      1,
+      1,
+      1,
+      0
+    ],
+    [
+      0,
+      1,
+      1,
+      1,
+      0
+    ],
+    [
+      1,
+      1,
+      1,
+      1,
+      0
+    ],
+    [
+      0,
+      1,
+      1,
+      1,
+      0
+    ],
+    [
+      0,
+      1,
+      1,
+      1,
+      0
+    ],
+    [
+      0,
+      1,
+      1,
+      1,
+      0
+    ]
   ],
-  "playerSpawn": [2, 5],
+  "playerSpawn": [
+    2,
+    5
+  ],
   "enemies": [
     {
       "id": "goblin1",
-      "col": 1, "row": 0,
+      "col": 1,
+      "row": 0,
       "name": "Goblin",
-      "hp": 6, "maxHp": 6,
-      "stat": "str", "dc": 11,
-      "description": "A snarling goblin lunges from behind a crumbling pillar!",
-      "successText": "Your blade finds its mark. The goblin stumbles back!",
-      "failText": "The goblin dodges and slashes back with rusty claws.",
-      "successHp": 0, "failHp": -3
+      "hp": 6,
+      "maxHp": 6,
+      "stat": "str",
+      "dc": 11,
+      "description": "A goblin springs out from behind a broken pillar, snarling!",
+      "successText": "Nice hit! The goblin stumbles back.",
+      "failText": "It ducks and swipes back with grubby claws.",
+      "successHp": 0,
+      "failHp": -3
     },
     {
       "id": "goblin2",
-      "col": 3, "row": 0,
+      "col": 3,
+      "row": 0,
       "name": "Goblin",
-      "hp": 6, "maxHp": 6,
-      "stat": "str", "dc": 11,
-      "description": "A second goblin emerges from the shadows, chittering wildly!",
-      "successText": "Clean hit — the goblin crashes into the ruins wall!",
-      "failText": "It bites! Sharp yellowed teeth find their mark.",
-      "successHp": 0, "failHp": -3
+      "hp": 6,
+      "maxHp": 6,
+      "stat": "str",
+      "dc": 11,
+      "description": "Another goblin pops out of the shadows, chittering away!",
+      "successText": "Bullseye — it bounces off the ruined wall!",
+      "failText": "Chomp! Those little teeth are sharper than they look.",
+      "successHp": 0,
+      "failHp": -3
     }
   ]
 }

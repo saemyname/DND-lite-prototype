@@ -160,7 +160,7 @@
 <button id="skip-btn">Skip ▶</button>
 <div id="title-screen">
   <div class="title-main">Dungeons &amp; Dragons</div>
-  <div class="title-sub">Shadows Over Eldermoor</div>
+  <div class="title-sub">Lyra Rescue Team</div>
   <button id="start-btn">Start</button>
 </div>
 
@@ -253,10 +253,10 @@ const titleScreen = document.getElementById('title-screen');
 const startBtn    = document.getElementById('start-btn');
 
 const beats = [
-  { duration: 3500, narration: 'Eldermoor village. A quiet evening. Lyra finishes her last rounds.' },
-  { duration: 3000, narration: 'But something stirs in the forest...' },
-  { duration: 3500, narration: 'They take her. Quick, silent, gone.' },
-  { duration: 4000, narration: 'The village wakes empty. Rescue her — before dawn breaks.' },
+  { duration: 3500, narration: 'Eldermoor village, a calm evening. Lyra wraps up her last house calls.' },
+  { duration: 3000, narration: 'Then... something rustles in the woods.' },
+  { duration: 3500, narration: 'They grab her — quick, quiet, gone.' },
+  { duration: 4000, narration: 'The village wakes up one healer short. Bring her back — before sunrise!' },
 ];
 
 const TOTAL = beats.reduce((s, b) => s + b.duration, 0);
@@ -364,7 +364,7 @@ function updateBeat(beatIdx, t) {
 function endStateImmediate() {
   // Used when Skip is pressed — snap to "everyone gone" final state
   setActorVisibility(false);
-  setNarration('The village wakes empty. Rescue her — before dawn breaks.', true);
+  setNarration('The village wakes up one healer short. Bring her back — before sunrise!', true);
 }
 
 // ── Render loop ──
