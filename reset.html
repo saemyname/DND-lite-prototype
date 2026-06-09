@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D&D Lite — Reset Play Data</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 22px;
+    background: radial-gradient(ellipse at center, #1a1340, #05030f 75%);
+    font-family: 'Georgia', serif; color: #e9d8a8; text-align: center; padding: 24px;
+  }
+  h1 { color: #ffe9a0; font-size: 26px; letter-spacing: 2px; }
+  .cleared { font-size: 15px; color: #9fe89f; }
+  ul { list-style: none; font-size: 13px; color: rgba(200,169,110,.65); line-height: 1.9; }
+  a.btn {
+    margin-top: 8px; padding: 14px 40px; text-decoration: none;
+    background: rgba(200,169,110,.12); border: 1px solid rgba(200,169,110,.5);
+    border-radius: 6px; color: #ffe9a0; font-size: 16px; letter-spacing: 3px;
+    text-transform: uppercase; transition: all .2s;
+  }
+  a.btn:hover { background: rgba(200,169,110,.25); border-color: #ffe97a; color: #fff7d0; }
+  .note { font-size: 12px; color: rgba(200,169,110,.4); max-width: 420px; }
+</style>
+</head>
+<body>
+  <h1>🧹 Play Data Reset</h1>
+  <div class="cleared" id="status">Clearing…</div>
+  <ul id="keys"></ul>
+  <a class="btn" href="index.html">▶ New Game</a>
+  <p class="note">Run this once per device/browser. The server's live session state
+     is reset separately when the host restarts the server.</p>
+
+<script>
+  // Play-data keys to wipe for a fresh start. Audio prefs (dnd-audio*) and
+  // chat UI state are intentionally kept.
+  const KEYS = [
+    'session-code', 'dm-session-code', 'player-id',
+    'dndlite-character', 'dndlite-clearedEvents', 'dndlite-currentRoom',
+    'unlocked-stages', 'intro-seen',
+  ];
+  const ul = document.getElementById('keys');
+  let removed = 0;
+  for (const k of KEYS) {
+    const had = localStorage.getItem(k) !== null;
+    if (had) removed++;
+    localStorage.removeItem(k);
+    const li = document.createElement('li');
+    li.textContent = (had ? '✓ ' : '· ') + k;
+    ul.appendChild(li);
+  }
+  document.getElementById('status').textContent =
+    `Cleared ${removed} key${removed === 1 ? '' : 's'}. You can start fresh.`;
+</script>
+</body>
+</html>
