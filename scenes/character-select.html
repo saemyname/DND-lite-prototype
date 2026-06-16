@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D&D Lite — Choose Your Hero</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: radial-gradient(ellipse at center, #1a1340, #05030f 75%);
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+    font-family: 'Georgia', serif; color: #c8a96e; padding: 36px 24px; gap: 28px;
+  }
+  h1 { font-size: 13px; letter-spacing: 6px; text-transform: uppercase; color: rgba(200,169,110,.5); }
+  .code { font-family: monospace; font-size: 20px; letter-spacing: 6px; color: #ffe9a0; }
+  .section-label { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: rgba(200,169,110,.4); margin-bottom: 12px; text-align: center; }
+
+  /* Live roster */
+  #roster { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; min-height: 96px; }
+  .pcard {
+    width: 130px; padding: 16px 12px; border-radius: 10px; text-align: center;
+    background: rgba(0,0,0,.3); border: 2px solid rgba(200,169,110,.15); transition: all .2s;
+  }
+  .pcard.me { border-color: #ffe9a0; box-shadow: 0 0 14px rgba(255,233,160,.25); }
+  .pcard .dot { width: 30px; height: 30px; border-radius: 50%; margin: 0 auto 10px; border: 2px solid rgba(255,255,255,.3); }
+  .pcard .pname { font-size: 14px; color: #ffe9a0; letter-spacing: 1px; margin-bottom: 4px; }
+  .pcard .prole { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(200,169,110,.6); }
+
+  /* Pickers */
+  .picker-block { width: 100%; max-width: 560px; }
+  #class-picker { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .class-opt {
+    display: flex; flex-direction: column; align-items: center; gap: 6px; width: 110px;
+    padding: 14px 8px; border-radius: 8px; cursor: pointer; transition: all .2s;
+    background: rgba(200,169,110,.05); border: 1px solid rgba(200,169,110,.18);
+  }
+  .class-opt:hover { background: rgba(200,169,110,.12); }
+  .class-opt.sel { background: rgba(200,169,110,.18); border-color: #ffe9a0; }
+  .class-opt .ic { font-size: 26px; filter: grayscale(1); }
+  .class-opt.sel .ic { filter: grayscale(0); }
+  .class-opt .nm { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
+
+  #color-picker { display: flex; gap: 14px; justify-content: center; }
+  .swatch { width: 42px; height: 42px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; transition: all .2s; }
+  .swatch:hover { transform: scale(1.08); }
+  .swatch.sel { border-color: #fff; box-shadow: 0 0 12px rgba(255,255,255,.4); }
+  .swatch.taken { opacity: .22; cursor: not-allowed; }
+  .swatch.taken:hover { transform: none; }
+
+  #footer { margin-top: 8px; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: rgba(200,169,110,.5); text-align: center; min-height: 40px; }
+  #btn-start {
+    display: none; padding: 14px 44px; background: rgba(200,169,110,.12);
+    border: 1px solid rgba(200,169,110,.5); border-radius: 6px; color: #ffe9a0;
+    font-size: 13px; letter-spacing: 4px; text-transform: uppercase; cursor: pointer; font-family: 'Georgia', serif;
+  }
+  #btn-start:hover { background: rgba(200,169,110,.25); }
+</style>
+</head>
+<body>
+  <h1>Choose Your Hero</h1>
+  <div class="code" id="code">----</div>
+
+  <div class="picker-block">
+    <div class="section-label">Party</div>
+    <div id="roster"></div>
+  </div>
+
+  <div class="picker-block">
+    <div class="section-label">Class</div>
+    <div id="class-picker"></div>
+  </div>
+
+  <div class="picker-block">
+    <div class="section-label">Color</div>
+    <div id="color-picker"></div>
+  </div>
+
+  <div id="footer">Waiting for the DM to start…</div>
+  <button id="btn-start">▶ Start Adventure</button>
+
+<script type="module" src="../scripts/player-session.js"></script>
+<script type="module">
+import { send, on } from '../scripts/game-socket.js';
+import { COLOR_KEYS, cssColorForKey } from '../scripts/colors.js';
+
+const myPid = localStorage.getItem('player-id');
+const isSolo = localStorage.getItem('dndlite-solo') === '1';
+document.getElementById('code').textContent = localStorage.getItem('session-code') || '----';
+
+const CLASSES = [
+  { role: 'warrior', icon: '🗡️', name: 'Warrior' },
+  { role: 'rogue',   icon: '🏹', name: 'Rogue' },
+  { role: 'mage',    icon: '🔮', name: 'Mage' },
+  { role: 'cleric',  icon: '🪄', name: 'Cleric' },
+];
+
+let myRole = null, myColor = null, takenColors = new Set();
+
+// Build class picker
+const classPicker = document.getElementById('class-picker');
+for (const c of CLASSES) {
+  const el = document.createElement('div');
+  el.className = 'class-opt';
+  el.dataset.role = c.role;
+  el.innerHTML = `<div class="ic">${c.icon}</div><div class="nm">${c.name}</div>`;
+  el.addEventListener('click', () => send({ type: 'char_update', role: c.role }));
+  classPicker.appendChild(el);
+}
+
+// Build color picker
+const colorPicker = document.getElementById('color-picker');
+for (const key of COLOR_KEYS) {
+  const el = document.createElement('div');
+  el.className = 'swatch';
+  el.dataset.key = key;
+  el.style.background = cssColorForKey(key);
+  el.addEventListener('click', () => {
+    if (el.classList.contains('taken')) return;
+    send({ type: 'char_update', color: key });
+  });
+  colorPicker.appendChild(el);
+}
+
+function renderRoster(players) {
+  const roster = document.getElementById('roster');
+  roster.innerHTML = '';
+  for (const p of players) {
+    const card = document.createElement('div');
+    card.className = 'pcard' + (p.pid === myPid ? ' me' : '');
+    card.innerHTML = `
+      <div class="dot" style="background:${cssColorForKey(p.color) || '#888'}"></div>
+      <div class="pname"></div>
+      <div class="prole"></div>`;
+    card.querySelector('.pname').textContent = p.name + (p.pid === myPid ? ' (you)' : '');
+    card.querySelector('.prole').textContent = p.role;
+    roster.appendChild(card);
+  }
+}
+
+function syncPickers() {
+  document.querySelectorAll('.class-opt').forEach(el => {
+    el.classList.toggle('sel', el.dataset.role === myRole);
+  });
+  document.querySelectorAll('.swatch').forEach(el => {
+    const key = el.dataset.key;
+    const takenByOther = takenColors.has(key) && key !== myColor;
+    el.classList.toggle('taken', takenByOther);
+    el.classList.toggle('sel', key === myColor);
+  });
+}
+
+on('lobby_state', (msg) => {
+  const players = msg.players || [];
+  const me = players.find(p => p.pid === myPid);
+  if (me) {
+    myRole = me.role; myColor = me.color;
+    // Persist final pick so world-map/stages (and solo) render the right color.
+    const char = JSON.parse(localStorage.getItem('dndlite-character') || '{}');
+    char.role = me.role; char.color = me.color;
+    localStorage.setItem('dndlite-character', JSON.stringify(char));
+  }
+  takenColors = new Set(players.map(p => p.color).filter(Boolean));
+  renderRoster(players);
+  syncPickers();
+});
+
+// Solo: no DM to start — show a local Start button.
+if (isSolo) {
+  document.getElementById('footer').textContent = '';
+  const btn = document.getElementById('btn-start');
+  btn.style.display = 'block';
+  btn.addEventListener('click', () => { window.location.href = 'cutscene.html'; });
+}
+// Multiplayer start is driven by the DM via player_redirect (handled in player-session.js).
+</script>
+</body>
+</html>
