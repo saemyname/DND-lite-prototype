@@ -115,6 +115,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { on, send } from '../scripts/game-socket.js';
 import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation } from '../scripts/miniature.js';
+import { colorForKey } from '../scripts/colors.js';
 import { initDebugBots } from '../scripts/debug-bots.js';
 import { playBGM, playSFX } from '../scripts/audio.js';
 playBGM('adventure'); // volume balanced centrally in audio.js (BGM_VOL_SCALE)
@@ -462,7 +463,7 @@ gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
 
 // ── Miniature (emoji sprite) ──
 function loadMiniature() {
-  miniature = createSlimeMiniature(charRole, 1.5);
+  miniature = createSlimeMiniature(charRole, 1.5, colorForKey(charData?.color));
   miniBottomOffset = 0; // group origin is at the bottom (sprite centered at y=height/2)
   if (currentStage) {
     const p = currentStage.worldPos;
@@ -676,7 +677,7 @@ function syncPartyMiniatures(players) {
     let entry = partyMiniatures.get(p.pid);
     const isNew = !entry;
     if (isNew) {
-      const group = createSlimeMiniature(p.role, 1);
+      const group = createSlimeMiniature(p.role, 1, colorForKey(p.color));
       scene.add(group);
       entry = { group, stageId: null, targetPos: null };
       partyMiniatures.set(p.pid, entry);
@@ -686,7 +687,7 @@ function syncPartyMiniatures(players) {
     const sortedPids = [...players].map(pp => pp.pid).sort();
     const slotIdx = sortedPids.indexOf(p.pid);
     const slotCount = sortedPids.length;
-    const SLOT_SPACING = 1.8;
+    const SLOT_SPACING = slotCount >= 5 ? 1.5 : 1.8;
     const offsetX = (slotIdx - (slotCount - 1) / 2) * SLOT_SPACING;
     const offsetZ = 0;
 
