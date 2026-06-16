@@ -261,6 +261,7 @@
   <div>
     <div class="panel-title">Send Players To</div>
     <div class="btn-grid">
+      <button class="dm-btn" data-action="redirect" data-url="cutscene.html" style="flex:1 1 100%;background:rgba(200,169,110,.18);color:#ffe9a0;border-color:rgba(200,169,110,.6)">▶ Start Adventure (Intro)</button>
       <button class="dm-btn" data-action="redirect" data-url="world-map.html">World Map</button>
       <button class="dm-btn" data-action="redirect" data-url="stage01.html">Stage 01</button>
       <button class="dm-btn" data-action="redirect" data-url="stage02.html">Stage 02</button>
@@ -308,6 +309,7 @@
 <script type="module" src="../../scripts/chat-panel.js"></script>
 <script type="module">
 import { connect, send, on } from '../../scripts/game-socket.js';
+import { cssColorForKey } from '../../scripts/colors.js';
 
 const params = new URLSearchParams(location.search);
 const code = params.get('code') || localStorage.getItem('dm-session-code');
@@ -343,6 +345,10 @@ function renderPlayers() {
     locDiv.id = `loc-${id}`;
     locDiv.textContent = p.location;
 
+    const dot = document.createElement('span');
+    dot.style.cssText = `display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;vertical-align:middle;background:${cssColorForKey(p.color) || '#888'}`;
+    nameDiv.prepend(dot);
+
     div.append(nameDiv, locDiv);
     playerList.appendChild(div);
   }
@@ -351,12 +357,20 @@ function renderPlayers() {
 on('session_created', () => {});
 
 on('player_joined', (msg) => {
-  players.set(msg.playerId, { name: msg.name, role: msg.role, location: 'world-map' });
+  players.set(msg.playerId, { name: msg.name, role: msg.role, color: msg.color, location: 'world-map' });
   renderPlayers();
 });
 
 on('player_left', (msg) => {
   players.delete(msg.playerId);
+  renderPlayers();
+});
+
+on('lobby_state', (msg) => {
+  for (const p of msg.players) {
+    const existing = players.get(p.pid) || {};
+    players.set(p.pid, { ...existing, name: p.name, role: p.role, color: p.color });
+  }
   renderPlayers();
 });
 
@@ -378,7 +392,7 @@ on('stage_unlock_ack', (msg) => {
 on('dm_rejoined', (msg) => {
   players.clear();
   for (const p of msg.players) {
-    players.set(p.playerId, { name: p.name, role: p.role, location: p.location });
+    players.set(p.playerId, { name: p.name, role: p.role, color: p.color, location: p.location });
   }
   renderPlayers();
   for (const stageKey of msg.unlockedStages) {
