@@ -30,7 +30,7 @@ export function colorForRole(role) {
 // Procedural slime: squashed translucent sphere + 2 eyes + a tiny highlight,
 // holding the role's emoji as a sprite "in its right hand".
 // Group origin sits at the GROUND.
-export function createSlimeMiniature(role, height = 3) {
+export function createSlimeMiniature(role, height = 3, colorHex) {
   const group = new THREE.Group();
   // Inner group receives squash/stretch — scales about origin (y=0 = ground)
   // so the slime's bottom stays anchored to the floor during animation.
@@ -38,7 +38,8 @@ export function createSlimeMiniature(role, height = 3) {
   group.add(anim);
   group.userData.anim = anim;
 
-  const color = colorForRole(role);
+  // Explicit per-player color wins; otherwise fall back to the role color.
+  const color = (typeof colorHex === 'number') ? colorHex : colorForRole(role);
 
   // Body — squashed sphere, slightly translucent for jelly look
   const body = new THREE.Mesh(
