@@ -159,6 +159,22 @@
   .pending-pill.heal      { background: rgba(120,200,120,.18); color: #9fe89f; border-color: rgba(120,200,120,.4); }
   .pending-pill.challenge { background: rgba(120,170,255,.18); color: #a5c4ff; border-color: rgba(120,170,255,.4); }
   .pending-pill.choice    { background: rgba(232,180,80,.18); color: #ffd58c; border-color: rgba(232,180,80,.4); }
+  /* DM override: skip a stuck/disconnected player's turn */
+  .skip-turn-btn {
+    margin-left: auto;
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 7px 14px;
+    border-radius: 4px;
+    background: rgba(232,93,93,.12);
+    color: #ff9d9d;
+    border: 1px solid rgba(232,93,93,.4);
+    cursor: pointer;
+    font-family: 'Georgia', serif;
+    transition: all .2s;
+  }
+  .skip-turn-btn:hover { background: rgba(232,93,93,.25); color: #ffd0d0; border-color: rgba(232,93,93,.7); }
 
   /* iframe (left, large) + live entity panels (right column) */
   .observe-body {
@@ -264,6 +280,7 @@
       <span class="label" id="stage-label"></span>
       <span class="turn-pill" id="turn-pill"></span>
       <span class="pending-pill" id="pending-pill" style="display:none">Combat</span>
+      <button class="skip-turn-btn" id="skip-turn-btn" style="display:none">Skip Turn ⏭</button>
     </div>
 
     <div class="observe-body" data-active-only>
@@ -382,10 +399,13 @@ const challengeSection = document.getElementById('challenge-section');
 const challengeList    = document.getElementById('challenge-list');
 
 const stageFrame = document.getElementById('stage-frame');
+const skipTurnBtn = document.getElementById('skip-turn-btn');
 let frameStageId = null;
+let lastState = null;
 
 function renderStageState(state) {
   if (!state) { stageView.classList.remove('active'); return; }
+  lastState = state;
   stageView.classList.add('active');
   stageLabel.textContent = state.stageId;
 
@@ -396,6 +416,15 @@ function renderStageState(state) {
 
   const activeP = state.players.find(p => p.pid === state.activeTurnPid);
   turnPill.textContent = activeP ? `${activeP.name}'s turn` : 'No active turn';
+
+  // Skip-turn override: available whenever a turn is active and the stage isn't
+  // already resolved, so the DM can unstick a dropped/AFK player.
+  if (activeP && !state.outcome) {
+    skipTurnBtn.style.display = 'inline-block';
+    skipTurnBtn.textContent = `Skip ${activeP.name}'s Turn ⏭`;
+  } else {
+    skipTurnBtn.style.display = 'none';
+  }
 
   // pending-pill reflects every pending kind, not just combat
   pendingPill.className = 'pending-pill';
@@ -491,6 +520,10 @@ connect(() => {
   } else {
     statusEl.textContent = 'No session code — go back to lobby';
   }
+});
+
+skipTurnBtn.addEventListener('click', () => {
+  if (lastState?.stageId) send({ type: 'dm_skip_turn', stageId: lastState.stageId });
 });
 
 document.querySelectorAll('button.dm-btn').forEach(btn => {

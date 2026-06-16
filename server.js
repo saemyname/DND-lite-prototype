@@ -982,6 +982,25 @@ wss.on('connection', (ws) => {
         break;
       }
 
+      case 'dm_skip_turn': {
+        // DM override: unstick a stage when the active player has left/dropped
+        // mid-turn. Clears their pending action and advances to the next living
+        // player. Pending* always belongs to the active actor, so clearing all
+        // is safe.
+        if (role !== 'dm' || !sess) return;
+        const st = sess.stages.get(msg.stageId);
+        if (!st || st.outcome) return;
+        const skipped = activeTurnPid(st);
+        st.pendingCombat = null;
+        st.pendingHeal = null;
+        st.pendingChallenge = null;
+        st.pendingChoice = null;
+        advanceTurn(st);
+        broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
+        console.log(`[dm_skip_turn] session=${code} stage=${msg.stageId}: ${skipped} → ${activeTurnPid(st)}`);
+        break;
+      }
+
       case 'player_redirect': {
         if (role !== 'dm' || !sess) {
           console.log(`[player_redirect] REJECTED — role=${role}, sess=${!!sess}`);
