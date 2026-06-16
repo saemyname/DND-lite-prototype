@@ -48,6 +48,14 @@ p2b.send(JSON.stringify({type:'player_rejoin',code,playerId:j2.playerId,location
 const rls=await got(p2b,'lobby_state');
 check(!!rls, 'reconnect replays lobby_state');
 
+// char_update is ignored once a player is in a stage (lobby is over)
+p2b._m.length = 0;
+p1.send(JSON.stringify({type:'char_update',color:'gold'}));
+await wait(150);
+const lsAfter = lastOf(p2b,'lobby_state');
+check(!lsAfter || lsAfter.players.find(p=>p.name==='Alice')?.color==='blue',
+  'char_update ignored after entering a stage (Alice stays blue)');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 [dm,p1,p2b].forEach(w=>{try{w.close()}catch{}});
 process.exit(fail?1:0);

@@ -1033,6 +1033,11 @@ wss.on('connection', (ws) => {
         if (role !== 'player' || !sess || !pid) return;
         const p = sess.players.get(pid);
         if (!p) return;
+        // Lobby-only: ignore once the player has entered a stage (a class change
+        // there would reset HP). A player in a stage appears in some stageState.
+        for (const st of sess.stages.values()) {
+          if (st.players.has(pid) || st.deadSpectatorPids.has(pid)) return;
+        }
         const wantRole = msg.role ? String(msg.role).toLowerCase() : null;
         if (wantRole && ROLE_STATS[wantRole] && wantRole !== p.role) {
           applyRoleToPlayer(p, wantRole);
