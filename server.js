@@ -398,6 +398,10 @@ wss.on('connection', (ws) => {
   let pid  = null;
   let code = null;
 
+  // Heartbeat: mark alive on every pong (see the sweep interval below).
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+
   ws.on('message', (raw) => {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
@@ -1009,11 +1013,15 @@ wss.on('connection', (ws) => {
         const rs = sessions.get(msg.code);
         if (!rs) {
           console.log(`[player_rejoin] FAIL — session not found: ${msg.code}`);
+          // Tell the client the session is gone (e.g. server restarted) so it
+          // can stop reconnecting and show an overlay instead of freezing.
+          send(ws, { type: 'rejoin_failed', reason: 'session_not_found' });
           return;
         }
         const ep = rs.players.get(msg.playerId);
         if (!ep) {
           console.log(`[player_rejoin] FAIL — player not found: ${msg.playerId} in session ${msg.code}`);
+          send(ws, { type: 'rejoin_failed', reason: 'player_not_found' });
           return;
         }
         ep.ws = ws;
@@ -1027,6 +1035,14 @@ wss.on('connection', (ws) => {
         send(ws, { type: 'chat_history', messages: sess.chatHistory });
         send(ws, { type: 'fog_history', points: sess.revealedFog || [] });
         send(ws, buildWorldMapState(sess));
+        // Replay any in-progress stage the player belongs to, so reconnecting
+        // while inside a stage restores the live 3D/combat state — not just the
+        // world-map. Mirrors dm_rejoin's full-stage replay.
+        for (const st of sess.stages.values()) {
+          if (st.players.has(pid) || st.deadSpectatorPids.has(pid)) {
+            send(ws, { type: 'state_update', state: snapshotState(st) });
+          }
+        }
         // Replay an in-progress party vote so a late-arriving teammate (who was
         // still in a stage when the vote was proposed) sees the panel on landing.
         if (sess.activeVote) send(ws, voteStateMsg(sess.activeVote));
@@ -1133,6 +1149,20 @@ wss.on('connection', (ws) => {
     }
   });
 });
+
+// Heartbeat sweep: a socket that misses a ping/pong round-trip (mobile sleep,
+// wifi drop, app backgrounded) is silently dead but still reads as OPEN. Ping
+// every interval; terminate any that didn't pong since the last sweep. The
+// resulting 'close' event runs the normal cleanup (player ws → null, etc.).
+const HEARTBEAT_MS = 30000;
+const heartbeatSweep = setInterval(() => {
+  for (const ws of wss.clients) {
+    if (ws.isAlive === false) { ws.terminate(); continue; }
+    ws.isAlive = false;
+    try { ws.ping(); } catch {}
+  }
+}, HEARTBEAT_MS);
+wss.on('close', () => clearInterval(heartbeatSweep));
 
 const PORT = 3000;
 server.listen(PORT, '0.0.0.0', () => {
