@@ -469,6 +469,7 @@ wss.on('connection', (ws) => {
         send(ws, { type: 'chat_history', messages: rejoinSess.chatHistory });
         send(ws, { type: 'fog_history', points: rejoinSess.revealedFog || [] });
         send(ws, buildWorldMapState(rejoinSess));
+        send(ws, buildLobbyState(rejoinSess));
         for (const st of rejoinSess.stages.values()) {
           send(ws, { type: 'state_update', state: snapshotState(st) });
         }
@@ -544,6 +545,7 @@ wss.on('connection', (ws) => {
               ws: null,
               name: botName,
               role: botRole,
+              color: firstFreeColor(sess),
               hp: botStats.hp,
               maxHp: botStats.hp,
               isBot: true,
@@ -565,6 +567,7 @@ wss.on('connection', (ws) => {
         send(ws, { type: 'bots_spawned', bots: created });
         if (sess.dm) send(sess.dm, { type: 'bots_spawned', bots: created });
         broadcastWorldMapState(sess); // surface bots to world-map party renderer
+        broadcastLobbyState(sess);
         console.log(`[debug_spawn_bots] session=${code} added ${created.length} bots`);
         break;
       }
@@ -1025,6 +1028,23 @@ wss.on('connection', (ws) => {
         break;
       }
 
+      case 'char_update': {
+        // Lobby: a player changes class and/or color. Color is unique per session.
+        if (role !== 'player' || !sess || !pid) return;
+        const p = sess.players.get(pid);
+        if (!p) return;
+        const wantRole = msg.role ? String(msg.role).toLowerCase() : null;
+        if (wantRole && ROLE_STATS[wantRole] && wantRole !== p.role) {
+          applyRoleToPlayer(p, wantRole);
+        }
+        if (msg.color && COLOR_KEYS.includes(msg.color)) {
+          const taken = [...sess.players].some(([id, pp]) => id !== pid && pp.color === msg.color);
+          if (!taken) p.color = msg.color; // taken → ignore; broadcast restores truth
+        }
+        broadcastLobbyState(sess);
+        break;
+      }
+
       case 'player_redirect': {
         if (role !== 'dm' || !sess) {
           console.log(`[player_redirect] REJECTED — role=${role}, sess=${!!sess}`);
@@ -1078,6 +1098,7 @@ wss.on('connection', (ws) => {
         send(ws, { type: 'chat_history', messages: sess.chatHistory });
         send(ws, { type: 'fog_history', points: sess.revealedFog || [] });
         send(ws, buildWorldMapState(sess));
+        send(ws, buildLobbyState(sess));
         // Replay any in-progress stage the player belongs to, so reconnecting
         // while inside a stage restores the live 3D/combat state — not just the
         // world-map. Mirrors dm_rejoin's full-stage replay.
