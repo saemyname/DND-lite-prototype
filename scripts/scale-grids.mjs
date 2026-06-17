@@ -50,6 +50,14 @@ for (const cfg of CONFIG) {
   for (const e of (data.enemies || [])) [e.col, e.row] = scaleCell(e.col, e.row);
   for (const ch of (data.challenges || [])) [ch.col, ch.row] = scaleCell(ch.col, ch.row);
 
+  // stage01-style village decoration: [col,row] pairs that pick which blocked
+  // cells are houses (vs trees), which walkable cells are wells, and path tiles.
+  if (data.village) {
+    for (const key of ['houses', 'wells', 'paths']) {
+      if (Array.isArray(data.village[key])) data.village[key] = data.village[key].map(([c, r]) => scaleCell(c, r));
+    }
+  }
+
   data.enemies = data.enemies || [];
   for (const ne of cfg.addEnemies) {
     if (!data.enemies.some(e => e.id === ne.id)) data.enemies.push({ ...ne });
