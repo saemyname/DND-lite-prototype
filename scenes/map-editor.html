@@ -64,8 +64,8 @@
       <button class="tool" data-tool="well" id="t-well" style="display:none">💧 Well</button>
       <div class="legend">
         🟩 spawn · 👹 enemy · ❓ challenge<br>
-        🏠 house · 🌲 tree · 💧 well (stage 01)<br>
-        tan = walkable · dark = wall/structure<br><br>
+        dark cell = structure (🌲 tree / 🗿 pillar / 🏠 house)<br>
+        Wall paint adds/removes them. 💧 well = stage 01.<br><br>
         <b>Move:</b> click object, click destination.<br>
         <b>Wall:</b> click/drag empty cells.<br>
         <b>Erase:</b> click object to delete, or wall to clear.
@@ -78,6 +78,8 @@
 <script type="module">
 const $ = (id) => document.getElementById(id);
 let data = null, stageId = 'stage01', tool = 'move', held = null, selected = null, painting = null;
+// What a blocked cell renders as in-game, per stage (stage01 uses the village layer instead).
+const STRUCT = { stage03: '🌲', stage04: '🗿', stage05: '🗿' };
 
 // ── Load / save ────────────────────────────────────────────────
 async function load(id) {
@@ -141,7 +143,7 @@ function render() {
       cell.className = 'cell' + (blocked ? ' wall' : '');
       const o = blocked ? null : objAt(c, r);
       if (blocked) {
-        if (hasV) cell.textContent = houseSet.has(c + ',' + r) ? '🏠' : '🌲';
+        cell.textContent = hasV ? (houseSet.has(c + ',' + r) ? '🏠' : '🌲') : (STRUCT[stageId] || '');
       } else if (o) {
         cell.textContent = marker(o.kind);
         if (o.kind !== 'spawn') { const t = document.createElement('span'); t.className = 'tag'; t.textContent = o.ref.id; cell.appendChild(t); }
