@@ -632,6 +632,9 @@ wss.on('connection', (ws) => {
         const stageId = msg.stageId;
         if (!stageId || typeof stageId !== 'string') return;
         let st = sess.stages.get(stageId);
+        // A concluded stage (already won/lost this session) rebuilds fresh on
+        // re-entry so it can be replayed, instead of re-showing the old overlay.
+        if (st && st.outcome) { sess.stages.delete(stageId); st = undefined; }
         if (!st) {
           try { st = makeStageState(stageId); }
           catch (e) { console.error('[enter_stage] config load fail:', stageId, e.message); return; }
@@ -1127,7 +1130,9 @@ wss.on('connection', (ws) => {
         // while inside a stage restores the live 3D/combat state — not just the
         // world-map. Mirrors dm_rejoin's full-stage replay.
         for (const st of sess.stages.values()) {
-          if (st.players.has(pid) || st.deadSpectatorPids.has(pid)) {
+          // Skip concluded stages — re-entry rebuilds them fresh (replay), and
+          // replaying a stale victory/defeat here would flash the overlay.
+          if ((st.players.has(pid) || st.deadSpectatorPids.has(pid)) && !st.outcome) {
             send(ws, { type: 'state_update', state: snapshotState(st) });
           }
         }

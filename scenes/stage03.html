@@ -821,6 +821,11 @@ async function applyState(snap) {
   lastPendingKey = pendingKey;
 
   // Outcome overlays
+  if (!snap.outcome) { // fresh state (e.g. a replayed stage) — clear any stale overlay
+    const _v = document.getElementById('victory'); if (_v) { _v.style.display = 'none'; _v.style.opacity = ''; }
+    const _go = document.getElementById('game-over'); if (_go) _go.style.display = 'none';
+    window._victoryFaded = false; window._defeatPlayed = false;
+  }
   if (snap.outcome === 'victory') {
     const v = document.getElementById('victory');
     v.style.display = 'flex';
