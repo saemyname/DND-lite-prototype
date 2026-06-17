@@ -66,17 +66,19 @@
   .right { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 26px 26px 28px; display: flex; flex-direction: column; gap: 18px; position: sticky; top: 24px; }
   #class-picker { display: flex; flex-direction: column; gap: 10px; }
   .class-opt {
-    display: flex; align-items: center; gap: 14px; padding: 13px 16px; border-radius: 9px; cursor: pointer; transition: all .18s;
+    display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-radius: 9px; cursor: pointer; transition: all .18s;
     background: rgba(255,233,160,.05); border: 1px solid rgba(255,233,160,.16);
   }
   .class-opt:hover { background: rgba(255,233,160,.12); border-color: rgba(255,233,160,.4); }
   .class-opt.sel { background: rgba(255,233,160,.18); border-color: var(--gold); }
-  .class-opt .ic { font-size: 27px; filter: grayscale(1); transition: filter .2s; }
+  .class-opt .ic { font-size: 22px; filter: grayscale(1); transition: filter .2s; }
   .class-opt:hover .ic, .class-opt.sel .ic { filter: grayscale(0); }
   .class-opt .nm { font-size: 15px; letter-spacing: 2px; text-transform: uppercase; color: var(--gold-dim); }
   .class-opt.sel .nm { color: var(--gold); }
 
-  #class-detail { border-top: 1px solid var(--line); padding-top: 18px; display: flex; flex-direction: column; gap: 12px; }
+  #class-detail { border-top: 1px solid var(--line); padding-top: 18px; display: grid; grid-template-columns: 160px 1fr; gap: 18px; align-items: start; }
+  #cd-stats { display: flex; flex-direction: column; gap: 8px; }
+  .cd-text { display: flex; flex-direction: column; gap: 10px; }
   #cd-title { font-size: 18px; letter-spacing: 3px; text-transform: uppercase; color: var(--gold); }
   #cd-desc { font-size: 15px; line-height: 1.7; color: rgba(255,233,160,.7); min-height: 46px; }
   .cd-stat { display: flex; align-items: center; gap: 10px; }
@@ -126,9 +128,11 @@
         <div id="class-picker"></div>
       </div>
       <div id="class-detail">
-        <div id="cd-title"></div>
-        <div id="cd-desc"></div>
         <div id="cd-stats"></div>
+        <div class="cd-text">
+          <div id="cd-title"></div>
+          <div id="cd-desc"></div>
+        </div>
       </div>
       <div id="start-area">
         <div id="footer">Waiting for the DM to start…</div>

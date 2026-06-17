@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D&D Lite — Slime Editor</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+    "three/": "https://cdn.jsdelivr.net/npm/three@0.176.0/"
+  }
+}
+</script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { height: 100vh; display: flex; font-family: 'Georgia', serif; color: #e9d8a8; background: #11101a; overflow: hidden; }
+  #view { flex: 1; position: relative; }
+  #view canvas { display: block; }
+  #hint { position: absolute; top: 12px; left: 14px; font-size: 11px; letter-spacing: 1px; color: rgba(233,216,168,.4); }
+
+  #panel { width: 360px; background: #1a1726; border-left: 1px solid rgba(200,169,110,.18); padding: 16px 18px; overflow-y: auto; }
+  #panel h2 { font-size: 12px; letter-spacing: 4px; text-transform: uppercase; color: #ffe9a0; margin: 18px 0 10px; padding-bottom: 6px; border-bottom: 1px solid rgba(200,169,110,.14); }
+  #panel h2:first-child { margin-top: 0; }
+
+  .topbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  select, .btn {
+    background: rgba(200,169,110,.08); border: 1px solid rgba(200,169,110,.3); border-radius: 5px;
+    color: #ffe9a0; font-family: 'Georgia', serif; font-size: 12px; padding: 7px 10px; cursor: pointer;
+  }
+  .btn:hover { background: rgba(200,169,110,.2); }
+  .swatches { display: flex; gap: 6px; }
+  .sw { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+  .sw.sel { border-color: #fff; }
+  label.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(233,216,168,.8); cursor: pointer; }
+
+  .row { display: grid; grid-template-columns: 70px 1fr 48px; align-items: center; gap: 8px; margin: 7px 0; }
+  .row span.nm { font-size: 11px; letter-spacing: 1px; color: rgba(233,216,168,.65); }
+  .row input[type=range] { width: 100%; accent-color: #c8a96e; }
+  .row span.val { font-size: 11px; font-family: monospace; color: #ffe9a0; text-align: right; }
+
+  #export { width: 100%; height: 150px; margin-top: 8px; background: #0d0c14; border: 1px solid rgba(200,169,110,.25);
+    border-radius: 6px; color: #9fe89f; font-family: monospace; font-size: 11px; padding: 8px; resize: vertical; }
+</style>
+</head>
+<body>
+  <div id="view"><div id="hint">drag = rotate · scroll = zoom · right-drag = pan</div></div>
+  <div id="panel">
+    <div class="topbar">
+      <select id="role-sel">
+        <option value="warrior">🗡️ Warrior</option>
+        <option value="rogue">🏹 Rogue</option>
+        <option value="mage">🔮 Mage</option>
+        <option value="cleric">🪄 Cleric</option>
+      </select>
+      <div class="swatches" id="swatches"></div>
+    </div>
+    <div class="topbar" style="margin-top:10px">
+      <label class="chk"><input type="checkbox" id="anim-chk"> idle animation</label>
+      <button class="btn" id="reset-btn">Reset</button>
+      <button class="btn" id="copy-btn">Copy values</button>
+    </div>
+
+    <div id="controls"></div>
+
+    <h2>Values</h2>
+    <textarea id="export" readonly></textarea>
+  </div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { emojiForRole, updateSlimeAnimation } from '../scripts/miniature.js';
+import { COLOR_KEYS, colorForKey, cssColorForKey } from '../scripts/colors.js';
+
+// Current createSlimeMiniature values — the editor starts here so you tweak from
+// the existing look. Geometry segment counts are fixed; positions/sizes are live.
+// Eyes / sparkle / shine are now flat 2D ellipses (CircleGeometry scaled rx,ry,
+// facing +z). rx = horizontal radius, ry = vertical radius. Sparkle = the small
+// white eye-dot, offset (dx,dy) from each eye.
+const DEFAULTS = {
+  body:    { sx: 1.00, sy: 0.70, sz: 1.00, y: 0.35, r: 0.50, opacity: 0.88 },
+  eyes:    { x: 0.16, y: 0.42, z: 0.50, rx: 0.085, ry: 0.10 },
+  sparkle: { dx: 0.035, dy: 0.04, z: 0.505, rx: 0.028, ry: 0.030 },
+  shine:   { x: -0.22, y: 0.55, z: 0.50, rx: 0.075, ry: 0.075, rotX: 0, rotY: 0, rotZ: 0, opacity: 0.50 },
+  weapon:  { x: 0.45, y: 0.47, z: 0.41, scale: 0.45, rotDeg: 180 },
+};
+const SCHEMA = {
+  body:    [['sx',0.4,1.8,0.01],['sy',0.3,1.5,0.01],['sz',0.4,1.8,0.01],['y',0,1,0.01],['r',0.2,0.9,0.01],['opacity',0.2,1,0.01]],
+  eyes:    [['x',0,0.4,0.005],['y',0.1,0.8,0.005],['z',0.2,0.85,0.005],['rx',0.02,0.25,0.005],['ry',0.02,0.25,0.005]],
+  sparkle: [['dx',-0.12,0.12,0.005],['dy',-0.12,0.12,0.005],['z',0.2,0.9,0.005],['rx',0.005,0.1,0.002],['ry',0.005,0.1,0.002]],
+  shine:   [['x',-0.6,0.2,0.01],['y',0.2,0.9,0.01],['z',0.2,0.85,0.005],['rx',0.02,0.3,0.005],['ry',0.02,0.3,0.005],['rotX',-180,180,5],['rotY',-180,180,5],['rotZ',-180,180,5],['opacity',0,1,0.05]],
+  weapon:  [['x',-0.2,1,0.01],['y',0.1,1,0.01],['z',0,0.8,0.01],['scale',0.1,1,0.01],['rotDeg',-180,180,5]],
+};
+
+let params = structuredClone(DEFAULTS);
+let role = 'warrior';
+let colorKey = 'green';
+
+// ── Three.js scene ──────────────────────────────────────────────
+const view = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+view.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x16141f);
+scene.add(new THREE.AmbientLight(0xffffff, 0.95));
+const dir = new THREE.DirectionalLight(0xffffff, 0.85); dir.position.set(3, 6, 5); scene.add(dir);
+const grid = new THREE.GridHelper(4, 8, 0x444055, 0x2a2838); scene.add(grid);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 100);
+camera.position.set(0, 0.6, 2.4);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.4, 0);
+controls.update();
+
+function resize() {
+  const w = view.clientWidth, h = view.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize); resize();
+
+// ── Parameterized slime builder (mirrors createSlimeMiniature) ──
+let slime = null;
+function makeEmojiSprite(emoji, p) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128; canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.font = '100px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const rad = (p.rotDeg * Math.PI) / 180;
+  if (rad) { ctx.translate(64, 64); ctx.rotate(rad); ctx.fillText(emoji, 0, 8); ctx.setTransform(1,0,0,1,0,0); }
+  else ctx.fillText(emoji, 64, 72);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
+  if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+  spr.scale.set(p.scale, p.scale, 1);
+  spr.position.set(p.x, p.y, p.z);
+  return spr;
+}
+
+function buildSlime() {
+  if (slime) { scene.remove(slime); slime.traverse(o => { o.geometry?.dispose?.(); o.material?.map?.dispose?.(); o.material?.dispose?.(); }); }
+  const group = new THREE.Group();
+  const anim = new THREE.Group(); group.add(anim);
+  group.userData.anim = anim; group.userData.kind = 'slime';
+
+  const b = params.body;
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(b.r, 32, 24),
+    new THREE.MeshStandardMaterial({ color: colorForKey(colorKey) ?? 0xaaaaaa, roughness: 0.25, metalness: 0, transparent: true, opacity: b.opacity })
+  );
+  body.scale.set(b.sx, b.sy, b.sz); body.position.y = b.y; anim.add(body); group.userData.body = body;
+
+  const CIRCLE = new THREE.CircleGeometry(1, 24); // unit disc in XY, faces +z
+  const e = params.eyes, sp = params.sparkle;
+  [-e.x, e.x].forEach(x => {
+    const eye = new THREE.Mesh(CIRCLE, new THREE.MeshBasicMaterial({ color: 0x111111 }));
+    eye.position.set(x, e.y, e.z); eye.scale.set(e.rx, e.ry, 1); anim.add(eye);
+    const sparkle = new THREE.Mesh(CIRCLE, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    sparkle.position.set(x + sp.dx, e.y + sp.dy, sp.z); sparkle.scale.set(sp.rx, sp.ry, 1); anim.add(sparkle);
+  });
+
+  const sh = params.shine;
+  const shine = new THREE.Mesh(CIRCLE, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: sh.opacity }));
+  const D2R = Math.PI / 180;
+  shine.position.set(sh.x, sh.y, sh.z); shine.scale.set(sh.rx, sh.ry, 1);
+  shine.rotation.set(sh.rotX * D2R, sh.rotY * D2R, sh.rotZ * D2R); anim.add(shine);
+
+  const weapon = makeEmojiSprite(emojiForRole(role), params.weapon);
+  anim.add(weapon); group.userData.weapon = weapon;
+  group.userData.weaponBaseRot = (params.weapon.rotDeg * Math.PI) / 180;
+
+  scene.add(group); slime = group;
+}
+
+// ── Controls UI ─────────────────────────────────────────────────
+const controlsEl = document.getElementById('controls');
+const valSpans = {};
+function buildControls() {
+  controlsEl.innerHTML = '';
+  for (const grp of Object.keys(SCHEMA)) {
+    const h = document.createElement('h2'); h.textContent = grp; controlsEl.appendChild(h);
+    for (const [field, min, max, step] of SCHEMA[grp]) {
+      const row = document.createElement('div'); row.className = 'row';
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = field;
+      const inp = document.createElement('input'); inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step; inp.value = params[grp][field];
+      const val = document.createElement('span'); val.className = 'val'; val.textContent = (+params[grp][field]).toFixed(3);
+      valSpans[`${grp}.${field}`] = val;
+      inp.addEventListener('input', () => {
+        params[grp][field] = parseFloat(inp.value);
+        val.textContent = parseFloat(inp.value).toFixed(3);
+        buildSlime(); updateExport();
+      });
+      row.append(nm, inp, val); controlsEl.appendChild(row);
+    }
+  }
+}
+function syncControlInputs() {
+  document.querySelectorAll('#controls .row').forEach(() => {});
+  buildControls();
+}
+
+// Color swatches
+const swatchesEl = document.getElementById('swatches');
+for (const key of COLOR_KEYS) {
+  const s = document.createElement('div'); s.className = 'sw' + (key === colorKey ? ' sel' : '');
+  s.style.background = cssColorForKey(key); s.dataset.key = key;
+  s.addEventListener('click', () => {
+    colorKey = key;
+    document.querySelectorAll('.sw').forEach(x => x.classList.toggle('sel', x.dataset.key === key));
+    buildSlime();
+  });
+  swatchesEl.appendChild(s);
+}
+
+document.getElementById('role-sel').addEventListener('change', e => { role = e.target.value; buildSlime(); });
+document.getElementById('reset-btn').addEventListener('click', () => { params = structuredClone(DEFAULTS); buildControls(); buildSlime(); updateExport(); });
+document.getElementById('copy-btn').addEventListener('click', () => {
+  navigator.clipboard?.writeText(document.getElementById('export').value);
+  const b = document.getElementById('copy-btn'); const t = b.textContent; b.textContent = 'Copied!'; setTimeout(() => b.textContent = t, 1000);
+});
+
+function updateExport() {
+  document.getElementById('export').value = JSON.stringify(params, null, 2);
+}
+
+// ── Animate ─────────────────────────────────────────────────────
+const animChk = document.getElementById('anim-chk');
+function tick(t) {
+  requestAnimationFrame(tick);
+  if (slime && animChk.checked) updateSlimeAnimation(slime, t, 0);
+  else if (slime) { slime.userData.anim.scale.set(1,1,1); slime.position.y = 0; }
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+buildControls();
+buildSlime();
+updateExport();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
