@@ -11,6 +11,7 @@ const wss = new WebSocketServer({ server });
 
 // Serve entire project root as static
 app.use(express.static(path.join(__dirname)));
+app.use(express.json({ limit: '2mb' }));
 
 const STAGE_CONFIGS = {};
 function loadStageConfig(stageId) {
@@ -21,6 +22,25 @@ function loadStageConfig(stageId) {
   STAGE_CONFIGS[stageId] = cfg;
   return cfg;
 }
+
+// Dev-only: the map editor (scenes/map-editor.html) saves a stage grid back to
+// rooms/<stage>-grid.json. Whitelisted ids only; busts the config cache so the
+// next enter_stage re-reads the file.
+const EDITABLE_STAGES = new Set(['stage01', 'stage02', 'stage03', 'stage04', 'stage05']);
+app.post('/dev/save-grid', (req, res) => {
+  const { stageId, data } = req.body || {};
+  if (!EDITABLE_STAGES.has(stageId) || !data || typeof data !== 'object' || !data.grid || !Array.isArray(data.walkable)) {
+    return res.status(400).json({ error: 'bad request' });
+  }
+  try {
+    fs.writeFileSync(path.join(__dirname, 'rooms', `${stageId}-grid.json`), JSON.stringify(data, null, 2) + '\n');
+    delete STAGE_CONFIGS[stageId];
+    console.log(`[dev/save-grid] wrote rooms/${stageId}-grid.json (${data.grid.cols}x${data.grid.rows})`);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // sessions: Map<code, { dm: WebSocket|null, players: Map<id, PlayerEntry>, unlockedStages: Set }>
 // PlayerEntry: { ws: WebSocket|null, name, role, location }

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D&D Lite — Map Editor</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { height: 100vh; display: flex; flex-direction: column; font-family: 'Georgia', serif; color: #e9d8a8; background: #14110a; }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid rgba(200,169,110,.2); background: #1b160d; flex-wrap: wrap; }
+  header h1 { font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #ffe9a0; }
+  select, button { font-family: 'Georgia', serif; background: rgba(200,169,110,.1); color: #ffe9a0; border: 1px solid rgba(200,169,110,.35); border-radius: 5px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+  button:hover { background: rgba(200,169,110,.22); }
+  button.on { background: #ffe9a0; color: #1b160d; border-color: #ffe9a0; }
+  #status { margin-left: auto; font-size: 12px; letter-spacing: 1px; color: rgba(233,216,168,.6); }
+  #save { background: rgba(120,200,120,.16); border-color: rgba(120,200,120,.5); color: #bdf0bd; }
+  #save:hover { background: rgba(120,200,120,.3); }
+
+  .body { flex: 1; display: flex; min-height: 0; }
+  .tools { width: 150px; padding: 14px; border-right: 1px solid rgba(200,169,110,.15); display: flex; flex-direction: column; gap: 8px; }
+  .tools .grp { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: rgba(233,216,168,.45); margin-top: 10px; }
+  .tools button { text-align: left; }
+  .legend { margin-top: auto; font-size: 11px; line-height: 1.9; color: rgba(233,216,168,.6); }
+
+  .canvas-wrap { flex: 1; overflow: auto; padding: 20px; display: flex; align-items: flex-start; justify-content: center; }
+  #grid { display: grid; gap: 2px; background: rgba(0,0,0,.3); padding: 6px; border-radius: 6px; touch-action: none; }
+  .cell { width: 34px; height: 34px; border-radius: 3px; background: #b9925a; display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; user-select: none; position: relative; }
+  .cell.wall { background: #3a2a17; }
+  .cell.sel { outline: 3px solid #ffe9a0; outline-offset: -3px; }
+  .cell.held { outline: 3px dashed #fff; outline-offset: -3px; }
+  .cell .tag { position: absolute; bottom: 0; right: 1px; font-size: 7px; color: rgba(0,0,0,.6); font-family: monospace; }
+
+  .inspector { width: 280px; padding: 14px; border-left: 1px solid rgba(200,169,110,.15); overflow-y: auto; }
+  .inspector h2 { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #ffe9a0; margin-bottom: 10px; }
+  .field { display: flex; flex-direction: column; gap: 3px; margin-bottom: 9px; }
+  .field label { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: rgba(233,216,168,.5); }
+  .field input, .field select, .field textarea { font-family: 'Georgia', serif; background: #0e0c06; color: #ffe9a0; border: 1px solid rgba(200,169,110,.3); border-radius: 4px; padding: 5px 7px; font-size: 12px; width: 100%; }
+  .field textarea { resize: vertical; min-height: 38px; }
+  #del { width: 100%; margin-top: 6px; background: rgba(232,93,93,.16); border-color: rgba(232,93,93,.5); color: #ff9d9d; }
+  #insp-empty { font-size: 12px; color: rgba(233,216,168,.4); line-height: 1.7; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Map Editor</h1>
+    <select id="stage">
+      <option>stage01</option><option>stage02</option><option>stage03</option><option>stage04</option><option>stage05</option>
+    </select>
+    <button id="reload">Reload</button>
+    <button id="save">💾 Save</button>
+    <span id="status"></span>
+  </header>
+  <div class="body">
+    <div class="tools">
+      <div class="grp">Tool</div>
+      <button class="tool on" data-tool="move">✋ Move</button>
+      <button class="tool" data-tool="wall">🧱 Wall paint</button>
+      <button class="tool" data-tool="erase">⌫ Erase</button>
+      <div class="grp">Add</div>
+      <button class="tool" data-tool="addEnemy">👹 + Enemy</button>
+      <button class="tool" data-tool="addChallenge">❓ + Challenge</button>
+      <div class="legend">
+        🟩 spawn · 👹 enemy · ❓ challenge<br>
+        tan = walkable · dark = wall<br><br>
+        <b>Move:</b> click object, click destination.<br>
+        <b>Wall:</b> click/drag empty cells.<br>
+        <b>Erase:</b> click object to delete, or wall to clear.
+      </div>
+    </div>
+    <div class="canvas-wrap"><div id="grid"></div></div>
+    <div class="inspector" id="inspector"><div id="insp-empty">Select an object (Move tool) to edit its fields. Spawn can be moved but not edited.</div></div>
+  </div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+let data = null, stageId = 'stage01', tool = 'move', held = null, selected = null, painting = null;
+
+// ── Load / save ────────────────────────────────────────────────
+async function load(id) {
+  stageId = id;
+  const r = await fetch(`../rooms/${id}-grid.json?t=${Date.now()}`);
+  data = await r.json();
+  data.enemies = data.enemies || [];
+  data.challenges = data.challenges || [];
+  held = null; selected = null;
+  $('status').textContent = `${id}: ${data.grid.cols}×${data.grid.rows}`;
+  render();
+}
+async function save() {
+  $('status').textContent = 'Saving…';
+  try {
+    const r = await fetch('/dev/save-grid', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stageId, data }),
+    });
+    const j = await r.json();
+    $('status').textContent = j.ok ? `Saved ✓  ${stageId}: ${data.grid.cols}×${data.grid.rows}` : `Save failed: ${j.error || r.status}`;
+  } catch (e) { $('status').textContent = 'Save failed: ' + e.message; }
+}
+
+// ── Object lookup ──────────────────────────────────────────────
+function objAt(c, r) {
+  if (data.playerSpawn[0] === c && data.playerSpawn[1] === r) return { kind: 'spawn' };
+  const e = data.enemies.find(o => o.col === c && o.row === r);
+  if (e) return { kind: 'enemy', ref: e };
+  const ch = data.challenges.find(o => o.col === c && o.row === r);
+  if (ch) return { kind: 'challenge', ref: ch };
+  return null;
+}
+const sameObj = (a, b) => a && b && a.kind === b.kind && a.ref === b.ref;
+const marker = (k) => k === 'spawn' ? '🟩' : k === 'enemy' ? '👹' : '❓';
+
+// ── Render ─────────────────────────────────────────────────────
+function render() {
+  const { cols, rows } = data.grid;
+  const g = $('grid');
+  g.style.gridTemplateColumns = `repeat(${cols}, 34px)`;
+  g.innerHTML = '';
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell' + (data.walkable[r][c] === 0 ? ' wall' : '');
+      const o = objAt(c, r);
+      if (o) {
+        cell.textContent = marker(o.kind);
+        if (o.kind !== 'spawn') { const t = document.createElement('span'); t.className = 'tag'; t.textContent = o.ref.id; cell.appendChild(t); }
+        if (sameObj(o, held)) cell.classList.add('held');
+        else if (sameObj(o, selected)) cell.classList.add('sel');
+      }
+      cell.dataset.c = c; cell.dataset.r = r;
+      cell.addEventListener('pointerdown', (ev) => onCellDown(c, r, ev));
+      cell.addEventListener('pointerenter', () => onCellEnter(c, r));
+      g.appendChild(cell);
+    }
+  }
+  renderInspector();
+}
+
+// ── Interactions ───────────────────────────────────────────────
+function onCellDown(c, r) {
+  const o = objAt(c, r);
+  if (tool === 'wall') {
+    if (o) return;                       // don't wall an object's cell
+    painting = data.walkable[r][c] === 1 ? 0 : 1;
+    data.walkable[r][c] = painting;
+    render();
+  } else if (tool === 'erase') {
+    if (o && o.kind === 'enemy') data.enemies = data.enemies.filter(x => x !== o.ref);
+    else if (o && o.kind === 'challenge') data.challenges = data.challenges.filter(x => x !== o.ref);
+    else if (!o) data.walkable[r][c] = 1; // clear wall
+    if (sameObj(o, selected)) selected = null;
+    render();
+  } else if (tool === 'addEnemy' || tool === 'addChallenge') {
+    if (o) return;                       // occupied
+    data.walkable[r][c] = 1;
+    if (tool === 'addEnemy') {
+      const e = { id: uniqueId('enemy'), col: c, row: r, name: 'Enemy', hp: 6, maxHp: 6, stat: 'str', dc: 10,
+        description: '', successText: '', failText: '', successHp: 0, failHp: -3 };
+      data.enemies.push(e); selected = { kind: 'enemy', ref: e };
+    } else {
+      const ch = { id: uniqueId('challenge'), col: c, row: r, name: 'Challenge', stat: 'int', dc: 10,
+        description: '', successText: '', failText: '', successHp: 0, failHp: -2 };
+      data.challenges.push(ch); selected = { kind: 'challenge', ref: ch };
+    }
+    setTool('move'); render();
+  } else { // move
+    if (held) {
+      if (objAt(c, r) && !sameObj(objAt(c, r), held)) return; // occupied by another
+      data.walkable[r][c] = 1;
+      if (held.kind === 'spawn') data.playerSpawn = [c, r];
+      else { held.ref.col = c; held.ref.row = r; }
+      selected = held; held = null; render();
+    } else if (o) {
+      held = o; selected = o; render();
+    } else {
+      selected = null; render();
+    }
+  }
+}
+function onCellEnter(c, r) {
+  if (tool === 'wall' && painting !== null && !objAt(c, r)) { data.walkable[r][c] = painting; render(); }
+}
+window.addEventListener('pointerup', () => { painting = null; });
+
+function uniqueId(base) {
+  const used = new Set([...data.enemies.map(e => e.id), ...data.challenges.map(c => c.id)]);
+  let i = 1; while (used.has(`${base}${i}`)) i++; return `${base}${i}`;
+}
+
+// ── Inspector ──────────────────────────────────────────────────
+function renderInspector() {
+  const ins = $('inspector');
+  if (!selected || selected.kind === 'spawn') {
+    ins.innerHTML = `<div id="insp-empty">${selected ? 'Spawn point — move it with the Move tool (no fields to edit).' : 'Select an object (Move tool) to edit its fields.'}</div>`;
+    return;
+  }
+  const o = selected.ref; const isEnemy = selected.kind === 'enemy';
+  const txt = (k) => (o[k] ?? '').toString().replace(/"/g, '&quot;');
+  const num = (k) => Number(o[k] ?? 0);
+  const statSel = (val) => ['str','agi','int','lck'].map(s => `<option ${s===val?'selected':''}>${s}</option>`).join('');
+  ins.innerHTML = `
+    <h2>${isEnemy ? 'Enemy' : 'Challenge'} · [${o.col},${o.row}]</h2>
+    <div class="field"><label>id</label><input data-k="id" value="${txt('id')}"></div>
+    <div class="field"><label>name</label><input data-k="name" value="${txt('name')}"></div>
+    ${isEnemy ? `<div class="field"><label>hp</label><input type="number" data-k="hp" value="${num('hp')}"></div>
+    <div class="field"><label>maxHp</label><input type="number" data-k="maxHp" value="${num('maxHp')}"></div>` : ''}
+    <div class="field"><label>stat</label><select data-k="stat">${statSel(o.stat)}</select></div>
+    <div class="field"><label>dc</label><input type="number" data-k="dc" value="${num('dc')}"></div>
+    <div class="field"><label>failHp</label><input type="number" data-k="failHp" value="${num('failHp')}"></div>
+    <div class="field"><label>description</label><textarea data-k="description">${txt('description')}</textarea></div>
+    <div class="field"><label>successText</label><textarea data-k="successText">${txt('successText')}</textarea></div>
+    <div class="field"><label>failText</label><textarea data-k="failText">${txt('failText')}</textarea></div>
+    <button id="del">🗑 Delete</button>`;
+  ins.querySelectorAll('[data-k]').forEach(el => {
+    el.addEventListener('input', () => {
+      const k = el.dataset.k;
+      o[k] = (el.type === 'number') ? Number(el.value) : el.value;
+      if (k === 'id') { const tag = document.querySelector('.cell.sel .tag'); if (tag) tag.textContent = el.value; }
+    });
+  });
+  $('del').addEventListener('click', () => {
+    if (isEnemy) data.enemies = data.enemies.filter(x => x !== o);
+    else data.challenges = data.challenges.filter(x => x !== o);
+    selected = null; held = null; render();
+  });
+}
+
+// ── Tool buttons ───────────────────────────────────────────────
+function setTool(t) {
+  tool = t; held = null;
+  document.querySelectorAll('.tool').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
+}
+document.querySelectorAll('.tool').forEach(b => b.addEventListener('click', () => { setTool(b.dataset.tool); render(); }));
+$('reload').addEventListener('click', () => load(stageId));
+$('save').addEventListener('click', save);
+$('stage').addEventListener('change', (e) => load(e.target.value));
+
+load('stage01');
+</script>
+</body>
+</html>
