@@ -66,10 +66,12 @@ for (const cfg of CONFIG) {
           const nc = c + dc, nr = r + dr, k = `${nc},${nr}`;
           if (nc < 0 || nr < 0 || nc >= newCols || nr >= newRows || seen.has(k)) continue;
           seen.add(k);
-          if (!occupied.has(k)) { obj.col = nc; obj.row = nr; key = k; break outer; }
+          // Only settle on a free, already-walkable cell so nudged entities stay reachable.
+          if (!occupied.has(k) && walk[nr][nc] === 1) { obj.col = nc; obj.row = nr; key = k; break outer; }
           q.push([nc, nr]);
         }
       }
+      if (occupied.has(key)) console.warn(`[scale-grids] ${cfg.file}: could not separate overlapping entity at ${key}`);
     }
     walk[obj.row][obj.col] = 1;
     occupied.add(key);
