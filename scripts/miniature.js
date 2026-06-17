@@ -9,7 +9,7 @@ const ROLE_EMOJI = {
 
 // Per-role emoji rotation in degrees (clockwise on the rendered canvas).
 const ROLE_EMOJI_ROTATION = {
-  warrior: 90,
+  warrior: 180,
 };
 
 const ROLE_COLOR = {
@@ -61,25 +61,25 @@ export function createSlimeMiniature(role, height = 3, colorHex) {
   // Eyes — small black spheres on the front (+z)
   const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
   const eyeGeo = new THREE.SphereGeometry(0.09, 12, 12);
-  [-0.15, 0.15].forEach(x => {
+  [-0.16, 0.16].forEach(x => {
     const eye = new THREE.Mesh(eyeGeo, eyeMat);
-    eye.position.set(x, 0.42, 0.4);
+    eye.position.set(x, 0.42, 0.42);
     anim.add(eye);
     // Eye highlights (tiny white dots) for cuteness
     const sparkle = new THREE.Mesh(
       new THREE.SphereGeometry(0.026, 8, 8),
       new THREE.MeshBasicMaterial({ color: 0xffffff })
     );
-    sparkle.position.set(x + 0.03, 0.45, 0.475);
+    sparkle.position.set(x + 0.03, 0.45, 0.495);
     anim.add(sparkle);
   });
 
   // Body highlight (top-left jelly shine)
   const shine = new THREE.Mesh(
-    new THREE.SphereGeometry(0.08, 10, 10),
+    new THREE.SphereGeometry(0.1, 10, 10),
     new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 })
   );
-  shine.position.set(-0.22, 0.58, 0.3);
+  shine.position.set(-0.28, 0.5, 0.2);
   anim.add(shine);
 
   // "Weapon" — role emoji as a billboard sprite on the slime's right side
@@ -106,7 +106,7 @@ export function createSlimeMiniature(role, height = 3, colorHex) {
   if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
   const weapon = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
   weapon.scale.set(0.45, 0.45, 1);
-  weapon.position.set(0.5, 0.55, 0.45); // pushed forward (+z) but closer to body
+  weapon.position.set(0.45, 0.47, 0.41); // pushed forward (+z) but closer to body
   anim.add(weapon);
   group.userData.weapon = weapon;
   group.userData.weaponBaseRot = ((ROLE_EMOJI_ROTATION[String(role || '').toLowerCase()] || 0) * Math.PI) / 180;
