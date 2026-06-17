@@ -4,41 +4,65 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>D&D Lite — Choose Your Hero</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+    "three/": "https://cdn.jsdelivr.net/npm/three@0.176.0/"
+  }
+}
+</script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     background: radial-gradient(ellipse at center, #1a1340, #05030f 75%);
     min-height: 100vh; display: flex; flex-direction: column; align-items: center;
-    font-family: 'Georgia', serif; color: #c8a96e; padding: 36px 24px; gap: 28px;
+    font-family: 'Georgia', serif; color: #c8a96e; padding: 32px 24px; gap: 24px;
   }
   h1 { font-size: 13px; letter-spacing: 6px; text-transform: uppercase; color: rgba(200,169,110,.5); }
   .code { font-family: monospace; font-size: 20px; letter-spacing: 6px; color: #ffe9a0; }
   .section-label { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: rgba(200,169,110,.4); margin-bottom: 12px; text-align: center; }
 
-  /* Live roster */
-  #roster { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; min-height: 96px; }
+  /* Live roster — each card shows the player's actual slime */
+  #roster { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; min-height: 150px; }
   .pcard {
-    width: 130px; padding: 16px 12px; border-radius: 10px; text-align: center;
-    background: rgba(0,0,0,.3); border: 2px solid rgba(200,169,110,.15); transition: all .2s;
+    width: 132px; padding: 8px 12px 14px; border-radius: 10px; text-align: center;
+    background: rgba(0,0,0,.3); border: 2px solid rgba(200,169,110,.15); transition: border-color .2s;
   }
-  .pcard.me { border-color: #ffe9a0; box-shadow: 0 0 14px rgba(255,233,160,.25); }
-  .pcard .dot { width: 30px; height: 30px; border-radius: 50%; margin: 0 auto 10px; border: 2px solid rgba(255,255,255,.3); }
-  .pcard .pname { font-size: 14px; color: #ffe9a0; letter-spacing: 1px; margin-bottom: 4px; }
+  .pcard.me { box-shadow: 0 0 14px rgba(255,233,160,.25); }
+  .pcard canvas.pslime { width: 110px; height: 110px; display: block; margin: 0 auto; }
+  .pcard .pname { font-size: 14px; color: #ffe9a0; letter-spacing: 1px; margin-bottom: 3px; }
   .pcard .prole { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(200,169,110,.6); }
 
-  /* Pickers */
-  .picker-block { width: 100%; max-width: 560px; }
-  #class-picker { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  /* Class row: picker (left) + hover detail (right) */
+  .class-row { display: flex; gap: 22px; align-items: stretch; max-width: 720px; width: 100%; justify-content: center; flex-wrap: wrap; }
+  #class-picker { display: flex; flex-direction: column; gap: 8px; width: 250px; }
   .class-opt {
-    display: flex; flex-direction: column; align-items: center; gap: 6px; width: 110px;
-    padding: 14px 8px; border-radius: 8px; cursor: pointer; transition: all .2s;
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 8px; cursor: pointer; transition: all .2s;
     background: rgba(200,169,110,.05); border: 1px solid rgba(200,169,110,.18);
   }
   .class-opt:hover { background: rgba(200,169,110,.12); }
   .class-opt.sel { background: rgba(200,169,110,.18); border-color: #ffe9a0; }
-  .class-opt .ic { font-size: 26px; filter: grayscale(1); }
+  .class-opt .ic { font-size: 24px; filter: grayscale(1); }
   .class-opt.sel .ic { filter: grayscale(0); }
-  .class-opt .nm { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
+  .class-opt .nm { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; }
+
+  /* Class detail panel */
+  #class-detail {
+    width: 300px; padding: 18px 20px; border-radius: 10px;
+    background: rgba(0,0,0,.3); border: 1px solid rgba(200,169,110,.18);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  #cd-title { font-size: 15px; letter-spacing: 3px; text-transform: uppercase; color: #ffe9a0; }
+  #cd-desc { font-size: 12px; line-height: 1.7; color: rgba(200,169,110,.7); min-height: 42px; }
+  .cd-stat { display: flex; align-items: center; gap: 8px; }
+  .cd-stat-name { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: rgba(200,169,110,.45); width: 26px; text-align: right; flex-shrink: 0; }
+  .cd-stat-bar { flex: 1; height: 4px; background: rgba(200,169,110,.1); border-radius: 2px; overflow: hidden; }
+  .cd-stat-fill { height: 100%; border-radius: 2px; transition: width .3s ease; display: block; }
+  .cd-stat-fill.stat { background: linear-gradient(to right, #c8a96e, #ffe9a0); }
+  .cd-stat-fill.hp   { background: linear-gradient(to right, #c45050, #e85d5d); }
+  .cd-stat-val { font-size: 10px; color: rgba(200,169,110,.6); width: 18px; text-align: right; flex-shrink: 0; }
+  .cd-stat-val.hp { color: #e85d5d; }
 
   #color-picker { display: flex; gap: 14px; justify-content: center; }
   .swatch { width: 42px; height: 42px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; transition: all .2s; }
@@ -47,7 +71,7 @@
   .swatch.taken { opacity: .22; cursor: not-allowed; }
   .swatch.taken:hover { transform: none; }
 
-  #footer { margin-top: 8px; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: rgba(200,169,110,.5); text-align: center; min-height: 40px; }
+  #footer { margin-top: 4px; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: rgba(200,169,110,.5); text-align: center; min-height: 40px; }
   #btn-start {
     display: none; padding: 14px 44px; background: rgba(200,169,110,.12);
     border: 1px solid rgba(200,169,110,.5); border-radius: 6px; color: #ffe9a0;
@@ -60,17 +84,24 @@
   <h1>Choose Your Hero</h1>
   <div class="code" id="code">----</div>
 
-  <div class="picker-block">
+  <div>
     <div class="section-label">Party</div>
     <div id="roster"></div>
   </div>
 
-  <div class="picker-block">
+  <div>
     <div class="section-label">Class</div>
-    <div id="class-picker"></div>
+    <div class="class-row">
+      <div id="class-picker"></div>
+      <div id="class-detail">
+        <div id="cd-title"></div>
+        <div id="cd-desc"></div>
+        <div id="cd-stats"></div>
+      </div>
+    </div>
   </div>
 
-  <div class="picker-block">
+  <div>
     <div class="section-label">Color</div>
     <div id="color-picker"></div>
   </div>
@@ -80,34 +111,61 @@
 
 <script type="module" src="../scripts/player-session.js"></script>
 <script type="module">
+import * as THREE from 'three';
 import { send, on } from '../scripts/game-socket.js';
-import { COLOR_KEYS, cssColorForKey } from '../scripts/colors.js';
+import { COLOR_KEYS, colorForKey, cssColorForKey } from '../scripts/colors.js';
+import { createSlimeMiniature, updateSlimeAnimation } from '../scripts/miniature.js';
 
 const myPid = localStorage.getItem('player-id');
 const isSolo = localStorage.getItem('dndlite-solo') === '1';
 document.getElementById('code').textContent = localStorage.getItem('session-code') || '----';
 
 const CLASSES = [
-  { role: 'warrior', icon: '🗡️', name: 'Warrior' },
-  { role: 'rogue',   icon: '🏹', name: 'Rogue' },
-  { role: 'mage',    icon: '🔮', name: 'Mage' },
-  { role: 'cleric',  icon: '🪄', name: 'Cleric' },
+  { role: 'warrior', icon: '🗡️', name: 'Warrior', desc: 'Brute force and iron will. Survives what others cannot.', stats: { str: 14, agi: 10, int: 8,  lck: 10, hp: 20 } },
+  { role: 'rogue',   icon: '🏹', name: 'Rogue',   desc: 'Swift and silent. Strikes before you blink.',           stats: { str: 8,  agi: 14, int: 10, lck: 12, hp: 14 } },
+  { role: 'mage',    icon: '🔮', name: 'Mage',    desc: 'Arcane knowledge and power. Bends reality itself.',     stats: { str: 6,  agi: 8,  int: 14, lck: 12, hp: 12 } },
+  { role: 'cleric',  icon: '🪄', name: 'Cleric',  desc: "Divine grace mends wounds. Lyra's faithful apprentice.", stats: { str: 10, agi: 8,  int: 12, lck: 14, hp: 16 } },
 ];
+const STAT_LABELS = [
+  { key: 'str', label: 'STR' }, { key: 'agi', label: 'AGI' }, { key: 'int', label: 'INT' },
+  { key: 'lck', label: 'LCK' }, { key: 'hp', label: 'HP' },
+];
+const STAT_MAX = 20;
 
 let myRole = null, myColor = null, takenColors = new Set();
 
-// Build class picker
+// ── Class picker + hover detail panel ──────────────────────────────
 const classPicker = document.getElementById('class-picker');
 for (const c of CLASSES) {
   const el = document.createElement('div');
   el.className = 'class-opt';
   el.dataset.role = c.role;
-  el.innerHTML = `<div class="ic">${c.icon}</div><div class="nm">${c.name}</div>`;
+  el.innerHTML = `<span class="ic">${c.icon}</span><span class="nm">${c.name}</span>`;
   el.addEventListener('click', () => send({ type: 'char_update', role: c.role }));
+  el.addEventListener('mouseenter', () => showClassDetail(c.role));
+  el.addEventListener('mouseleave', () => showClassDetail(myRole));
   classPicker.appendChild(el);
 }
 
-// Build color picker
+const cdTitle = document.getElementById('cd-title');
+const cdDesc  = document.getElementById('cd-desc');
+const cdStats = document.getElementById('cd-stats');
+function showClassDetail(role) {
+  const c = CLASSES.find(x => x.role === role) || CLASSES[0];
+  cdTitle.textContent = c.name;
+  cdDesc.textContent = c.desc;
+  cdStats.innerHTML = STAT_LABELS.map(s => {
+    const isHp = s.key === 'hp';
+    const pct = (c.stats[s.key] / STAT_MAX) * 100;
+    return `<div class="cd-stat">
+      <span class="cd-stat-name">${s.label}</span>
+      <span class="cd-stat-bar"><span class="cd-stat-fill ${isHp ? 'hp' : 'stat'}" style="width:${pct}%"></span></span>
+      <span class="cd-stat-val ${isHp ? 'hp' : ''}">${c.stats[s.key]}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Color picker ───────────────────────────────────────────────────
 const colorPicker = document.getElementById('color-picker');
 for (const key of COLOR_KEYS) {
   const el = document.createElement('div');
@@ -121,19 +179,79 @@ for (const key of COLOR_KEYS) {
   colorPicker.appendChild(el);
 }
 
+// ── Slime rendering: one shared offscreen renderer drawn into each card ──
+const R_SIZE = 150;
+const glRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+glRenderer.setPixelRatio(1);
+glRenderer.setSize(R_SIZE, R_SIZE);
+const gScene = new THREE.Scene();
+gScene.add(new THREE.AmbientLight(0xffffff, 0.95));
+const gDir = new THREE.DirectionalLight(0xffffff, 0.85);
+gDir.position.set(3, 6, 5);
+gScene.add(gDir);
+const gCam = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
+gCam.position.set(0, 2.2, 6.6);
+gCam.lookAt(0, 1.5, 0);
+
+// pid -> { group, role, color, canvas }
+const slimes = new Map();
+function ensureSlime(p) {
+  let s = slimes.get(p.pid);
+  if (!s || s.role !== p.role || s.color !== p.color) {
+    const group = createSlimeMiniature(p.role, 3, colorForKey(p.color));
+    s = { group, role: p.role, color: p.color, canvas: s ? s.canvas : null };
+    slimes.set(p.pid, s);
+  }
+  return s;
+}
+
+function animate(t) {
+  requestAnimationFrame(animate);
+  for (const s of slimes.values()) {
+    if (!s.canvas) continue;
+    gScene.add(s.group);
+    updateSlimeAnimation(s.group, t, 0);
+    glRenderer.render(gScene, gCam);
+    gScene.remove(s.group);
+    const ctx = s.canvas.getContext('2d');
+    ctx.clearRect(0, 0, s.canvas.width, s.canvas.height);
+    ctx.drawImage(glRenderer.domElement, 0, 0, s.canvas.width, s.canvas.height);
+  }
+}
+requestAnimationFrame(animate);
+
+// ── Roster (slime cards) ───────────────────────────────────────────
 function renderRoster(players) {
   const roster = document.getElementById('roster');
   roster.innerHTML = '';
+  const seen = new Set();
   for (const p of players) {
+    seen.add(p.pid);
     const card = document.createElement('div');
     card.className = 'pcard' + (p.pid === myPid ? ' me' : '');
-    card.innerHTML = `
-      <div class="dot" style="background:${cssColorForKey(p.color) || '#888'}"></div>
-      <div class="pname"></div>
-      <div class="prole"></div>`;
-    card.querySelector('.pname').textContent = p.name + (p.pid === myPid ? ' (you)' : '');
-    card.querySelector('.prole').textContent = p.role;
+    card.style.borderColor = cssColorForKey(p.color) || 'rgba(200,169,110,.15)';
+
+    const cv = document.createElement('canvas');
+    cv.className = 'pslime';
+    cv.width = 110; cv.height = 110;
+
+    const nm = document.createElement('div');
+    nm.className = 'pname';
+    nm.textContent = p.name + (p.pid === myPid ? ' (you)' : '');
+
+    const rl = document.createElement('div');
+    rl.className = 'prole';
+    rl.textContent = p.role;
+
+    card.append(cv, nm, rl);
     roster.appendChild(card);
+
+    const s = ensureSlime(p);
+    s.canvas = cv; // bind the (possibly new) card canvas to this slime
+  }
+  // Drop slimes for players who left
+  for (const pid of [...slimes.keys()]) {
+    if (!seen.has(pid)) slimes.delete(pid);
   }
 }
 
@@ -158,11 +276,15 @@ on('lobby_state', (msg) => {
     const char = JSON.parse(localStorage.getItem('dndlite-character') || '{}');
     char.role = me.role; char.color = me.color;
     localStorage.setItem('dndlite-character', JSON.stringify(char));
+    showClassDetail(myRole); // keep the detail panel in sync when not hovering
   }
   takenColors = new Set(players.map(p => p.color).filter(Boolean));
   renderRoster(players);
   syncPickers();
 });
+
+// Show a sensible default in the detail panel before the first lobby_state.
+showClassDetail('warrior');
 
 // Solo: no DM to start — show a local Start button.
 if (isSolo) {
