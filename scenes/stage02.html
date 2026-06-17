@@ -411,6 +411,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { send, on } from '../scripts/game-socket.js';
 import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, fadeOutToken, triggerSlimeAttack, flashEnemyDamage, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
+import { colorForKey, cssColorForKey } from '../scripts/colors.js';
 import { initDebugBots, debugActAs, isControlledBy, debugBotsAreActive } from '../scripts/debug-bots.js';
 import { playBGM, playSFX } from '../scripts/audio.js';
 document.addEventListener('click', (e) => {
@@ -623,8 +624,8 @@ function inAtkRange(c1, r1, c2, r2, range) {
   return dc + dr <= range;
 }
 
-function loadPlayerTokenForRole(roleName) {
-  const group = createSlimeMiniature(roleName, 4);
+function loadPlayerTokenForRole(roleName, colorKey) {
+  const group = createSlimeMiniature(roleName, 4, colorForKey(colorKey));
   group.rotation.y = Math.PI;
   return Promise.resolve(group);
 }
@@ -688,8 +689,12 @@ async function applyState(snap) {
     let entry = playerTokens.get(p.pid);
     if (!entry && !loadingPids.has(p.pid)) {
       loadingPids.add(p.pid);
-      const group = await loadPlayerTokenForRole(p.role);
+      const group = await loadPlayerTokenForRole(p.role, p.color);
       const { label, fillEl, nameEl } = buildPlayerLabel(p.name);
+      if (p.pid !== myPid) {
+        const c = cssColorForKey(p.color);
+        if (c) label.style.borderColor = c; // teammates: nametag border = their color ("me" keeps the gold .me highlight)
+      }
       document.body.appendChild(label);
       scene.add(group);
       entry = { group, label, fillEl, nameEl, role: p.role };
@@ -893,7 +898,7 @@ gltfLoader.load('../Assets/dnd_luna_ruins_02a.glb', async (gltf) => {
   } else {
     // Solo mode (no session): render local character at spawn for visualization. Combat not playable.
     const role = charData?.role || 'warrior';
-    const soloMini = createSlimeMiniature(role, 4);
+    const soloMini = createSlimeMiniature(role, 4, colorForKey(charData?.color));
     soloMini.rotation.y = Math.PI;
     const spawnPos = gridToWorld(gridData.playerSpawn[0], gridData.playerSpawn[1]);
     soloMini.position.set(spawnPos.x, gridData.grid.floorY, spawnPos.z);

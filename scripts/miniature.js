@@ -9,7 +9,7 @@ const ROLE_EMOJI = {
 
 // Per-role emoji rotation in degrees (clockwise on the rendered canvas).
 const ROLE_EMOJI_ROTATION = {
-  warrior: 90,
+  warrior: 180,
 };
 
 const ROLE_COLOR = {
@@ -30,7 +30,7 @@ export function colorForRole(role) {
 // Procedural slime: squashed translucent sphere + 2 eyes + a tiny highlight,
 // holding the role's emoji as a sprite "in its right hand".
 // Group origin sits at the GROUND.
-export function createSlimeMiniature(role, height = 3) {
+export function createSlimeMiniature(role, height = 3, colorHex) {
   const group = new THREE.Group();
   // Inner group receives squash/stretch — scales about origin (y=0 = ground)
   // so the slime's bottom stays anchored to the floor during animation.
@@ -38,7 +38,8 @@ export function createSlimeMiniature(role, height = 3) {
   group.add(anim);
   group.userData.anim = anim;
 
-  const color = colorForRole(role);
+  // Explicit per-player color wins; otherwise fall back to the role color.
+  const color = (typeof colorHex === 'number') ? colorHex : colorForRole(role);
 
   // Body — squashed sphere, slightly translucent for jelly look
   const body = new THREE.Mesh(
@@ -57,28 +58,29 @@ export function createSlimeMiniature(role, height = 3) {
   anim.add(body);
   group.userData.body = body;
 
-  // Eyes — small black spheres on the front (+z)
-  const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
-  const eyeGeo = new THREE.SphereGeometry(0.09, 12, 12);
-  [-0.15, 0.15].forEach(x => {
-    const eye = new THREE.Mesh(eyeGeo, eyeMat);
-    eye.position.set(x, 0.42, 0.4);
+  // Eyes + eye-dots — flat 2D ellipses on the front (+z). CircleGeometry is a
+  // unit disc in the XY plane (faces +z); scale (rx, ry) makes the ellipse.
+  const eyeGeo = new THREE.CircleGeometry(1, 24);
+  [-0.16, 0.16].forEach(x => {
+    const eye = new THREE.Mesh(eyeGeo, new THREE.MeshBasicMaterial({ color: 0x111111 }));
+    eye.position.set(x, 0.42, 0.5);
+    eye.scale.set(0.085, 0.1, 1);
     anim.add(eye);
-    // Eye highlights (tiny white dots) for cuteness
-    const sparkle = new THREE.Mesh(
-      new THREE.SphereGeometry(0.026, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0xffffff })
-    );
-    sparkle.position.set(x + 0.03, 0.45, 0.475);
+    // Eye highlight (tiny white dot)
+    const sparkle = new THREE.Mesh(eyeGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    sparkle.position.set(x + 0.035, 0.46, 0.505);
+    sparkle.scale.set(0.028, 0.03, 1);
     anim.add(sparkle);
   });
 
-  // Body highlight (top-left jelly shine)
+  // Body highlight — flat 2D ellipse, tilted to sit on the curved top-left surface.
   const shine = new THREE.Mesh(
-    new THREE.SphereGeometry(0.08, 10, 10),
-    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 })
+    eyeGeo,
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 })
   );
-  shine.position.set(-0.22, 0.58, 0.3);
+  shine.position.set(-0.29, 0.58, 0.265);
+  shine.scale.set(0.075, 0.075, 1);
+  shine.rotation.set(-70 * Math.PI / 180, -30 * Math.PI / 180, 0);
   anim.add(shine);
 
   // "Weapon" — role emoji as a billboard sprite on the slime's right side
@@ -105,7 +107,7 @@ export function createSlimeMiniature(role, height = 3) {
   if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
   const weapon = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
   weapon.scale.set(0.45, 0.45, 1);
-  weapon.position.set(0.5, 0.55, 0.45); // pushed forward (+z) but closer to body
+  weapon.position.set(0.45, 0.47, 0.41); // pushed forward (+z) but closer to body
   anim.add(weapon);
   group.userData.weapon = weapon;
   group.userData.weaponBaseRot = ((ROLE_EMOJI_ROTATION[String(role || '').toLowerCase()] || 0) * Math.PI) / 180;

@@ -42,7 +42,7 @@ function buildWorldMapState(sess) {
   return {
     type: 'world_map_state',
     players: [...sess.players.entries()].map(([pid, p]) => ({
-      pid, name: p.name, role: p.role, stageId: p.worldMapStage || null,
+      pid, name: p.name, role: p.role, color: p.color, stageId: p.worldMapStage || null,
     })),
   };
 }
@@ -213,6 +213,38 @@ const ROLE_STATS = {
   cleric:  { str: 10, agi:  8, int: 12, lck: 14, hp: 16 },
 };
 
+const COLOR_KEYS = ['red', 'green', 'blue', 'purple', 'gold'];
+
+// First palette color not already held by a player in this session.
+function firstFreeColor(sess) {
+  const taken = new Set([...sess.players.values()].map(p => p.color).filter(Boolean));
+  return COLOR_KEYS.find(k => !taken.has(k)) || COLOR_KEYS[0];
+}
+
+// Set a player entry's role and derive stats + HP from ROLE_STATS.
+function applyRoleToPlayer(p, roleName) {
+  const r = ROLE_STATS[roleName] ? roleName : 'warrior';
+  const st = ROLE_STATS[r];
+  p.role = r;
+  p.stats = { str: st.str, agi: st.agi, int: st.int, lck: st.lck };
+  p.hp = st.hp;
+  p.maxHp = st.hp;
+}
+
+function buildLobbyState(sess) {
+  return {
+    type: 'lobby_state',
+    players: [...sess.players.entries()].map(([pid, p]) => ({
+      pid, name: p.name, role: p.role, color: p.color,
+    })),
+  };
+}
+function broadcastLobbyState(sess) {
+  const msg = buildLobbyState(sess);
+  broadcastPlayers(sess, msg);
+  if (sess.dm) send(sess.dm, msg);
+}
+
 // Place a bot player at a free walkable cell. Prefers distance ≥ 2 from spawn
 // so bots don't surround the human and leave them unable to move on turn 1.
 function placeBotInStage(st, botPid, botPlayer) {
@@ -258,6 +290,7 @@ function placeBotInStage(st, botPid, botPlayer) {
     maxHp: persistMaxHp,
     name: botPlayer.name,
     role: botPlayer.role,
+    color: botPlayer.color || null,
     stats: { str: stats.str, agi: stats.agi, int: stats.int, lck: stats.lck },
   });
   st.turnOrder.push(botPid);
@@ -436,6 +469,7 @@ wss.on('connection', (ws) => {
         send(ws, { type: 'chat_history', messages: rejoinSess.chatHistory });
         send(ws, { type: 'fog_history', points: rejoinSess.revealedFog || [] });
         send(ws, buildWorldMapState(rejoinSess));
+        send(ws, buildLobbyState(rejoinSess));
         for (const st of rejoinSess.stages.values()) {
           send(ws, { type: 'state_update', state: snapshotState(st) });
         }
@@ -450,57 +484,46 @@ wss.on('connection', (ws) => {
         pid  = `p${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3,'0')}`;
         role = 'player';
         sess = {
-          dm: null,
-          players: new Map(),
-          unlockedStages: new Set(['stage_01']),
-          chatHistory: [],
-          stages: new Map(),
-          revealedFog: [],
+          dm: null, players: new Map(), unlockedStages: new Set(['stage_01']),
+          chatHistory: [], stages: new Map(), revealedFog: [],
         };
-        {
-          const soloRole = String(msg.role || 'warrior').toLowerCase();
-          const soloStats = ROLE_STATS[soloRole] || ROLE_STATS.warrior;
-          sess.players.set(pid, {
-            ws,
-            name: String(msg.name || 'Adventurer').slice(0, 24),
-            role: soloRole,
-            hp: soloStats.hp,
-            maxHp: soloStats.hp,
-            location: 'world-map',
-            worldMapStage: null,
-          });
-        }
+        const entry = {
+          ws,
+          name: String(msg.name || 'Adventurer').slice(0, 24),
+          color: COLOR_KEYS[0],
+          location: 'character-select',
+          worldMapStage: null,
+        };
+        applyRoleToPlayer(entry, 'warrior');
+        sess.players.set(pid, entry);
         sessions.set(code, sess);
-        console.log(`[start_solo] session=${code}, pid=${pid}, name=${msg.name}, role=${msg.role}`);
-        send(ws, { type: 'solo_started', code, playerId: pid, unlockedStages: [...sess.unlockedStages] });
+        console.log(`[start_solo] session=${code}, pid=${pid}, name=${entry.name}`);
+        send(ws, { type: 'solo_started', code, playerId: pid, unlockedStages: [...sess.unlockedStages], role: entry.role, color: entry.color });
         break;
       }
 
       case 'player_join': {
         sess = sessions.get(msg.code);
         if (!sess)                  { send(ws, { type: 'error', message: 'Invalid code' }); return; }
-        if (ws === sess.dm) { send(ws, { type: 'error', message: 'DM cannot join as player' }); return; }
-        if (sess.players.size >= 4) { send(ws, { type: 'error', message: 'Session full' });  return; }
+        if (ws === sess.dm)         { send(ws, { type: 'error', message: 'DM cannot join as player' }); return; }
+        if (sess.players.size >= 5) { send(ws, { type: 'error', message: 'Session full' });  return; }
         pid  = `p${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3,'0')}`;
         role = 'player';
-        {
-          const joinRole = String(msg.role || 'warrior').toLowerCase();
-          const joinStats = ROLE_STATS[joinRole] || ROLE_STATS.warrior;
-          sess.players.set(pid, {
-            ws,
-            name: msg.name,
-            role: joinRole,
-            hp: joinStats.hp,
-            maxHp: joinStats.hp,
-            location: 'world-map',
-            worldMapStage: null,
-          });
-        }
-        console.log(`[player_join] session=${msg.code}, pid=${pid}, name=${msg.name}`);
-        send(ws, { type: 'joined', playerId: pid, unlockedStages: [...sess.unlockedStages] });
+        const entry = {
+          ws,
+          name: String(msg.name || 'Adventurer').slice(0, 24),
+          color: COLOR_KEYS[0], // everyone starts on red; duplicates allowed — pick freely
+          location: 'character-select',
+          worldMapStage: null,
+        };
+        applyRoleToPlayer(entry, 'warrior'); // default class; player changes it in the lobby
+        sess.players.set(pid, entry);
+        console.log(`[player_join] session=${msg.code}, pid=${pid}, name=${entry.name}, color=${entry.color}`);
+        send(ws, { type: 'joined', playerId: pid, unlockedStages: [...sess.unlockedStages], role: entry.role, color: entry.color });
         send(ws, { type: 'chat_history', messages: sess.chatHistory });
         send(ws, { type: 'fog_history', points: sess.revealedFog || [] });
-        send(sess.dm, { type: 'player_joined', playerId: pid, name: msg.name, role: msg.role });
+        send(sess.dm, { type: 'player_joined', playerId: pid, name: entry.name, role: entry.role, color: entry.color });
+        broadcastLobbyState(sess);
         broadcastWorldMapState(sess);
         break;
       }
@@ -522,6 +545,7 @@ wss.on('connection', (ws) => {
               ws: null,
               name: botName,
               role: botRole,
+              color: firstFreeColor(sess),
               hp: botStats.hp,
               maxHp: botStats.hp,
               isBot: true,
@@ -543,6 +567,7 @@ wss.on('connection', (ws) => {
         send(ws, { type: 'bots_spawned', bots: created });
         if (sess.dm) send(sess.dm, { type: 'bots_spawned', bots: created });
         broadcastWorldMapState(sess); // surface bots to world-map party renderer
+        broadcastLobbyState(sess);
         console.log(`[debug_spawn_bots] session=${code} added ${created.length} bots`);
         break;
       }
@@ -621,7 +646,8 @@ wss.on('connection', (ws) => {
               }
             }
           }
-          const stats = msg.stats && typeof msg.stats === 'object' ? msg.stats : {};
+          // Prefer server-side stats (set from the lobby-chosen class); fall back to the client payload.
+          const srcStats = (player && player.stats) ? player.stats : (msg.stats && typeof msg.stats === 'object' ? msg.stats : {});
           // Persist HP across stages — session-tracked hp wins over msg payload
           const persistHp    = typeof player?.hp    === 'number' ? player.hp    : null;
           const persistMaxHp = typeof player?.maxHp === 'number' ? player.maxHp : null;
@@ -631,12 +657,13 @@ wss.on('connection', (ws) => {
             hp:    persistHp    ?? Math.max(1, Number(msg.hp)    || 10),
             maxHp: persistMaxHp ?? Math.max(1, Number(msg.maxHp) || 10),
             name: player?.name || 'Adventurer',
-            role: player?.role || 'Warrior',
+            role: player?.role || 'warrior',
+            color: player?.color || null,
             stats: {
-              str: Number(stats.str) || 10,
-              agi: Number(stats.agi) || 10,
-              int: Number(stats.int) || 10,
-              lck: Number(stats.lck) || 10,
+              str: Number(srcStats.str) || 10,
+              agi: Number(srcStats.agi) || 10,
+              int: Number(srcStats.int) || 10,
+              lck: Number(srcStats.lck) || 10,
             },
           });
           st.turnOrder.push(pid);
@@ -1001,6 +1028,27 @@ wss.on('connection', (ws) => {
         break;
       }
 
+      case 'char_update': {
+        // Lobby: a player changes class and/or color. Colors may be shared (duplicates allowed).
+        if (role !== 'player' || !sess || !pid) return;
+        const p = sess.players.get(pid);
+        if (!p) return;
+        // Lobby-only: ignore once the player has entered a stage (a class change
+        // there would reset HP). A player in a stage appears in some stageState.
+        for (const st of sess.stages.values()) {
+          if (st.players.has(pid) || st.deadSpectatorPids.has(pid)) return;
+        }
+        const wantRole = msg.role ? String(msg.role).toLowerCase() : null;
+        if (wantRole && ROLE_STATS[wantRole] && wantRole !== p.role) {
+          applyRoleToPlayer(p, wantRole);
+        }
+        if (msg.color && COLOR_KEYS.includes(msg.color)) {
+          p.color = msg.color; // duplicates allowed — players may share a color
+        }
+        broadcastLobbyState(sess);
+        break;
+      }
+
       case 'player_redirect': {
         if (role !== 'dm' || !sess) {
           console.log(`[player_redirect] REJECTED — role=${role}, sess=${!!sess}`);
@@ -1054,6 +1102,7 @@ wss.on('connection', (ws) => {
         send(ws, { type: 'chat_history', messages: sess.chatHistory });
         send(ws, { type: 'fog_history', points: sess.revealedFog || [] });
         send(ws, buildWorldMapState(sess));
+        send(ws, buildLobbyState(sess));
         // Replay any in-progress stage the player belongs to, so reconnecting
         // while inside a stage restores the live 3D/combat state — not just the
         // world-map. Mirrors dm_rejoin's full-stage replay.

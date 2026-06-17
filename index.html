@@ -296,40 +296,8 @@
 
 <div id="player-section" class="section visible">
 
-  <!-- Left: class cards + name -->
+  <!-- Left: name -->
   <div class="col-left">
-    <div class="cc-role-card" data-role="warrior">
-      <div class="cc-role-header">
-        <div class="cc-role-icon">🗡️</div>
-        <div class="cc-role-name">Warrior</div>
-        <div class="cc-role-desc">Brute force and iron will. Survives what others cannot.</div>
-      </div>
-      <div class="cc-card-stats"></div>
-    </div>
-    <div class="cc-role-card" data-role="rogue">
-      <div class="cc-role-header">
-        <div class="cc-role-icon">🏹</div>
-        <div class="cc-role-name">Rogue</div>
-        <div class="cc-role-desc">Swift and silent. Strikes before you blink.</div>
-      </div>
-      <div class="cc-card-stats"></div>
-    </div>
-    <div class="cc-role-card" data-role="mage">
-      <div class="cc-role-header">
-        <div class="cc-role-icon">🔮</div>
-        <div class="cc-role-name">Mage</div>
-        <div class="cc-role-desc">Arcane knowledge and power. Bends reality itself.</div>
-      </div>
-      <div class="cc-card-stats"></div>
-    </div>
-    <div class="cc-role-card" data-role="cleric">
-      <div class="cc-role-header">
-        <div class="cc-role-icon">🪄</div>
-        <div class="cc-role-name">Cleric</div>
-        <div class="cc-role-desc">Divine grace mends wounds. Lyra's faithful apprentice.</div>
-      </div>
-      <div class="cc-card-stats"></div>
-    </div>
 
     <div class="field">
       <label>Name</label>
@@ -347,7 +315,7 @@
     <div class="divider"><hr><span>or</span><hr></div>
     <button id="btn-solo">Play Solo</button>
     <div id="status"></div>
-    <p class="session-note">Enter a code to join a DM session,<br>or play solo to explore freely.</p>
+    <p class="session-note">Pick your class &amp; color after joining.</p>
   </div>
 
 </div>
@@ -359,60 +327,6 @@
 
 <script type="module">
 import { connect, send, on } from './scripts/game-socket.js';
-
-const ROLE_STATS = {
-  warrior: { str: 14, agi: 10, int:  8, lck: 10, hp: 20 },
-  rogue:   { str:  8, agi: 14, int: 10, lck: 12, hp: 14 },
-  mage:    { str:  6, agi:  8, int: 14, lck: 12, hp: 12 },
-  cleric:  { str: 10, agi:  8, int: 12, lck: 14, hp: 16 },
-};
-const STAT_LABELS = [
-  { key: 'str', label: 'STR', max: 20 },
-  { key: 'agi', label: 'AGI', max: 20 },
-  { key: 'int', label: 'INT', max: 20 },
-  { key: 'lck', label: 'LCK', max: 20 },
-  { key: 'hp',  label: 'HP',  max: 20 },
-];
-
-// Build stat bars inside each card
-document.querySelectorAll('.cc-role-card').forEach(card => {
-  const stats = ROLE_STATS[card.dataset.role];
-  card.querySelector('.cc-card-stats').innerHTML = STAT_LABELS.map(s => {
-    const isHp = s.key === 'hp';
-    const pct = (stats[s.key] / s.max * 100);
-    return `<div class="cc-card-stat">
-      <span class="cc-card-stat-name">${s.label}</span>
-      <div class="cc-card-stat-bar"><div class="cc-card-stat-fill ${isHp ? 'hp-fill' : 'stat-fill'}" style="width:${pct}%"></div></div>
-      <span class="cc-card-stat-val ${isHp ? 'hp-val' : ''}">${stats[s.key]}</span>
-    </div>`;
-  }).join('');
-});
-
-const nameInput = document.getElementById('name-input');
-const codeInput = document.getElementById('code-input');
-const btnJoin   = document.getElementById('btn-join');
-const statusEl  = document.getElementById('status');
-
-let selectedRole = null;
-
-function selectRole(role) {
-  selectedRole = role;
-  document.querySelectorAll('.cc-role-card').forEach(c => {
-    c.classList.toggle('selected', c.dataset.role === role);
-  });
-  updateJoinBtn();
-}
-
-document.querySelectorAll('.cc-role-card').forEach(card => {
-  card.addEventListener('click', () => selectRole(card.dataset.role));
-});
-
-// Pre-fill from saved character
-const existing = JSON.parse(localStorage.getItem('dndlite-character') || 'null');
-if (existing) {
-  nameInput.value = existing.name || '';
-  if (existing.role && ROLE_STATS[existing.role]) selectRole(existing.role);
-}
 
 // DM / Player toggle
 document.getElementById('btn-dm').addEventListener('click', () => {
@@ -430,8 +344,17 @@ document.getElementById('btn-player').addEventListener('click', () => {
   statusEl.textContent = '';
 });
 
+const nameInput = document.getElementById('name-input');
+const codeInput = document.getElementById('code-input');
+const btnJoin   = document.getElementById('btn-join');
+const statusEl  = document.getElementById('status');
+
+// Pre-fill name from a saved character
+const existing = JSON.parse(localStorage.getItem('dndlite-character') || 'null');
+if (existing) nameInput.value = existing.name || '';
+
 function updateJoinBtn() {
-  btnJoin.disabled = !selectedRole || nameInput.value.trim().length === 0 || codeInput.value.length !== 4;
+  btnJoin.disabled = nameInput.value.trim().length === 0 || codeInput.value.length !== 4;
 }
 nameInput.addEventListener('input', updateJoinBtn);
 codeInput.addEventListener('input', () => {
@@ -439,56 +362,42 @@ codeInput.addEventListener('input', () => {
   updateJoinBtn();
 });
 
-function saveCharacter() {
-  localStorage.setItem('dndlite-character', JSON.stringify({
-    name: nameInput.value.trim(),
-    role: selectedRole,
-    ...ROLE_STATS[selectedRole],
-  }));
-}
-
 let connected = false;
 connect(() => { connected = true; statusEl.textContent = 'Connected'; });
 
 on('joined', (msg) => {
-  saveCharacter();
+  localStorage.setItem('dndlite-character', JSON.stringify({ name: nameInput.value.trim(), role: msg.role, color: msg.color }));
   localStorage.setItem('player-id', msg.playerId);
   localStorage.setItem('session-code', codeInput.value);
   localStorage.setItem('unlocked-stages', JSON.stringify(msg.unlockedStages));
-  statusEl.textContent = 'Joined! Entering world…';
-  setTimeout(() => { window.location.href = 'scenes/world-map.html'; }, 600);
-});
-
-on('error', (msg) => {
-  statusEl.textContent = msg.message;
-  updateJoinBtn();
-});
-
-on('_disconnect', () => {
-  connected = false;
-  statusEl.textContent = 'Server not reachable';
-});
-
-btnJoin.addEventListener('click', () => {
-  if (!connected || !nameInput.value.trim() || !selectedRole) return;
-  btnJoin.disabled = true;
-  statusEl.textContent = 'Joining…';
-  send({ type: 'player_join', code: codeInput.value, name: nameInput.value.trim(), role: selectedRole });
+  localStorage.setItem('dndlite-solo', '');
+  statusEl.textContent = 'Joined! Choose your hero…';
+  setTimeout(() => { window.location.href = 'scenes/character-select.html'; }, 400);
 });
 
 on('solo_started', (msg) => {
+  localStorage.setItem('dndlite-character', JSON.stringify({ name: nameInput.value.trim(), role: msg.role, color: msg.color }));
   localStorage.setItem('player-id', msg.playerId);
   localStorage.setItem('session-code', msg.code);
   localStorage.setItem('unlocked-stages', JSON.stringify(msg.unlockedStages));
-  window.location.href = 'scenes/world-map.html';
+  localStorage.setItem('dndlite-solo', '1');
+  window.location.href = 'scenes/character-select.html';
+});
+
+on('error', (msg) => { statusEl.textContent = msg.message; updateJoinBtn(); });
+on('_disconnect', () => { connected = false; statusEl.textContent = 'Server not reachable'; });
+
+btnJoin.addEventListener('click', () => {
+  if (!connected || !nameInput.value.trim()) return;
+  btnJoin.disabled = true;
+  statusEl.textContent = 'Joining…';
+  send({ type: 'player_join', code: codeInput.value, name: nameInput.value.trim() });
 });
 
 document.getElementById('btn-solo').addEventListener('click', () => {
   if (!nameInput.value.trim()) { statusEl.textContent = 'Enter your name first'; return; }
-  if (!selectedRole) { statusEl.textContent = 'Choose a class first'; return; }
   if (!connected) { statusEl.textContent = 'Connecting to server...'; return; }
-  saveCharacter();
-  send({ type: 'start_solo', name: nameInput.value.trim(), role: selectedRole });
+  send({ type: 'start_solo', name: nameInput.value.trim() });
 });
 </script>
 </body>
