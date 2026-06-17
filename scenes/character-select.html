@@ -160,10 +160,12 @@ const STAT_LABELS = [
 ];
 const STAT_MAX = 20;
 
-// Defaults match what the server assigns the first/solo player (warrior + red),
-// so the pickers show a selection immediately; lobby_state corrects it for
-// later joiners a moment later.
-let myRole = 'warrior', myColor = 'red', takenColors = new Set();
+// Seed from the role/color the server already assigned us at join (index.html
+// stored them in localStorage). This shows the correct selection immediately —
+// e.g. the 2nd player sees their assigned green, not a red flash — before the
+// first lobby_state arrives. Falls back to the server's first-player default.
+const _seed = JSON.parse(localStorage.getItem('dndlite-character') || '{}');
+let myRole = _seed.role || 'warrior', myColor = _seed.color || 'red', takenColors = new Set();
 
 // ── Class picker + hover detail panel ──────────────────────────────
 const classPicker = document.getElementById('class-picker');
