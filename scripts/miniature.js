@@ -58,19 +58,18 @@ export function createSlimeMiniature(role, height = 3, colorHex) {
   anim.add(body);
   group.userData.body = body;
 
-  // Eyes — small black spheres on the front (+z)
-  const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
-  const eyeGeo = new THREE.SphereGeometry(0.09, 12, 12);
+  // Eyes + eye-dots — flat 2D ellipses on the front (+z). CircleGeometry is a
+  // unit disc in the XY plane (faces +z); scale (rx, ry) makes the ellipse.
+  const eyeGeo = new THREE.CircleGeometry(1, 24);
   [-0.16, 0.16].forEach(x => {
-    const eye = new THREE.Mesh(eyeGeo, eyeMat);
-    eye.position.set(x, 0.42, 0.42);
+    const eye = new THREE.Mesh(eyeGeo, new THREE.MeshBasicMaterial({ color: 0x111111 }));
+    eye.position.set(x, 0.42, 0.5);
+    eye.scale.set(0.085, 0.1, 1);
     anim.add(eye);
-    // Eye highlights (tiny white dots) for cuteness
-    const sparkle = new THREE.Mesh(
-      new THREE.SphereGeometry(0.026, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0xffffff })
-    );
-    sparkle.position.set(x + 0.03, 0.45, 0.495);
+    // Eye highlight (tiny white dot)
+    const sparkle = new THREE.Mesh(eyeGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    sparkle.position.set(x + 0.035, 0.46, 0.505);
+    sparkle.scale.set(0.028, 0.03, 1);
     anim.add(sparkle);
   });
 
