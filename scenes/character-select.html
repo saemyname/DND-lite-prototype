@@ -332,6 +332,15 @@ on('lobby_state', (msg) => {
 showClassDetail(myRole);
 syncPickers();
 
+// The `import 'three'` at the top can delay this module's execution past the
+// server's initial rejoin `lobby_state` (player-session.js connects first with
+// only fast local imports, so its player_rejoin — and the reply — can arrive
+// before our handler is registered). Now that the handler IS registered,
+// re-request the roster. An empty char_update changes nothing server-side and
+// just triggers a fresh lobby_state broadcast, so the party/slimes appear
+// without needing a manual interaction.
+send({ type: 'char_update' });
+
 // Solo: no DM to start — show a local Start button in the right column.
 if (isSolo) {
   document.getElementById('footer').textContent = '';
