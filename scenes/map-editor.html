@@ -59,9 +59,13 @@
       <div class="grp">Add</div>
       <button class="tool" data-tool="addEnemy">👹 + Enemy</button>
       <button class="tool" data-tool="addChallenge">❓ + Challenge</button>
+      <div class="grp" id="village-grp" style="display:none">Village (stage 01)</div>
+      <button class="tool" data-tool="house" id="t-house" style="display:none">🏠 House</button>
+      <button class="tool" data-tool="well" id="t-well" style="display:none">💧 Well</button>
       <div class="legend">
         🟩 spawn · 👹 enemy · ❓ challenge<br>
-        tan = walkable · dark = wall<br><br>
+        🏠 house · 🌲 tree · 💧 well (stage 01)<br>
+        tan = walkable · dark = wall/structure<br><br>
         <b>Move:</b> click object, click destination.<br>
         <b>Wall:</b> click/drag empty cells.<br>
         <b>Erase:</b> click object to delete, or wall to clear.
@@ -83,6 +87,9 @@ async function load(id) {
   data.enemies = data.enemies || [];
   data.challenges = data.challenges || [];
   held = null; selected = null;
+  const hasV = !!data.village;
+  for (const el of ['village-grp', 't-house', 't-well']) $(el).style.display = hasV ? '' : 'none';
+  if (!hasV && (tool === 'house' || tool === 'well')) setTool('move');
   $('status').textContent = `${id}: ${data.grid.cols}×${data.grid.rows}`;
   render();
 }
@@ -109,6 +116,14 @@ function objAt(c, r) {
 }
 const sameObj = (a, b) => a && b && a.kind === b.kind && a.ref === b.ref;
 const marker = (k) => k === 'spawn' ? '🟩' : k === 'enemy' ? '👹' : '❓';
+// Drop any village house/well tag at a cell (e.g. when it changes nature).
+function clearDecor(c, r) {
+  if (!data.village) return;
+  for (const key of ['houses', 'wells']) {
+    const L = data.village[key]; if (!L) continue;
+    const i = L.findIndex(([cc, rr]) => cc === c && rr === r); if (i >= 0) L.splice(i, 1);
+  }
+}
 
 // ── Render ─────────────────────────────────────────────────────
 function render() {
@@ -116,16 +131,24 @@ function render() {
   const g = $('grid');
   g.style.gridTemplateColumns = `repeat(${cols}, 34px)`;
   g.innerHTML = '';
+  const hasV = !!data.village;
+  const houseSet = new Set(((hasV && data.village.houses) || []).map(([c, r]) => c + ',' + r));
+  const wellSet  = new Set(((hasV && data.village.wells)  || []).map(([c, r]) => c + ',' + r));
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
+      const blocked = data.walkable[r][c] === 0;
       const cell = document.createElement('div');
-      cell.className = 'cell' + (data.walkable[r][c] === 0 ? ' wall' : '');
-      const o = objAt(c, r);
-      if (o) {
+      cell.className = 'cell' + (blocked ? ' wall' : '');
+      const o = blocked ? null : objAt(c, r);
+      if (blocked) {
+        if (hasV) cell.textContent = houseSet.has(c + ',' + r) ? '🏠' : '🌲';
+      } else if (o) {
         cell.textContent = marker(o.kind);
         if (o.kind !== 'spawn') { const t = document.createElement('span'); t.className = 'tag'; t.textContent = o.ref.id; cell.appendChild(t); }
         if (sameObj(o, held)) cell.classList.add('held');
         else if (sameObj(o, selected)) cell.classList.add('sel');
+      } else if (wellSet.has(c + ',' + r)) {
+        cell.textContent = '💧';
       }
       cell.dataset.c = c; cell.dataset.r = r;
       cell.addEventListener('pointerdown', (ev) => onCellDown(c, r, ev));
@@ -143,16 +166,28 @@ function onCellDown(c, r) {
     if (o) return;                       // don't wall an object's cell
     painting = data.walkable[r][c] === 1 ? 0 : 1;
     data.walkable[r][c] = painting;
+    clearDecor(c, r);                    // becomes a plain tree (blocked) or plain floor (walkable)
     render();
   } else if (tool === 'erase') {
     if (o && o.kind === 'enemy') data.enemies = data.enemies.filter(x => x !== o.ref);
     else if (o && o.kind === 'challenge') data.challenges = data.challenges.filter(x => x !== o.ref);
-    else if (!o) data.walkable[r][c] = 1; // clear wall
+    else if (!o) { data.walkable[r][c] = 1; clearDecor(c, r); } // clear wall/structure
     if (sameObj(o, selected)) selected = null;
+    render();
+  } else if (tool === 'house') {
+    if (o) return;
+    const L = data.village.houses, i = L.findIndex(([cc, rr]) => cc === c && rr === r);
+    if (i >= 0) { L.splice(i, 1); data.walkable[r][c] = 1; }            // house -> walkable
+    else { clearDecor(c, r); data.walkable[r][c] = 0; L.push([c, r]); } // -> house (blocked)
+    render();
+  } else if (tool === 'well') {
+    if (o || data.walkable[r][c] === 0) return;                        // wells on empty walkable cells
+    const L = data.village.wells, i = L.findIndex(([cc, rr]) => cc === c && rr === r);
+    if (i >= 0) L.splice(i, 1); else { clearDecor(c, r); L.push([c, r]); }
     render();
   } else if (tool === 'addEnemy' || tool === 'addChallenge') {
     if (o) return;                       // occupied
-    data.walkable[r][c] = 1;
+    data.walkable[r][c] = 1; clearDecor(c, r);
     if (tool === 'addEnemy') {
       const e = { id: uniqueId('enemy'), col: c, row: r, name: 'Enemy', hp: 6, maxHp: 6, stat: 'str', dc: 10,
         description: '', successText: '', failText: '', successHp: 0, failHp: -3 };
@@ -166,7 +201,7 @@ function onCellDown(c, r) {
   } else { // move
     if (held) {
       if (objAt(c, r) && !sameObj(objAt(c, r), held)) return; // occupied by another
-      data.walkable[r][c] = 1;
+      data.walkable[r][c] = 1; clearDecor(c, r);
       if (held.kind === 'spawn') data.playerSpawn = [c, r];
       else { held.ref.col = c; held.ref.row = r; }
       selected = held; held = null; render();
@@ -178,7 +213,7 @@ function onCellDown(c, r) {
   }
 }
 function onCellEnter(c, r) {
-  if (tool === 'wall' && painting !== null && !objAt(c, r)) { data.walkable[r][c] = painting; render(); }
+  if (tool === 'wall' && painting !== null && !objAt(c, r)) { data.walkable[r][c] = painting; clearDecor(c, r); render(); }
 }
 window.addEventListener('pointerup', () => { painting = null; });
 
