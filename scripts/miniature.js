@@ -73,12 +73,14 @@ export function createSlimeMiniature(role, height = 3, colorHex) {
     anim.add(sparkle);
   });
 
-  // Body highlight (top-left jelly shine)
+  // Body highlight — flat 2D ellipse, tilted to sit on the curved top-left surface.
   const shine = new THREE.Mesh(
-    new THREE.SphereGeometry(0.1, 10, 10),
-    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 })
+    eyeGeo,
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 })
   );
-  shine.position.set(-0.28, 0.5, 0.2);
+  shine.position.set(-0.29, 0.58, 0.265);
+  shine.scale.set(0.075, 0.075, 1);
+  shine.rotation.set(-70 * Math.PI / 180, -30 * Math.PI / 180, 0);
   anim.add(shine);
 
   // "Weapon" — role emoji as a billboard sprite on the slime's right side
