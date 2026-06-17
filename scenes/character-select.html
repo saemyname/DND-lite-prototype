@@ -181,7 +181,9 @@ for (const key of COLOR_KEYS) {
 
 // ── Slime rendering: one shared offscreen renderer drawn into each card ──
 const R_SIZE = 150;
-const glRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+// preserveDrawingBuffer keeps the GL back-buffer readable for the drawImage copy
+// across all browsers (we render then copy into each card's 2D canvas same-frame).
+const glRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
 glRenderer.setPixelRatio(1);
 glRenderer.setSize(R_SIZE, R_SIZE);
 const gScene = new THREE.Scene();
