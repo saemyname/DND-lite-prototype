@@ -2,48 +2,24 @@
   "id": "stage01",
   "name": "Eldermoor Village",
   "grid": {
-    "cols": 7,
-    "rows": 7,
+    "cols": 10,
+    "rows": 10,
     "cellSizeX": 6,
     "cellSizeZ": 6,
-    "originX": -21,
-    "originZ": -21,
+    "originX": -30,
+    "originZ": -30,
     "floorY": 0
   },
   "walkable": [
     [
       0,
       0,
-      0,
       1,
       0,
-      0,
-      0
-    ],
-    [
-      0,
-      0,
-      1,
       1,
       1,
       0,
-      0
-    ],
-    [
       0,
-      1,
-      1,
-      1,
-      1,
-      1,
-      0
-    ],
-    [
-      0,
-      1,
-      1,
-      1,
-      1,
       1,
       0
     ],
@@ -53,7 +29,34 @@
       1,
       1,
       1,
+      1,
+      1,
       0,
+      1,
+      0
+    ],
+    [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    [
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
       0
     ],
     [
@@ -63,15 +66,69 @@
       1,
       1,
       1,
+      1,
+      1,
+      1,
       0
+    ],
+    [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
     ],
     [
       0,
       0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      0
+    ],
+    [
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0
+    ],
+    [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    [
       0,
       0,
+      1,
       0,
       0,
+      1,
+      0,
+      0,
+      1,
       0
     ]
   ],
@@ -123,14 +180,14 @@
     ]
   },
   "playerSpawn": [
-    3,
-    5
+    4,
+    7
   ],
   "enemies": [],
   "challenges": [
     {
       "id": "clue_bed",
-      "col": 2,
+      "col": 3,
       "row": 1,
       "name": "Lyra's Bed",
       "auto": true,
@@ -138,15 +195,15 @@
     },
     {
       "id": "clue_tracks",
-      "col": 3,
-      "row": 3,
+      "col": 4,
+      "row": 4,
       "name": "Goblin Tracks",
       "auto": true,
       "successText": "Three sets of little clawed prints, moving fast. Straight north, into the woods."
     },
     {
       "id": "clue_exit",
-      "col": 3,
+      "col": 4,
       "row": 0,
       "name": "Forest Edge",
       "auto": true,
