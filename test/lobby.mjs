@@ -24,13 +24,13 @@ await wait(150);
 let ls=lastOf(p1,'lobby_state');
 check(ls?.players?.find(p=>p.name==='Alice')?.color==='blue', 'Alice took blue');
 
-// p2 tries blue too -> rejected, keeps its own color
+// p2 also picks blue -> allowed (duplicates OK)
 p2._m.length=0;
 p2.send(JSON.stringify({type:'char_update',color:'blue'}));
 await wait(150);
 ls=lastOf(p2,'lobby_state');
 const bob=ls?.players?.find(p=>p.name==='Bob');
-check(bob && bob.color!=='blue', 'Bob denied blue (kept his own color)');
+check(bob && bob.color==='blue', 'Bob can also take blue (duplicates allowed)');
 
 // p1 switches to mage -> stats reflect mage in stage snapshot
 p1.send(JSON.stringify({type:'char_update',role:'mage'}));

@@ -165,7 +165,7 @@ const STAT_MAX = 20;
 // e.g. the 2nd player sees their assigned green, not a red flash — before the
 // first lobby_state arrives. Falls back to the server's first-player default.
 const _seed = JSON.parse(localStorage.getItem('dndlite-character') || '{}');
-let myRole = _seed.role || 'warrior', myColor = _seed.color || 'red', takenColors = new Set();
+let myRole = _seed.role || 'warrior', myColor = _seed.color || 'red';
 
 // ── Class picker + hover detail panel ──────────────────────────────
 const classPicker = document.getElementById('class-picker');
@@ -206,8 +206,7 @@ for (const key of COLOR_KEYS) {
   el.dataset.key = key;
   el.style.background = cssColorForKey(key);
   el.addEventListener('click', () => {
-    if (el.classList.contains('taken')) return;
-    send({ type: 'char_update', color: key });
+    send({ type: 'char_update', color: key }); // duplicates allowed — any color is pickable
   });
   colorPicker.appendChild(el);
 }
@@ -306,10 +305,7 @@ function syncPickers() {
     el.classList.toggle('sel', el.dataset.role === myRole);
   });
   document.querySelectorAll('.swatch').forEach(el => {
-    const key = el.dataset.key;
-    const takenByOther = takenColors.has(key) && key !== myColor;
-    el.classList.toggle('taken', takenByOther);
-    el.classList.toggle('sel', key === myColor);
+    el.classList.toggle('sel', el.dataset.key === myColor);
   });
 }
 
@@ -324,7 +320,6 @@ on('lobby_state', (msg) => {
     localStorage.setItem('dndlite-character', JSON.stringify(char));
     showClassDetail(myRole); // keep the detail panel in sync when not hovering
   }
-  takenColors = new Set(players.map(p => p.color).filter(Boolean));
   renderRoster(players);
   syncPickers();
 });

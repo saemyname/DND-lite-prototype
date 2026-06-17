@@ -512,7 +512,7 @@ wss.on('connection', (ws) => {
         const entry = {
           ws,
           name: String(msg.name || 'Adventurer').slice(0, 24),
-          color: firstFreeColor(sess),
+          color: COLOR_KEYS[0], // everyone starts on red; duplicates allowed — pick freely
           location: 'character-select',
           worldMapStage: null,
         };
@@ -1029,7 +1029,7 @@ wss.on('connection', (ws) => {
       }
 
       case 'char_update': {
-        // Lobby: a player changes class and/or color. Color is unique per session.
+        // Lobby: a player changes class and/or color. Colors may be shared (duplicates allowed).
         if (role !== 'player' || !sess || !pid) return;
         const p = sess.players.get(pid);
         if (!p) return;
@@ -1043,8 +1043,7 @@ wss.on('connection', (ws) => {
           applyRoleToPlayer(p, wantRole);
         }
         if (msg.color && COLOR_KEYS.includes(msg.color)) {
-          const taken = [...sess.players].some(([id, pp]) => id !== pid && pp.color === msg.color);
-          if (!taken) p.color = msg.color; // taken → ignore; broadcast restores truth
+          p.color = msg.color; // duplicates allowed — players may share a color
         }
         broadcastLobbyState(sess);
         break;

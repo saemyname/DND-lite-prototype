@@ -15,7 +15,7 @@ for (let i=0;i<5;i++){ const p=mk(); await open(p); p.send(JSON.stringify({type:
 const joins = await Promise.all(ps.map(p=>got(p,'joined')));
 check(joins.every(j=>j&&j.playerId), 'all 5 players joined (cap raised to 5)');
 check(joins.every(j=>j.color), '"joined" returns an assigned color');
-check(new Set(joins.map(j=>j.color)).size===5, 'first 5 colors are all distinct');
+check(joins.every(j=>j.color==='red'), 'all join with the red default (duplicates allowed; recolor in lobby)');
 
 const p6=mk(); await open(p6); p6.send(JSON.stringify({type:'player_join',code,name:'P6'}));
 const err=await got(p6,'error');
