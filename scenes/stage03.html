@@ -908,23 +908,23 @@ function clearHighlights() {
   // Larger map: keep the camera's angle/distance (characters stay the same size),
   // frame the party spawn at start, and let players pan within the map bounds.
   {
-    const camOffset = BASE_CAM_POS.clone().sub(LOOK_TARGET); // target -> camera vector
+    const gg = gridData.grid;
+    const centerX = gg.originX + gg.cols * gg.cellSizeX / 2;   // lock horizontal pan to map center
+    const camOffset = BASE_CAM_POS.clone().sub(LOOK_TARGET);   // target -> camera vector
     const sp = gridToWorld(gridData.playerSpawn[0], gridData.playerSpawn[1]);
-    const viewTarget = new THREE.Vector3(sp.x, LOOK_TARGET.y, sp.z);
+    const viewTarget = new THREE.Vector3(centerX, LOOK_TARGET.y, sp.z); // centered X, spawn Z
     controls.target.copy(viewTarget);
     camera.position.copy(viewTarget).add(camOffset);
     camera.lookAt(viewTarget);
-    const gg = gridData.grid;
-    const minX = gg.originX, maxX = gg.originX + gg.cols * gg.cellSizeX;
     const minZ = gg.originZ, maxZ = gg.originZ + gg.rows * gg.cellSizeZ;
+    // Pan up/down only: X stays at centerX, Z clamps to the map bounds.
     controls.addEventListener('change', () => {
       const t = controls.target;
-      const cx = Math.min(maxX, Math.max(minX, t.x));
       const cz = Math.min(maxZ, Math.max(minZ, t.z));
-      if (cx !== t.x || cz !== t.z) {
-        camera.position.x += cx - t.x;
+      if (t.x !== centerX || cz !== t.z) {
+        camera.position.x += centerX - t.x;
         camera.position.z += cz - t.z;
-        t.set(cx, t.y, cz);
+        t.set(centerX, t.y, cz);
       }
     });
     controls.update();
@@ -1025,10 +1025,14 @@ controls.target.copy(LOOK_TARGET);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.enablePan = true;
-controls.screenSpacePanning = true;
-controls.enableZoom = false;
+controls.screenSpacePanning = false;     // pan across the ground plane (world-map style)
+controls.enableZoom = false;             // no zoom — keep characters their size
 controls.minPolarAngle = 0.15;
 controls.maxPolarAngle = Math.PI / 2.4;
+controls.minAzimuthAngle = 0;            // lock horizontal spin: rotate = tilt only
+controls.maxAzimuthAngle = 0;
+controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
 controls.update();
 
 const raycaster = new THREE.Raycaster();
