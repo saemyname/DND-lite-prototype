@@ -54,7 +54,7 @@
     <div class="tools">
       <div class="grp">Tool</div>
       <button class="tool on" data-tool="move">✋ Move</button>
-      <button class="tool" data-tool="wall">🧱 Wall paint</button>
+      <button class="tool" data-tool="wall" id="t-wall">🧱 Wall paint</button>
       <button class="tool" data-tool="erase">⌫ Erase</button>
       <div class="grp">Add</div>
       <button class="tool" data-tool="addEnemy">👹 + Enemy</button>
@@ -66,7 +66,7 @@
         🟩 spawn · 👹 enemy · ❓ challenge<br>
         dark cell = structure (🌲 tree / 🗿 pillar / 🏠 house)<br>
         Wall paint adds/removes them. 💧 well = stage 01.<br><br>
-        <b>Move:</b> click object, click destination.<br>
+        <b>Move:</b> click an object OR a tree/pillar/house, then a destination.<br>
         <b>Wall:</b> click/drag empty cells.<br>
         <b>Erase:</b> click object to delete, or wall to clear.
       </div>
@@ -80,6 +80,7 @@ const $ = (id) => document.getElementById(id);
 let data = null, stageId = 'stage01', tool = 'move', held = null, selected = null, painting = null;
 // What a blocked cell renders as in-game, per stage (stage01 uses the village layer instead).
 const STRUCT = { stage03: '🌲', stage04: '🗿', stage05: '🗿' };
+const STRUCT_LABEL = { stage01: '🌲 Tree', stage03: '🌲 Tree', stage04: '🗿 Pillar', stage05: '🗿 Pillar' };
 
 // ── Load / save ────────────────────────────────────────────────
 async function load(id) {
@@ -91,6 +92,7 @@ async function load(id) {
   held = null; selected = null;
   const hasV = !!data.village;
   for (const el of ['village-grp', 't-house', 't-well']) $(el).style.display = hasV ? '' : 'none';
+  $('t-wall').textContent = STRUCT_LABEL[id] || '🧱 Wall paint';
   if (!hasV && (tool === 'house' || tool === 'well')) setTool('move');
   $('status').textContent = `${id}: ${data.grid.cols}×${data.grid.rows}`;
   render();
@@ -144,6 +146,7 @@ function render() {
       const o = blocked ? null : objAt(c, r);
       if (blocked) {
         cell.textContent = hasV ? (houseSet.has(c + ',' + r) ? '🏠' : '🌲') : (STRUCT[stageId] || '');
+        if (held && held.kind === 'structure' && held.from[0] === c && held.from[1] === r) cell.classList.add('held');
       } else if (o) {
         cell.textContent = marker(o.kind);
         if (o.kind !== 'spawn') { const t = document.createElement('span'); t.className = 'tag'; t.textContent = o.ref.id; cell.appendChild(t); }
@@ -200,15 +203,27 @@ function onCellDown(c, r) {
       data.challenges.push(ch); selected = { kind: 'challenge', ref: ch };
     }
     setTool('move'); render();
-  } else { // move
+  } else { // move (objects AND structures: trees/pillars/houses)
     if (held) {
-      if (objAt(c, r) && !sameObj(objAt(c, r), held)) return; // occupied by another
-      data.walkable[r][c] = 1; clearDecor(c, r);
-      if (held.kind === 'spawn') data.playerSpawn = [c, r];
-      else { held.ref.col = c; held.ref.row = r; }
-      selected = held; held = null; render();
+      if (held.kind === 'structure') {
+        if (objAt(c, r) || data.walkable[r][c] === 0) return;        // need an empty walkable destination
+        const [fc, fr] = held.from;
+        clearDecor(fc, fr); data.walkable[fr][fc] = 1;               // clear source cell
+        clearDecor(c, r); data.walkable[r][c] = 0;                   // place structure at destination
+        if (held.wasHouse && data.village) data.village.houses.push([c, r]);
+        held = null; selected = null; render();
+      } else {
+        if (objAt(c, r) && !sameObj(objAt(c, r), held)) return;      // occupied by another object
+        data.walkable[r][c] = 1; clearDecor(c, r);
+        if (held.kind === 'spawn') data.playerSpawn = [c, r];
+        else { held.ref.col = c; held.ref.row = r; }
+        selected = held; held = null; render();
+      }
     } else if (o) {
       held = o; selected = o; render();
+    } else if (data.walkable[r][c] === 0) {                          // pick up a structure (tree/pillar/house)
+      const wasHouse = !!(data.village && data.village.houses.some(([cc, rr]) => cc === c && rr === r));
+      held = { kind: 'structure', from: [c, r], wasHouse }; selected = null; render();
     } else {
       selected = null; render();
     }
