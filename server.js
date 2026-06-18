@@ -46,6 +46,12 @@ app.post('/dev/save-grid', (req, res) => {
 // PlayerEntry: { ws: WebSocket|null, name, role, location }
 const sessions = new Map();
 
+// DEBUG: start sessions with every stage unlocked (handy while testing). Off by
+// default so it never ships enabled — run `DND_UNLOCK_ALL=1 node server.js`.
+const DEBUG_UNLOCK_ALL = process.env.DND_UNLOCK_ALL === '1';
+const ALL_STAGE_KEYS = ['stage_01', 'stage_02', 'stage_03', 'stage_04', 'stage_05'];
+const initialUnlocked = () => new Set(DEBUG_UNLOCK_ALL ? ALL_STAGE_KEYS : ['stage_01']);
+
 function makeCode() {
   return Math.random().toString(36).slice(2, 6).toUpperCase();
 }
@@ -463,7 +469,7 @@ wss.on('connection', (ws) => {
 
       case 'dm_create': {
         code = makeCode();
-        sess = { dm: ws, players: new Map(), unlockedStages: new Set(['stage_01']), chatHistory: [], stages: new Map(), revealedFog: [] };
+        sess = { dm: ws, players: new Map(), unlockedStages: initialUnlocked(), chatHistory: [], stages: new Map(), revealedFog: [] };
         sessions.set(code, sess);
         role = 'dm';
         console.log(`[dm_create] session=${code}`);
@@ -504,7 +510,7 @@ wss.on('connection', (ws) => {
         pid  = `p${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3,'0')}`;
         role = 'player';
         sess = {
-          dm: null, players: new Map(), unlockedStages: new Set(['stage_01']),
+          dm: null, players: new Map(), unlockedStages: initialUnlocked(),
           chatHistory: [], stages: new Map(), revealedFog: [],
         };
         const entry = {
