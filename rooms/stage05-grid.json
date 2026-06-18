@@ -330,6 +330,21 @@
       "failText": "The lock sticks. You scrape your knuckles on the rough iron — try again.",
       "successHp": 0,
       "failHp": -1
+    },
+    {
+      "id": "lifewater",
+      "col": 2,
+      "row": 12,
+      "name": "Water of Life",
+      "stat": "lck",
+      "dc": 0,
+      "auto": true,
+      "optional": true,
+      "successHp": 8,
+      "failHp": 0,
+      "description": "A spring glimmers by the western entrance — the Water of Life. Drink to mend your wounds.",
+      "successText": "You drink deep. Warmth floods through you — wounds knit closed.",
+      "failText": ""
     }
   ]
 }

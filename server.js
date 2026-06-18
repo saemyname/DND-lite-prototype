@@ -792,7 +792,8 @@ wss.on('connection', (ws) => {
           let dmgToPlayer = 0;
           if (ch.auto) {
             roll = 20; mod = 0; total = 20; success = true;
-            outcomeText = ch.successText;
+            outcomeText = ch.successText + (ch.successHp ? ` (${ch.successHp >= 0 ? '+' : ''}${ch.successHp} HP)` : '');
+            if (ch.successHp) me.hp = Math.max(0, Math.min(me.maxHp, me.hp + ch.successHp)); // auto heal/harm (e.g. Water of Life)
           } else {
             const statVal = me?.stats?.[ch.stat] ?? 10;
             roll = rollD20();
@@ -834,7 +835,7 @@ wss.on('connection', (ws) => {
           // enemies dead AND challenges cleared (and at least one player alive)
           if (allPlayersDead(st)) {
             st.outcome = 'defeat';
-          } else if (st.enemies.every(e => e.hp <= 0) && st.challenges.every(c => c.cleared)) {
+          } else if (st.enemies.every(e => e.hp <= 0) && st.challenges.every(c => c.cleared || c.optional)) {
             st.outcome = 'victory';
             unlockNextStage(sess, st.stageId);
           }
@@ -885,7 +886,7 @@ wss.on('connection', (ws) => {
           // Defeat only when EVERY player is down; victory needs ≥1 survivor
           if (allPlayersDead(st)) {
             st.outcome = 'defeat';
-          } else if (st.enemies.every(e => e.hp <= 0) && st.challenges.every(c => c.cleared)) {
+          } else if (st.enemies.every(e => e.hp <= 0) && st.challenges.every(c => c.cleared || c.optional)) {
             st.outcome = 'victory';
             unlockNextStage(sess, st.stageId);
           }

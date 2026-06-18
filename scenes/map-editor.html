@@ -148,7 +148,7 @@ function render() {
         cell.textContent = hasV ? (houseSet.has(c + ',' + r) ? '🏠' : '🌲') : (STRUCT[stageId] || '');
         if (held && held.kind === 'structure' && held.from[0] === c && held.from[1] === r) cell.classList.add('held');
       } else if (o) {
-        cell.textContent = marker(o.kind);
+        cell.textContent = (o.kind === 'challenge' && o.ref.successHp > 0) ? '💧' : marker(o.kind);
         if (o.kind !== 'spawn') { const t = document.createElement('span'); t.className = 'tag'; t.textContent = o.ref.id; cell.appendChild(t); }
         if (sameObj(o, held)) cell.classList.add('held');
         else if (sameObj(o, selected)) cell.classList.add('sel');
@@ -259,6 +259,9 @@ function renderInspector() {
     <div class="field"><label>stat</label><select data-k="stat">${statSel(o.stat)}</select></div>
     <div class="field"><label>dc</label><input type="number" data-k="dc" value="${num('dc')}"></div>
     <div class="field"><label>failHp</label><input type="number" data-k="failHp" value="${num('failHp')}"></div>
+    <div class="field"><label>successHp (heal + / harm −)</label><input type="number" data-k="successHp" value="${num('successHp')}"></div>
+    ${isEnemy ? '' : `<div class="field"><label><input type="checkbox" data-k="optional" ${o.optional ? 'checked' : ''}> optional — bonus, not required to win</label></div>
+    <div class="field"><label><input type="checkbox" data-k="auto" ${o.auto ? 'checked' : ''}> auto-succeed — no roll (e.g. Water of Life)</label></div>`}
     <div class="field"><label>description</label><textarea data-k="description">${txt('description')}</textarea></div>
     <div class="field"><label>successText</label><textarea data-k="successText">${txt('successText')}</textarea></div>
     <div class="field"><label>failText</label><textarea data-k="failText">${txt('failText')}</textarea></div>
@@ -266,8 +269,9 @@ function renderInspector() {
   ins.querySelectorAll('[data-k]').forEach(el => {
     el.addEventListener('input', () => {
       const k = el.dataset.k;
-      o[k] = (el.type === 'number') ? Number(el.value) : el.value;
+      o[k] = el.type === 'checkbox' ? el.checked : (el.type === 'number' ? Number(el.value) : el.value);
       if (k === 'id') { const tag = document.querySelector('.cell.sel .tag'); if (tag) tag.textContent = el.value; }
+      if (k === 'optional' || k === 'auto') render(); // refresh marker/state
     });
   });
   $('del').addEventListener('click', () => {
