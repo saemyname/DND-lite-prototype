@@ -212,26 +212,22 @@ window.addEventListener('resize', () => {
 // ── Build village (same config as stage01) ──
 const blockMats = loadBlockMaterials('../Assets/Tiles/');
 
-const grid = {
-  cols: 7, rows: 7, cellSizeX: 6, cellSizeZ: 6,
-  originX: -21, originZ: -21, floorY: 0,
-};
-const walkable = [
-  [0,0,0,1,0,0,0],
-  [0,0,1,1,1,0,0],
-  [0,1,1,1,1,1,0],
-  [0,1,1,1,1,1,0],
-  [0,0,1,1,1,0,0],
-  [0,1,1,1,1,1,0],
-  [0,0,0,0,0,0,0],
-];
+// Load stage01's grid so the intro village matches the actual map (single source
+// of truth). stage01 is centered on world origin (origin = -cols·cell/2), which is
+// exactly where the camera looks, so it frames correctly at any size.
+const stage01 = await fetch('../rooms/stage01-grid.json').then(r => r.json());
+const grid = stage01.grid;
+const walkable = stage01.walkable;
 buildVillage(scene, blockMats, {
   ...grid,
   walkable,
-  houses: [[1,1], [5,1], [1,4], [5,4]],
-  wells:  [[3,5]],
-  paths:  [[3,0], [3,1], [3,2], [3,3], [3,4]],
+  houses: stage01.village?.houses || [],
+  wells:  stage01.village?.wells  || [],
+  paths:  stage01.village?.paths  || [],
 });
+// Village center cell — the choreography is anchored here so it stays centered
+// regardless of the (editable) map size.
+const cx = (grid.cols - 1) / 2, cy = (grid.rows - 1) / 2;
 
 const cellWorld = (c, r) => new THREE.Vector3(
   grid.originX + c * grid.cellSizeX + grid.cellSizeX / 2,
@@ -240,10 +236,10 @@ const cellWorld = (c, r) => new THREE.Vector3(
 );
 
 // ── Cast ──
-const lyra = placeLyraSlime(scene, cellWorld(2, 4), 4);  // starts near a house
-const goblin1 = placeGoblinBox(scene, cellWorld(2, -1.2), 3);  // off-screen north
-const goblin2 = placeGoblinBox(scene, cellWorld(3, -1.5), 3);
-const goblin3 = placeGoblinBox(scene, cellWorld(4, -1.2), 3);
+const lyra = placeLyraSlime(scene, cellWorld(cx, cy + 1), 4);  // starts in the village
+const goblin1 = placeGoblinBox(scene, cellWorld(cx - 1, -1.2), 3);  // off-screen north
+const goblin2 = placeGoblinBox(scene, cellWorld(cx, -1.5), 3);
+const goblin3 = placeGoblinBox(scene, cellWorld(cx + 1, -1.2), 3);
 goblin1.visible = false; goblin2.visible = false; goblin3.visible = false;
 
 // ── Narration / beats ──
@@ -299,13 +295,13 @@ startBtn.addEventListener('click', () => finish(true));
 
 // ── Animation paths per beat (positions in world units) ──
 // Lyra walks from house to a spot just IN FRONT of the well (not on it)
-const lyraStart  = cellWorld(2, 4);
-const lyraStop   = cellWorld(3, 4);          // in front of well (well is at row 5)
+const lyraStart  = cellWorld(cx, cy + 1);
+const lyraStop   = cellWorld(cx, cy);        // village center
 // Goblins approach from north (off-screen above)
-const gobStart   = [cellWorld(2, -1.2), cellWorld(3, -1.5), cellWorld(4, -1.2)];
-const gobApproach = [cellWorld(2, 3), cellWorld(3, 3), cellWorld(4, 3)];
-const gobCapture  = [cellWorld(2.4, 4), cellWorld(3, 3.4), cellWorld(3.6, 4)]; // around Lyra (preserve x-order)
-const gobExit     = [cellWorld(2, -2), cellWorld(3, -2), cellWorld(4, -2)];    // drag her offscreen north
+const gobStart   = [cellWorld(cx - 1, -1.2), cellWorld(cx, -1.5), cellWorld(cx + 1, -1.2)];
+const gobApproach = [cellWorld(cx - 1, cy - 1), cellWorld(cx, cy - 1), cellWorld(cx + 1, cy - 1)];
+const gobCapture  = [cellWorld(cx - 0.6, cy), cellWorld(cx, cy - 0.6), cellWorld(cx + 0.6, cy)]; // around Lyra (preserve x-order)
+const gobExit     = [cellWorld(cx - 1, -2), cellWorld(cx, -2), cellWorld(cx + 1, -2)];    // drag her offscreen north
 
 const lerp3 = (out, a, b, t) => {
   out.x = a.x + (b.x - a.x) * t;
@@ -340,7 +336,7 @@ function updateBeat(beatIdx, t) {
       (lyra.userData.cryEyes || []).forEach(e => e.visible = true);
     }
     // Lyra + goblins exit together, fading out as they pass the village edge
-    const lyraDragEnd = cellWorld(3, -2);
+    const lyraDragEnd = cellWorld(cx, -2);
     lerp3(lyra.position, lyraStop, lyraDragEnd, t);
     [goblin1, goblin2, goblin3].forEach((g, i) => {
       lerp3(g.position, gobCapture[i], gobExit[i], t);
