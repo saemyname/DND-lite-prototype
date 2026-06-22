@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 
 const TARGETS = {
   'rooms/stage01-grid.json': { cols: 10, rows: 10 },
+  'rooms/stage02-grid.json': { cols: 12, rows: 12 },
   'rooms/stage03-grid.json': { cols: 14, rows: 14 },
   'rooms/stage04-grid.json': { cols: 14, rows: 14 },
   'rooms/stage05-grid.json': { cols: 15, rows: 14 },

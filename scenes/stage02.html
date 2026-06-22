@@ -319,7 +319,7 @@
 <body>
 
 <canvas id="canvas"></canvas>
-<div id="title">Stage 02</div>
+<div id="title">Goblin's Trail</div>
 <div id="turn-indicator" style="display:none"></div>
 <div id="nav">
   <a href="world-map.html">← World</a>
@@ -394,7 +394,7 @@
 <!-- Victory -->
 <div id="victory">
   <div class="overlay-title">VICTORY</div>
-  <div class="overlay-sub">Ruins cleared. Nice work.</div>
+  <div class="overlay-sub">The trail falls silent.</div>
   <button class="event-btn" onclick="window.location.href='world-map.html'">Return to World Map</button>
 </div>
 
@@ -408,6 +408,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { send, on } from '../scripts/game-socket.js';
 import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, fadeOutToken, triggerSlimeAttack, flashEnemyDamage, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
@@ -418,6 +419,7 @@ document.addEventListener('click', (e) => {
   if (e.target.closest && e.target.closest('.event-btn')) playSFX('ui_click');
 }, true);
 playBGM('adventure');
+import { loadBlockMaterials } from '../scripts/voxel-textures.js';
 
 // ── Grid / combat state (module scope) ──
 let gridData = null;
@@ -433,8 +435,10 @@ const charData = JSON.parse(localStorage.getItem('dndlite-character') || 'null')
 const myPid = localStorage.getItem('player-id');
 let serverState = null;
 let lastPendingKey = null;
+initDebugBots({ myPid, getServerState: () => serverState });
 const playerTokens = new Map();   // pid → { group, label, role }
 const loadingPids = new Set();    // pids whose token is mid-load (race guard)
+const blockMats = loadBlockMaterials('../Assets/Tiles/');
 
 function initHUD() {
   if (!charData) return;
@@ -482,8 +486,8 @@ scene.background = new THREE.Color(0x050210);
 
 // ── Camera ──
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 500);
-const BASE_CAM_POS = new THREE.Vector3(0, 8, 30);
-const LOOK_TARGET  = new THREE.Vector3(0, 0, 0);
+const BASE_CAM_POS = new THREE.Vector3(0, 30, 30);
+const LOOK_TARGET  = new THREE.Vector3(0, 0, -21);
 
 // ── Lighting ──
 scene.add(new THREE.AmbientLight(0xfff0d0, 0.5));
@@ -615,9 +619,6 @@ function calcMoveRange(startCol, startRow, range) {
 // ── Player token ──
 const MOVE_RANGE_BY_ROLE   = { warrior: 3, rogue: 5, mage: 4, cleric: 4 };
 const ATTACK_RANGE_BY_ROLE = { warrior: 1, rogue: 2, mage: 2, cleric: 1 };
-// Diamond range: orthogonal up to `range`, diagonal only 1 (Manhattan ≤ range).
-// Melee range=1 falls back to 8-neighbor Chebyshev so warriors can still hit
-// diagonally adjacent enemies.
 function inAtkRange(c1, r1, c2, r2, range) {
   const dc = Math.abs(c1 - c2), dr = Math.abs(r1 - r2);
   if (range <= 1) return Math.max(dc, dr) <= 1;
@@ -667,6 +668,68 @@ function placeEnemies() {
   });
 }
 
+function buildForestScene() {
+  const { cols, rows, cellSizeX, cellSizeZ, originX, originZ, floorY } = gridData.grid;
+  const walkable = gridData.walkable;
+
+  const block = (w, h, d, blockName) => new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    blockMats[`${blockName}_side`] || blockMats[`${blockName}_top`]
+  );
+
+  // Floor: walkable cells = stone path, off-path = grass
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = originX + c * cellSizeX + cellSizeX / 2;
+      const z = originZ + r * cellSizeZ + cellSizeZ / 2;
+      const isPath = walkable[r][c] === 1;
+      const tile = new THREE.Mesh(
+        new THREE.BoxGeometry(cellSizeX, 0.4, cellSizeZ),
+        blockMats[isPath ? 'stone_floor_top' : 'grass_top']
+      );
+      tile.position.set(x, floorY - 0.2, z);
+      tile.receiveShadow = true;
+      scene.add(tile);
+
+      // Plant a tree on every off-path cell
+      if (!isPath) {
+        const trunkH = 4 + Math.random() * 2;
+        const trunk = block(1.4, trunkH, 1.4, 'wood');
+        trunk.position.set(
+          x + (Math.random() - 0.5) * 1.5,
+          floorY + trunkH / 2,
+          z + (Math.random() - 0.5) * 1.5,
+        );
+        trunk.castShadow = true;
+        scene.add(trunk);
+
+        const foliageSize = 3.5;
+        const foliage = new THREE.Mesh(
+          new THREE.BoxGeometry(foliageSize, foliageSize, foliageSize),
+          blockMats['grass_top'],
+        );
+        foliage.position.set(trunk.position.x, floorY + trunkH + foliageSize / 2 - 0.3, trunk.position.z);
+        foliage.castShadow = true;
+        scene.add(foliage);
+      }
+    }
+  }
+
+  // Border posts framing entry (bottom corners) and exit (top corners)
+  const postH = 5;
+  const postS = 0.9;
+  const lastRow = rows - 1;
+  const lastCol = cols - 1;
+  for (const [c, r] of [[0, lastRow], [lastCol, lastRow], [0, 0], [lastCol, 0]]) {
+    const x = originX + c * cellSizeX + cellSizeX / 2;
+    const z = originZ + r * cellSizeZ + cellSizeZ / 2;
+    const post = block(postS, postH, postS, 'wood');
+    post.position.set(x, floorY + postH / 2, z);
+    post.castShadow = true;
+    scene.add(post);
+  }
+}
+
 async function applyState(snap) {
   serverState = snap;
 
@@ -679,9 +742,7 @@ async function applyState(snap) {
     indicator.style.display = 'block';
   }
 
-  // When controlling bots, treat the active turn (bot or self) as "ours" so clicks aren't blocked
-  const blockedByTurn = !!serverState && serverState.activeTurnPid !== myPid && !serverState.outcome && !debugBotsAreActive();
-  document.body.classList.toggle('not-my-turn', blockedByTurn);
+  document.body.classList.toggle('not-my-turn', !!serverState && serverState.activeTurnPid !== myPid && !serverState.outcome && !debugBotsAreActive());
 
   const seenPids = new Set();
   for (const p of snap.players) {
@@ -705,7 +766,6 @@ async function applyState(snap) {
       updatePlayerLabelHp(entry.fillEl, p.hp, p.maxHp);
       const pos = gridToWorld(p.col, p.row);
       const ud = entry.group.userData;
-      // Snap on first placement; otherwise trigger a slime jump from current pos → new pos
       if (!ud.targetPos) {
         entry.group.position.set(pos.x, gridData.grid.floorY, pos.z);
       } else if (ud.kind === 'slime') {
@@ -732,10 +792,6 @@ async function applyState(snap) {
 
   reconcileEnemies(snap.enemies);
 
-  // Action panel sync (mutually exclusive).
-  // pendingKey lets us re-render when one pending kind transitions to another
-  // (e.g. cleric pendingChoice → pendingHeal) — without it the old panel sat
-  // there because `panelOpen` was already true.
   const pendingKey = snap.pendingCombat ? `combat:${snap.pendingCombat.enemyId}` :
                      snap.pendingHeal   ? `heal:${snap.pendingHeal.healerPid}>${snap.pendingHeal.targetPid}` :
                      snap.pendingChoice ? `choice:${snap.pendingChoice.step}:${snap.pendingChoice.actorPid}` :
@@ -780,11 +836,10 @@ async function applyState(snap) {
     if (!window._defeatPlayed) { window._defeatPlayed = true; playSFX('defeat'); }
   }
 
-  // Show move range for the active turn player (self, or any if debug-controlling bots)
   const turnPid = snap.activeTurnPid;
   const turnPlayer = snap.players.find(p => p.pid === turnPid);
   const canDriveTurn = turnPid === myPid || debugBotsAreActive();
-  if (turnPlayer && canDriveTurn && !snap.pendingCombat && !snap.pendingHeal && !snap.pendingChallenge && !snap.outcome) {
+  if (turnPlayer && canDriveTurn && !snap.pendingCombat && !snap.pendingHeal && !snap.outcome) {
     showMoveRange(turnPlayer.col, turnPlayer.row, turnPlayer.role);
   } else {
     clearHighlights();
@@ -830,8 +885,7 @@ function showMoveRange(col, row, role) {
     highlightMeshes.push(plane);
   });
 
-  // Sky-blue tiles for enemies attackable from current position (instant attack
-  // on click — no movement needed).
+  // Sky-blue tiles for enemies attackable from current position (instant attack).
   const atkRange = ATTACK_RANGE_BY_ROLE[effRole] || 1;
   enemyTokens.forEach(e => {
     if (e.hp <= 0) return;
@@ -859,14 +913,39 @@ function clearHighlights() {
   highlightMeshes.length = 0;
 }
 
-gltfLoader.load('../Assets/dnd_luna_ruins_02a.glb', async (gltf) => {
-  placeModel(gltf.scene, 'dnd_luna_ruins_02a.glb');
-
-  // Load grid
+// Async grid + state setup
+(async () => {
   const resp = await fetch('../rooms/stage02-grid.json');
   gridData = await resp.json();
 
-  // Invisible floor plane for raycasting
+  // Build the voxel forest scene procedurally — depends on gridData
+  buildForestScene();
+
+  // Larger map: keep the camera's angle/distance (characters stay the same size),
+  // frame the party spawn at start, and let players pan within the map bounds.
+  {
+    const gg = gridData.grid;
+    const centerX = gg.originX + gg.cols * gg.cellSizeX / 2;   // lock horizontal pan to map center
+    const camOffset = BASE_CAM_POS.clone().sub(LOOK_TARGET);   // target -> camera vector
+    const sp = gridToWorld(gridData.playerSpawn[0], gridData.playerSpawn[1]);
+    const viewTarget = new THREE.Vector3(centerX, LOOK_TARGET.y, sp.z); // centered X, spawn Z
+    controls.target.copy(viewTarget);
+    camera.position.copy(viewTarget).add(camOffset);
+    camera.lookAt(viewTarget);
+    const minZ = gg.originZ, maxZ = gg.originZ + gg.rows * gg.cellSizeZ;
+    // Pan up/down only: X stays at centerX, Z clamps to the map bounds.
+    controls.addEventListener('change', () => {
+      const t = controls.target;
+      const cz = Math.min(maxZ, Math.max(minZ, t.z));
+      if (t.x !== centerX || cz !== t.z) {
+        camera.position.x += centerX - t.x;
+        camera.position.z += cz - t.z;
+        t.set(centerX, t.y, cz);
+      }
+    });
+    controls.update();
+  }
+
   const floorGeo = new THREE.PlaneGeometry(200, 200);
   floorPlane = new THREE.Mesh(
     floorGeo,
@@ -876,10 +955,8 @@ gltfLoader.load('../Assets/dnd_luna_ruins_02a.glb', async (gltf) => {
   floorPlane.position.y = gridData.grid.floorY;
   scene.add(floorPlane);
 
-  // Spawn enemy tokens (visual placeholders — server is authoritative for HP)
   placeEnemies();
 
-  // Subscribe to server state, then announce arrival
   on('state_update', (msg) => {
     applyState(msg.state).catch(err => console.error('[state_update] applyState failed:', err));
   });
@@ -901,9 +978,7 @@ gltfLoader.load('../Assets/dnd_luna_ruins_02a.glb', async (gltf) => {
       stats: { str: localChar.str, agi: localChar.agi, int: localChar.int, lck: localChar.lck },
     });
   } else {
-    // Solo mode (no session): render local character at spawn for visualization. Combat not playable.
-    const role = charData?.role || 'warrior';
-    const soloMini = createSlimeMiniature(role, 4, colorForKey(charData?.color));
+    const soloMini = createSlimeMiniature(charData?.role || 'warrior', 4, colorForKey(charData?.color));
     soloMini.rotation.y = Math.PI;
     const spawnPos = gridToWorld(gridData.playerSpawn[0], gridData.playerSpawn[1]);
     soloMini.position.set(spawnPos.x, gridData.grid.floorY, spawnPos.z);
@@ -913,8 +988,10 @@ gltfLoader.load('../Assets/dnd_luna_ruins_02a.glb', async (gltf) => {
     notice.textContent = 'Solo preview — start a session to play';
     document.body.appendChild(notice);
   }
-}, undefined, (err) => {
-  console.error('GLB load error:', err);
+
+  document.getElementById('loading').classList.add('hidden');
+})().catch(err => {
+  console.error('Stage init failed:', err);
   document.getElementById('loading').textContent = 'Load failed';
 });
 
@@ -931,6 +1008,18 @@ camera.position.copy(BASE_CAM_POS);
 camera.lookAt(LOOK_TARGET);
 camera.updateProjectionMatrix();
 
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(LOOK_TARGET);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.enablePan = true;
+controls.screenSpacePanning = false;     // pan across the ground plane (world-map style)
+controls.enableZoom = false;             // no zoom — keep characters their size
+controls.minPolarAngle = 0.15;
+controls.maxPolarAngle = Math.PI / 2.4;
+controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
+controls.update();
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -949,10 +1038,6 @@ canvas.addEventListener('click', (e) => {
   if (tileHits.length > 0) {
     const { kind, col, row } = tileHits[0].object.userData;
     if (kind === 'attack') {
-      // Quick attack: enemy already in range from current position → move to self,
-      // server will resolve combat. (Sky-blue tiles also include enemies reachable
-      // only after moving; those clicks fall through and do nothing — pick a red
-      // tile instead.)
       const me = serverState.players.find(p => p.pid === serverState.activeTurnPid);
       if (!me) return;
       const atkRange = ATTACK_RANGE_BY_ROLE[me.role] || 1;
@@ -1077,8 +1162,6 @@ on('combat_event', (msg) => {
   if (msg.success && enemy) flashEnemyDamage(enemy.mesh);
 });
 
-initDebugBots({ myPid, getServerState: () => serverState });
-
 function openHealPanel(target, isHealer) {
   panelEl('event-desc').textContent = isHealer
     ? `${target.name} is wounded. Channel divine grace?`
@@ -1120,8 +1203,6 @@ function openHealPanel(target, isHealer) {
   panelEl('event-panel').classList.add('visible');
 }
 
-// Cleric choice panel — step 'pick_action' shows Attack/Heal; step
-// 'pick_target' shows one button per healable ally.
 function openChoicePanel(pc, snap, isActor) {
   const actorName = snap.players.find(p => p.pid === pc.actorPid)?.name || 'Cleric';
   // Resolve enemy stubs ({id,name}) against live enemy state for HP labels.
@@ -1210,7 +1291,6 @@ function tick() {
       if (!target) continue;
       if (ud.kind === 'slime') {
         if (ud.jumpStart == null) {
-          // Not jumping — keep grounded at target tile
           entry.group.position.x = target.x;
           entry.group.position.z = target.z;
         }
@@ -1249,6 +1329,7 @@ function tick() {
     if (entry.nameEl) entry.nameEl.classList.toggle('active-turn', !!serverState && !serverState.outcome && pid === serverState.activeTurnPid);
   }
 
+  controls.update();
   // ── Active-turn ground ring under the current player's slime ──
   if (gridData) {
     let ring = scene.userData.turnRing;
