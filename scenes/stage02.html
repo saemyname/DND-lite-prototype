@@ -407,9 +407,7 @@
 
 <script type="module">
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { send, on } from '../scripts/game-socket.js';
 import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, fadeOutToken, triggerSlimeAttack, flashEnemyDamage, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
 import { colorForKey, cssColorForKey } from '../scripts/colors.js';
@@ -510,65 +508,6 @@ scene.add(fillLight);
 const overheadLight = new THREE.PointLight(0xffa552, 3, 50, 1.5);
 overheadLight.position.set(0, 12, -8);
 scene.add(overheadLight);
-
-// ── GLB loader ──
-const dracoLoader = new DRACOLoader();
-dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/libs/draco/');
-const gltfLoader = new GLTFLoader();
-gltfLoader.setDRACOLoader(dracoLoader);
-
-// ── Model loading ──
-let currentModel = null;
-
-function placeModel(gltfScene, name) {
-  if (currentModel) {
-    scene.remove(currentModel);
-    currentModel.traverse(o => {
-      if (o.geometry) o.geometry.dispose();
-      if (o.material) {
-        if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
-        else o.material.dispose();
-      }
-    });
-    currentModel = null;
-  }
-
-  const model = gltfScene;
-  model.traverse(child => {
-    if (child.isMesh) {
-      child.castShadow = true;
-      child.receiveShadow = true;
-    }
-  });
-
-  const box = new THREE.Box3().setFromObject(model);
-  const center = box.getCenter(new THREE.Vector3());
-  const size = box.getSize(new THREE.Vector3());
-  model.position.sub(center);
-
-  const baseScale = 40 / Math.max(size.x, 0.01);
-  const scaledDepth = size.z * baseScale;
-  const camZ = BASE_CAM_POS.z;
-  const perspComp = (camZ + scaledDepth / 2) / camZ;
-  const scale = baseScale * perspComp;
-  model.scale.setScalar(scale);
-
-  const group = new THREE.Group();
-  group.add(model);
-  const finalDepth = size.z * scale;
-  group.position.set(0, 0, -finalDepth / 2);
-
-  scene.add(group);
-  currentModel = group;
-
-  // Rotate around the model's world center
-  LOOK_TARGET.set(0, 0, -finalDepth / 2);
-  camera.position.copy(BASE_CAM_POS);
-  camera.lookAt(LOOK_TARGET);
-  camera.updateProjectionMatrix();
-
-  document.getElementById('loading').classList.add('hidden');
-}
 
 // ── Grid utilities ──
 function gridToWorld(col, row) {
