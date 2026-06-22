@@ -897,7 +897,7 @@ function clearHighlights() {
   floorPlane.position.y = gridData.grid.floorY;
   scene.add(floorPlane);
 
-  // Render visible challenge markers — lyra_cage uses the actual Lyra slime
+  // Render visible challenge markers — free_lyra uses the actual Lyra slime
   // (same look as the intro cutscene); other challenges fall back to emoji sprites.
   if (gridData.challenges) {
     const challengeEmoji = { agi: '🌉', lck: '😴', int: '🔓', str: '💪' };
