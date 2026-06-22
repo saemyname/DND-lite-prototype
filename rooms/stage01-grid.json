@@ -25,26 +25,26 @@
     ],
     [
       0,
-      0,
       1,
       1,
       1,
       1,
       1,
-      0,
+      1,
+      1,
       1,
       0
     ],
     [
       1,
+      0,
       1,
       1,
       1,
       1,
       1,
       1,
-      1,
-      1,
+      0,
       1
     ],
     [
@@ -73,25 +73,25 @@
     ],
     [
       1,
+      0,
       1,
       1,
       1,
       1,
       1,
       1,
-      1,
-      1,
+      0,
       1
     ],
     [
       0,
-      0,
       1,
       1,
       1,
       1,
       1,
-      0,
+      1,
+      1,
       1,
       0
     ],
@@ -136,19 +136,19 @@
     "houses": [
       [
         1,
-        1
-      ],
-      [
-        7,
-        1
+        5
       ],
       [
         1,
-        6
+        2
       ],
       [
-        7,
-        6
+        8,
+        2
+      ],
+      [
+        8,
+        5
       ]
     ],
     "wells": [],
@@ -187,15 +187,15 @@
   "challenges": [
     {
       "id": "clue_bed",
-      "col": 3,
-      "row": 1,
+      "col": 2,
+      "row": 5,
       "name": "Lyra's Bed",
       "auto": true,
       "successText": "Her bed's still warm — she was just here. The blankets are all tangled... she didn't go quietly."
     },
     {
       "id": "clue_tracks",
-      "col": 4,
+      "col": 6,
       "row": 4,
       "name": "Goblin Tracks",
       "auto": true,
