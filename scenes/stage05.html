@@ -413,7 +413,7 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { send, on } from '../scripts/game-socket.js';
 import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, fadeOutToken, triggerSlimeAttack, flashEnemyDamage, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
 import { colorForKey, cssColorForKey } from '../scripts/colors.js';
-import { placeLyraSlime } from '../scripts/voxel-village.js';
+import { placeLyraSlime, placeWell } from '../scripts/voxel-village.js';
 import { initDebugBots, debugActAs, isControlledBy, debugBotsAreActive } from '../scripts/debug-bots.js';
 import { playBGM, playSFX } from '../scripts/audio.js';
 document.addEventListener('click', (e) => {
@@ -1019,7 +1019,11 @@ function clearHighlights() {
         });
         continue;
       }
-      const emoji = ch.successHp > 0 ? '💧' : (challengeEmoji[ch.stat] || '❓'); // healing node = water
+      if (ch.successHp > 0) { // healing node → a real well (like the intro village), not an emoji
+        placeWell(scene, blockMats, pos.x, pos.z, gridData.grid.floorY);
+        continue;
+      }
+      const emoji = challengeEmoji[ch.stat] || '❓';
       const canvas = document.createElement('canvas');
       canvas.width = 256; canvas.height = 256;
       const ctx = canvas.getContext('2d');

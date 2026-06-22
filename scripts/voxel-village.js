@@ -109,7 +109,7 @@ function placeHouse(scene, blockMats, x, z, floorY, sx, sz) {
   }
 }
 
-function placeWell(scene, blockMats, x, z, floorY) {
+export function placeWell(scene, blockMats, x, z, floorY) {
   // Stone ring + dark water surface inside
   const rim = new THREE.Mesh(
     new THREE.CylinderGeometry(1.4, 1.4, 1.0, 16, 1, true),
