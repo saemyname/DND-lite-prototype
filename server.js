@@ -49,7 +49,7 @@ const sessions = new Map();
 // DEBUG: start sessions with every stage unlocked (handy while testing). Off by
 // default so it never ships enabled — run `DND_UNLOCK_ALL=1 node server.js`.
 const DEBUG_UNLOCK_ALL = process.env.DND_UNLOCK_ALL === '1';
-const ALL_STAGE_KEYS = ['stage_01', 'stage_02', 'stage_03', 'stage_04', 'stage_05'];
+const ALL_STAGE_KEYS = ['stage_01', 'stage_02', 'stage_03', 'stage_04', 'stage_05', 'stage_06'];
 const initialUnlocked = () => new Set(DEBUG_UNLOCK_ALL ? ALL_STAGE_KEYS : ['stage_01']);
 
 function makeCode() {
@@ -409,6 +409,7 @@ const NEXT_STAGE = {
   stage02: 'stage_03',
   stage03: 'stage_04',
   stage04: 'stage_05',
+  stage05: 'stage_06',
 };
 
 function unlockNextStage(sess, stageId) {
