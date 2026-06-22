@@ -1,0 +1,24 @@
+{
+  "id": "stage06",
+  "name": "The Vault",
+  "grid": { "cols": 5, "rows": 6, "cellSizeX": 12, "cellSizeZ": 6, "originX": -32, "originZ": -43, "floorY": -16 },
+  "walkable": [
+    [0,1,1,1,0],
+    [0,1,1,1,0],
+    [1,1,1,1,0],
+    [0,1,1,1,0],
+    [0,1,1,1,0],
+    [0,1,1,1,0]
+  ],
+  "playerSpawn": [2, 5],
+  "enemies": [],
+  "challenges": [
+    {
+      "id": "free_lyra", "col": 2, "row": 0, "name": "Lyra's Vault",
+      "stat": "int", "dc": 0, "auto": true, "successHp": 0, "failHp": 0,
+      "description": "Lyra is locked in the vault's central chest-cage. The seal is ancient but yields to a firm hand. \"You came all this way... let's go home.\"",
+      "successText": "The seal cracks open — Lyra steps free at last. The vault is yours.",
+      "failText": ""
+    }
+  ]
+}

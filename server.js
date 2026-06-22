@@ -26,7 +26,7 @@ function loadStageConfig(stageId) {
 // Dev-only: the map editor (scenes/map-editor.html) saves a stage grid back to
 // rooms/<stage>-grid.json. Whitelisted ids only; busts the config cache so the
 // next enter_stage re-reads the file.
-const EDITABLE_STAGES = new Set(['stage01', 'stage02', 'stage03', 'stage04', 'stage05']);
+const EDITABLE_STAGES = new Set(['stage01', 'stage02', 'stage03', 'stage04', 'stage05', 'stage06']);
 app.post('/dev/save-grid', (req, res) => {
   const { stageId, data } = req.body || {};
   if (!EDITABLE_STAGES.has(stageId) || !data || typeof data !== 'object' || !data.grid || !Array.isArray(data.walkable)) {
