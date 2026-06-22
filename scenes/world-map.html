@@ -172,10 +172,11 @@ controls.addEventListener('end',   () => { userInteracting = false; });
 // ── Party vote panel ────────────────────────────────────────────────────
 const STAGE_NAMES = {
   stage_01: 'Eldermoor Village',
-  stage_02: 'Luna Ruins',
+  stage_02: "Goblin's Trail",
   stage_03: 'Whispering Forest',
   stage_04: 'Goblin Outpost',
   stage_05: 'Throne of the Goblin King',
+  stage_06: 'The Vault',
 };
 const votePanel    = document.getElementById('vote-panel');
 const voteMessage  = document.getElementById('vote-message');
@@ -391,7 +392,7 @@ gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
     const baseObj = stages['stage_02'].object;
     const worldDelta = stages['stage_02'].worldPos.clone().sub(stages['stage_01'].worldPos);
     const localDelta = worldDelta.clone().divideScalar(mapScale || 1);
-    for (let i = 3; i <= 5; i++) {
+    for (let i = 3; i <= 6; i++) {
       const stageKey = `stage_0${i}`;
       if (stages[stageKey]) continue;
       const clone = baseObj.clone(true);
@@ -401,6 +402,7 @@ gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
         'stage_03': { x: -0.9, z: -1.3 },
         'stage_04': { x:  0.5, z:  1.0 },
         'stage_05': { x: -2.6, z:  3.3 },
+        'stage_06': { x: -1.5, z:  5.0 },
       };
       const tw = tweaks[stageKey];
       if (tw?.x) clone.position.x += tw.x / (mapScale || 1);
