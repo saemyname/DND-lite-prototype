@@ -318,20 +318,6 @@
   ],
   "challenges": [
     {
-      "id": "lyra_cage",
-      "col": 3,
-      "row": 0,
-      "name": "Lyra's Cage",
-      "stat": "int",
-      "dc": 10,
-      "retryOnFail": true,
-      "description": "Lyra's stuck in a rusty goblin cage by the throne. The lock's crude but stubborn. \"Quick — get me out!\"",
-      "successText": "Click! The lock pops open and Lyra steps out, beaming. \"You actually came!\"",
-      "failText": "The lock sticks. You scrape your knuckles on the rough iron — try again.",
-      "successHp": 0,
-      "failHp": -1
-    },
-    {
       "id": "lifewater",
       "col": 2,
       "row": 12,

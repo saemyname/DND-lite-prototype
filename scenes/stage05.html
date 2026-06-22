@@ -395,7 +395,7 @@
 <div id="victory">
   <div class="overlay-title">LYRA RESCUED</div>
   <div class="overlay-sub">Goblin King down. Eldermoor's safe!</div>
-  <button class="event-btn" onclick="window.location.href='ending.html'">Continue →</button>
+  <button class="event-btn" onclick="window.location.href='stage06.html'">Continue →</button>
 </div>
 
 <!-- Game Over -->
@@ -413,7 +413,7 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { send, on } from '../scripts/game-socket.js';
 import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, fadeOutToken, triggerSlimeAttack, flashEnemyDamage, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
 import { colorForKey, cssColorForKey } from '../scripts/colors.js';
-import { placeLyraSlime, placeWell } from '../scripts/voxel-village.js';
+import { placeLyraSlime, placeWell, placeGoblinBox } from '../scripts/voxel-village.js';
 import { initDebugBots, debugActAs, isControlledBy, debugBotsAreActive } from '../scripts/debug-bots.js';
 import { playBGM, playSFX } from '../scripts/audio.js';
 document.addEventListener('click', (e) => {
@@ -965,6 +965,41 @@ function clearHighlights() {
   // Build the voxel throne scene procedurally — depends on gridData
   buildThroneScene();
 
+  // ── Entry cinematic: Lyra is dragged to the vault; the King taunts. Plays once. ──
+  if (!sessionStorage.getItem('s05-intro-' + (localStorage.getItem('session-code') || ''))) {
+    sessionStorage.setItem('s05-intro-' + (localStorage.getItem('session-code') || ''), '1');
+    const g = gridData.grid;
+    const cell = (c, r) => new THREE.Vector3(g.originX + c * g.cellSizeX + g.cellSizeX / 2, g.floorY, g.originZ + r * g.cellSizeZ + g.cellSizeZ / 2);
+    const cx = (g.cols - 1) / 2;
+    const cLyra = placeLyraSlime(scene, cell(cx, 1), 4);
+    cLyra.userData.crying = true;
+    (cLyra.userData.normalEyes || []).forEach(e => e.visible = false);
+    (cLyra.userData.cryEyes || []).forEach(e => e.visible = true);
+    const cGobs = [placeGoblinBox(scene, cell(cx - 1, 1), 3), placeGoblinBox(scene, cell(cx + 1, 1), 3)];
+    const banner = document.createElement('div');
+    banner.style.cssText = 'position:fixed;top:18%;left:50%;transform:translateX(-50%);z-index:120;max-width:80%;text-align:center;font-family:Georgia,serif;font-size:26px;letter-spacing:1px;color:#ffd0d0;text-shadow:0 0 18px rgba(0,0,0,.9);padding:10px 20px';
+    banner.textContent = 'Goblin King: "Want the healer back? Cut me down first!"';
+    document.body.appendChild(banner);
+    const skip = document.createElement('button');
+    skip.textContent = 'Skip ▶';
+    skip.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:121;padding:8px 16px;background:rgba(0,0,0,.6);border:1px solid rgba(200,169,110,.5);border-radius:5px;color:#ffe9a0;font-family:Georgia,serif;cursor:pointer';
+    document.body.appendChild(skip);
+    const start = performance.now(), DUR = 4500;
+    let done = false;
+    const finish = () => { if (done) return; done = true; banner.remove(); skip.remove(); scene.remove(cLyra); cGobs.forEach(x => scene.remove(x)); };
+    skip.addEventListener('click', finish);
+    const lerpY = (o, ax, az, bx, bz, t) => { o.position.x = ax + (bx - ax) * t; o.position.z = az + (bz - az) * t; };
+    (function cine(now) {
+      if (done) return;
+      const t = Math.min(1, (now - start) / DUR);
+      const from = cell(cx, 1), to = cell(cx, -2.2);
+      lerpY(cLyra, from.x, from.z, to.x, to.z, t);
+      cGobs.forEach((gob, i) => { const fx = cell(cx + (i ? 1 : -1), 1); lerpY(gob, fx.x, fx.z, to.x + (i ? 1 : -1) * 4, to.z, t); });
+      if (t >= 1) { finish(); return; }
+      requestAnimationFrame(cine);
+    })(start);
+  }
+
   // Larger map: keep the camera's angle/distance (characters stay the same size),
   // frame the party spawn at start, and let players pan within the map bounds.
   {
@@ -999,26 +1034,11 @@ function clearHighlights() {
   floorPlane.position.y = gridData.grid.floorY;
   scene.add(floorPlane);
 
-  // Render visible challenge markers — lyra_cage uses the actual Lyra slime
-  // (same look as the intro cutscene); other challenges fall back to emoji sprites.
+  // Render visible challenge markers — emoji sprites for stat challenges, real well for healing.
   if (gridData.challenges) {
     const challengeEmoji = { agi: '🌉', lck: '😴', int: '🔓', str: '💪' };
     for (const ch of gridData.challenges) {
       const pos = gridToWorld(ch.col, ch.row);
-      if (ch.id === 'lyra_cage') {
-        const lyra = placeLyraSlime(scene, new THREE.Vector3(pos.x, gridData.grid.floorY, pos.z), 4);
-        // Face the camera (no rotation) + crying expression like in the capture scene
-        lyra.userData.crying = true;
-        (lyra.userData.normalEyes || []).forEach(e => e.visible = false);
-        (lyra.userData.cryEyes    || []).forEach(e => e.visible = true);
-        // Make the teardrops permanently visible (no animation loop here — stage scene
-        // doesn't tick Lyra). Set them to a static drip pose.
-        (lyra.userData.tears || []).forEach(tear => {
-          tear.material.opacity = 0.9;
-          tear.position.y = 0.27;
-        });
-        continue;
-      }
       if (ch.successHp > 0) { // healing node → a real well (like the intro village), not an emoji
         placeWell(scene, blockMats, pos.x, pos.z, gridData.grid.floorY);
         continue;
