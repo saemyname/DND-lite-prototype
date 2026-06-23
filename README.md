@@ -42,7 +42,7 @@ First load plays the intro cutscene, then the world map (only stage 1 unlocked);
 
 Double-click **`host-online.command`** in Finder (or run `npm run host`). It starts the game server, opens a free Cloudflare tunnel, copies a public **invite link** to your clipboard, and opens it for you — no two-terminal dance.
 
-- First run installs `cloudflared` automatically (via Homebrew) and `npm install`s deps.
+- First run installs deps (`npm install`) and `cloudflared` automatically (Homebrew if present, otherwise a direct download — no Homebrew required).
 - The link goes live ~20s after it appears; share it with anyone, anywhere.
 - It stays up while that window is open; **Ctrl-C** stops the game and kills the link.
 - No accounts, no deploy, free. (The link is temporary — a new one each run.)
@@ -64,6 +64,24 @@ To run the Node server somewhere that supports **WebSockets** and share that URL
    Share the temporary public URL. No deploy, but it's only up while your machine + tunnel run.
 
 In every case **players just open the URL** — the install/deploy is only ever on the host's side.
+
+### Hand it to someone else to host (zip)
+
+If a friend will host instead of you, send them the **whole project** (the `host-online.command` file alone isn't enough — it runs `node server.js` from the project folder). Package a clean copy:
+
+```bash
+git archive --format=zip --prefix=dnd-lite-host/ -o ~/Desktop/dnd-lite-host.zip HEAD
+```
+
+This includes everything needed and excludes `node_modules`/`.git`. The host then:
+
+1. Unzips the folder.
+2. Double-clicks **`host-online.command`** (first run auto-installs deps + cloudflared).
+3. Shares the invite link it prints.
+
+Host requirements: **macOS**, **Node.js** ([nodejs.org](https://nodejs.org)), and an internet connection. Players still need nothing but the link.
+
+> **Gatekeeper tip:** a `.command` received over the internet may be blocked on first launch ("unidentified developer"). Right-click it → **Open** once, and it'll run normally after that.
 
 ## Tech
 
