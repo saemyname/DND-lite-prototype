@@ -46,11 +46,9 @@ app.post('/dev/save-grid', (req, res) => {
 // PlayerEntry: { ws: WebSocket|null, name, role, location }
 const sessions = new Map();
 
-// DEBUG: start sessions with every stage unlocked (handy while testing). Off by
-// default so it never ships enabled — run `DND_UNLOCK_ALL=1 node server.js`.
-const DEBUG_UNLOCK_ALL = process.env.DND_UNLOCK_ALL === '1';
-const ALL_STAGE_KEYS = ['stage_01', 'stage_02', 'stage_03', 'stage_04', 'stage_05', 'stage_06'];
-const initialUnlocked = () => new Set(DEBUG_UNLOCK_ALL ? ALL_STAGE_KEYS : ['stage_01']);
+// Sessions begin with only the first stage unlocked; winning a stage unlocks
+// the next (see NEXT_STAGE / stage_unlock).
+const initialUnlocked = () => new Set(['stage_01']);
 
 function makeCode() {
   return Math.random().toString(36).slice(2, 6).toUpperCase();
@@ -640,50 +638,6 @@ wss.on('connection', (ws) => {
         send(sess.dm, { type: 'player_joined', playerId: pid, name: entry.name, role: entry.role, color: entry.color });
         broadcastLobbyState(sess);
         broadcastWorldMapState(sess);
-        break;
-      }
-
-      case 'debug_spawn_bots': {
-        if (role !== 'player' || !sess) return;
-        const allRoles = ['warrior', 'rogue', 'mage', 'cleric'];
-        const used = new Set([...sess.players.values()].map(p => p.role));
-        const remaining = allRoles.filter(r => !used.has(r));
-        const created = [];
-        let i = 0;
-        while (sess.players.size < 4 && i < remaining.length) {
-          const botRole = remaining[i++];
-          const botPid = `bot_${Date.now()}_${i}`;
-          const botName = `Bot-${botRole[0].toUpperCase()}${botRole[1]}`;
-          {
-            const botStats = ROLE_STATS[botRole] || ROLE_STATS.warrior;
-            sess.players.set(botPid, {
-              ws: null,
-              name: botName,
-              role: botRole,
-              color: firstFreeColor(sess),
-              hp: botStats.hp,
-              maxHp: botStats.hp,
-              isBot: true,
-              location: 'world-map',
-              worldMapStage: null,
-            });
-          }
-          created.push({ pid: botPid, name: botName, role: botRole });
-        }
-        // Also drop bots into any stage the requester is already in
-        for (const st of sess.stages.values()) {
-          if (!st.players.has(pid)) continue;
-          for (const bot of created) {
-            const botPlayer = sess.players.get(bot.pid);
-            placeBotInStage(st, bot.pid, botPlayer);
-          }
-          broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
-        }
-        send(ws, { type: 'bots_spawned', bots: created });
-        if (sess.dm) send(sess.dm, { type: 'bots_spawned', bots: created });
-        broadcastWorldMapState(sess); // surface bots to world-map party renderer
-        broadcastLobbyState(sess);
-        console.log(`[debug_spawn_bots] session=${code} added ${created.length} bots`);
         break;
       }
 
