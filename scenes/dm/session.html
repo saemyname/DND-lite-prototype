@@ -314,7 +314,7 @@ import { connect, send, on } from '../../scripts/game-socket.js';
 import { cssColorForKey } from '../../scripts/colors.js';
 
 const params = new URLSearchParams(location.search);
-const code = params.get('code') || localStorage.getItem('dm-session-code');
+let code = params.get('code') || localStorage.getItem('dm-session-code');
 
 document.getElementById('code-badge').textContent = code || '----';
 
@@ -356,7 +356,12 @@ function renderPlayers() {
   }
 }
 
-on('session_created', () => {});
+on('session_created', (msg) => {
+  code = msg.code;
+  localStorage.setItem('dm-session-code', code);
+  document.getElementById('code-badge').textContent = code;
+  statusEl.textContent = `Connected · session ${code}`;
+});
 
 on('player_joined', (msg) => {
   players.set(msg.playerId, { name: msg.name, role: msg.role, color: msg.color, location: 'world-map' });
@@ -534,7 +539,8 @@ connect(() => {
     send({ type: 'dm_rejoin', code });
     statusEl.textContent = `Connected · session ${code}`;
   } else {
-    statusEl.textContent = 'No session code — go back to lobby';
+    send({ type: 'dm_create' });
+    statusEl.textContent = 'Creating session…';
   }
 });
 
