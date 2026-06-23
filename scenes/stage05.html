@@ -1289,7 +1289,7 @@ on('enemy_phase', async (msg) => {
     if (path.length) {
       const [fc, fr] = path[path.length - 1];
       ent.col = fc; ent.row = fr;
-      await slide(ent.mesh, gridToWorld(fc, fr), Math.min(520, 150 * path.length));
+      await slide(ent.mesh, gridToWorld(fc, fr), Math.min(1000, 360 * path.length));
     }
     if (act.attack) {
       pop(ent.mesh, 1.22, 150);            // enemy lunges
@@ -1300,8 +1300,9 @@ on('enemy_phase', async (msg) => {
         if (tgt.fillEl) updatePlayerLabelHp(tgt.fillEl, act.attack.hpAfter, mp);
       }
       playSFX('attack_melee');
-      await nap(240);
+      await nap(520);
     }
+    await nap(180);
   }
 });
 
