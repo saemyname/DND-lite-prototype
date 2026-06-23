@@ -269,7 +269,8 @@
       "failText": "The King strikes back fast — both axes land.",
       "successHp": 0,
       "failHp": -5,
-      "atk": 5
+      "atk": 5,
+      "moveRange": 0
     },
     {
       "id": "minion1",

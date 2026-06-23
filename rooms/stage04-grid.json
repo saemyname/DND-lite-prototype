@@ -255,7 +255,8 @@
       "failText": "The Captain just grins and slashes back twice.",
       "successHp": 0,
       "failHp": -3,
-      "atk": 4
+      "atk": 4,
+      "moveRange": 0
     },
     {
       "id": "goblin1",
