@@ -321,6 +321,8 @@ on('lobby_state', (msg) => {
     // Persist final pick so world-map/stages (and solo) render the right color.
     const char = JSON.parse(localStorage.getItem('dndlite-character') || '{}');
     char.role = me.role; char.color = me.color;
+    const cls = CLASSES.find(c => c.role === me.role);
+    if (cls && cls.stats) Object.assign(char, cls.stats);  // str/agi/int/lck/hp for the HUD
     localStorage.setItem('dndlite-character', JSON.stringify(char));
     showClassDetail(myRole); // keep the detail panel in sync when not hovering
   }
