@@ -1084,6 +1084,39 @@ on('combat_event', (msg) => {
   if (msg.success && enemy) flashEnemyDamage(enemy.mesh);
 });
 
+// Monster turn (stage04+): enemies slide toward the party and strike. The
+// server has already resolved positions/HP; this just animates the result.
+on('enemy_phase', async (msg) => {
+  const slide = (mesh, to, ms) => new Promise(res => {
+    const from = mesh.position.clone(); to.y = mesh.position.y;
+    const t0 = performance.now();
+    (function step(now){ const t = Math.min(1, (now - t0) / ms); mesh.position.lerpVectors(from, to, t); if (t < 1) requestAnimationFrame(step); else res(); })(performance.now());
+  });
+  const pop = (obj, k = 1.18, ms = 130) => { if (!obj) return; const s = obj.scale.x; obj.scale.setScalar(s * k); setTimeout(() => obj.scale.setScalar(s), ms); };
+  const nap = ms => new Promise(r => setTimeout(r, ms));
+  for (const act of (msg.actions || [])) {
+    const ent = enemyTokens.find(e => e.id === act.enemyId);
+    if (!ent || !ent.mesh) continue;
+    const path = act.path || [];
+    if (path.length) {
+      const [fc, fr] = path[path.length - 1];
+      ent.col = fc; ent.row = fr;
+      await slide(ent.mesh, gridToWorld(fc, fr), Math.min(520, 150 * path.length));
+    }
+    if (act.attack) {
+      pop(ent.mesh, 1.22, 150);            // enemy lunges
+      const tgt = playerTokens.get(act.attack.pid);
+      if (tgt) {
+        pop(tgt.group, 1.18, 140);         // victim recoils
+        const mp = serverState?.players?.find(p => p.pid === act.attack.pid)?.maxHp || act.attack.hpAfter;
+        if (tgt.fillEl) updatePlayerLabelHp(tgt.fillEl, act.attack.hpAfter, mp);
+      }
+      playSFX('attack_melee');
+      await nap(240);
+    }
+  }
+});
+
 function openHealPanel(target, isHealer) {
   panelEl('event-desc').textContent = isHealer
     ? `${target.name} is wounded. Channel divine grace?`
