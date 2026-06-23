@@ -772,9 +772,18 @@ wss.on('connection', (ws) => {
           if (!target || target.hp <= 0) return;
           const healer = st.players.get(actorPid);
           const intVal = healer?.stats?.int ?? 10;
-          const roll = rollD6();
+          // Heal never whiffs — the d20 rolls the QUALITY of the heal, not pass/fail.
+          // Low rolls still heal a bit; a natural 20 crits for a big surge.
+          const roll = rollD20();
           const mod = statModifier(intVal);
-          const heal = Math.max(0, roll + mod);
+          const crit = roll === 20;
+          let base;
+          if (crit)          base = 12;
+          else if (roll >= 15) base = 5;
+          else if (roll >= 10) base = 4;
+          else if (roll >= 5)  base = 3;
+          else                 base = 2;   // rolls 1-4 still mend a wound
+          const heal = Math.max(1, base + mod);
           const before = target.hp;
           target.hp = Math.min(target.maxHp, target.hp + heal);
           const restored = target.hp - before;
@@ -784,8 +793,10 @@ wss.on('connection', (ws) => {
             type: 'heal_event',
             healerPid: actorPid,
             targetPid: st.pendingHeal.targetPid,
-            roll, mod, restored,
-            outcomeText: `${healer.name} restores ${restored} HP to ${target.name}.`,
+            roll, mod, restored, crit,
+            outcomeText: crit
+              ? `${healer.name} channels a surge of divine grace — ${target.name} is restored for ${restored} HP!`
+              : `${healer.name} restores ${restored} HP to ${target.name}.`,
           });
 
           broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
