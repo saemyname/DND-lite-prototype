@@ -778,7 +778,7 @@ wss.on('connection', (ws) => {
           const mod = statModifier(intVal);
           const crit = roll === 20;
           let base;
-          if (crit)          base = 12;
+          if (crit)          base = 8;
           else if (roll >= 15) base = 5;
           else if (roll >= 10) base = 4;
           else if (roll >= 5)  base = 3;
