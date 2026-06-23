@@ -254,7 +254,8 @@
       "successText": "Solid hit — the Captain staggers!",
       "failText": "The Captain just grins and slashes back twice.",
       "successHp": 0,
-      "failHp": -3
+      "failHp": -3,
+      "atk": 4
     },
     {
       "id": "goblin1",
@@ -269,7 +270,8 @@
       "successText": "One swing and the alarm's over — guard down!",
       "failText": "Claws scrape across your armor.",
       "successHp": 0,
-      "failHp": -3
+      "failHp": -3,
+      "atk": 3
     },
     {
       "id": "goblin2",
@@ -284,7 +286,8 @@
       "successText": "Parry, counter, done — clean!",
       "failText": "The cleaver nicks you — ouch!",
       "successHp": 0,
-      "failHp": -3
+      "failHp": -3,
+      "atk": 3
     },
     {
       "id": "goblin3",
@@ -299,7 +302,9 @@
       "successText": "You rush in and take them out!",
       "failText": "An arrow slips through — sharp sting.",
       "successHp": 0,
-      "failHp": -3
+      "failHp": -3,
+      "atk": 3,
+      "atkRange": 2
     },
     {
       "id": "goblin4",
@@ -314,8 +319,10 @@
       "successText": "You drop the guard before the spear lands!",
       "failText": "The spear grazes your side.",
       "successHp": 0,
-      "failHp": -3
+      "failHp": -3,
+      "atk": 3
     }
   ],
-  "challenges": []
+  "challenges": [],
+  "enemyAI": true
 }

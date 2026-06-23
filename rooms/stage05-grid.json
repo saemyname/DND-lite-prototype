@@ -268,7 +268,8 @@
       "successText": "A heavy hit rocks the King — he wobbles but stays up!",
       "failText": "The King strikes back fast — both axes land.",
       "successHp": 0,
-      "failHp": -5
+      "failHp": -5,
+      "atk": 5
     },
     {
       "id": "minion1",
@@ -283,7 +284,8 @@
       "successText": "You knock the pike aside and take the guard down!",
       "failText": "The pike leaves a deep gash.",
       "successHp": 0,
-      "failHp": -3
+      "failHp": -3,
+      "atk": 3
     },
     {
       "id": "minion2",
@@ -298,7 +300,8 @@
       "successText": "Down it goes — clean!",
       "failText": "Quick jabs leave you bruised.",
       "successHp": 0,
-      "failHp": -3
+      "failHp": -3,
+      "atk": 3
     },
     {
       "id": "minion3",
@@ -313,7 +316,8 @@
       "successText": "A clean strike — the guard crumples!",
       "failText": "The blade bites into your shoulder.",
       "successHp": 0,
-      "failHp": -3
+      "failHp": -3,
+      "atk": 3
     }
   ],
   "challenges": [
@@ -332,5 +336,6 @@
       "successText": "You drink deep. Warmth floods through you — wounds knit closed.",
       "failText": ""
     }
-  ]
+  ],
+  "enemyAI": true
 }

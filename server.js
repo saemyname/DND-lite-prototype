@@ -404,6 +404,82 @@ function advanceTurn(stageState) {
   }
 }
 
+// ── Enemy AI (stage04+) ────────────────────────────────────────────────────
+// Active enemies: on the monster turn each living enemy steps toward the nearest
+// living player and attacks if it ends in range. Gated per-stage by cfg.enemyAI.
+const ENEMY_MOVE_RANGE = 3;
+const enemyAtk      = e => e.atk      ?? Math.max(2, -(e.failHp || 0) || 3);
+const enemyAtkRange = e => e.atkRange ?? 1;
+const enemyMoveRange = e => e.moveRange ?? ENEMY_MOVE_RANGE;
+
+// BFS from the enemy toward `target`; returns the walked path (array of [col,row],
+// capped at the enemy's move range) up to the nearest cell within attack range.
+function enemyPlanMove(st, e, target) {
+  const range = enemyAtkRange(e);
+  if (inAttackRange(e.col, e.row, target.col, target.row, range)) return [];
+  const start = `${e.col},${e.row}`;
+  const prev = new Map();
+  const seen = new Set([start]);
+  const q = [[e.col, e.row]];
+  let goal = null;
+  while (q.length && !goal) {
+    const [c, r] = q.shift();
+    for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nc = c + dc, nr = r + dr, k = `${nc},${nr}`;
+      if (seen.has(k) || !isCellWalkable(st, nc, nr, null)) continue;
+      seen.add(k); prev.set(k, `${c},${r}`); q.push([nc, nr]);
+      if (inAttackRange(nc, nr, target.col, target.row, range)) { goal = k; break; }
+    }
+  }
+  if (!goal) return [];
+  const full = [];
+  for (let cur = goal; cur && cur !== start; cur = prev.get(cur)) full.unshift(cur.split(',').map(Number));
+  return full.slice(0, enemyMoveRange(e)); // partial approach if goal is beyond reach this turn
+}
+
+function runEnemyPhase(st, sess) {
+  const actions = [];
+  for (const e of st.enemies) {
+    if (e.hp <= 0) continue;
+    const players = [...st.players.entries()].filter(([, p]) => p.hp > 0);
+    if (!players.length) break;
+    // Nearest living player (Chebyshev), tie-broken toward the most wounded.
+    let target = players[0][1];
+    for (const [, p] of players) {
+      const d = chebyshev(e.col, e.row, p.col, p.row);
+      const bd = chebyshev(e.col, e.row, target.col, target.row);
+      if (d < bd || (d === bd && p.hp < target.hp)) target = p;
+    }
+    const from = [e.col, e.row];
+    const path = enemyPlanMove(st, e, target);
+    if (path.length) { const last = path[path.length - 1]; e.col = last[0]; e.row = last[1]; }
+    let attack = null;
+    if (inAttackRange(e.col, e.row, target.col, target.row, enemyAtkRange(e))) {
+      let tpid = null;
+      for (const [pid, p] of st.players) if (p === target) { tpid = pid; break; }
+      const before = target.hp;
+      target.hp = Math.max(0, target.hp - enemyAtk(e));
+      syncPlayerHpToSession(sess, st, tpid);
+      attack = { pid: tpid, dmg: before - target.hp, hpAfter: target.hp };
+    }
+    actions.push({ enemyId: e.id, from, path, attack });
+  }
+  pruneDeadFromStage(st);
+  if (allPlayersDead(st)) st.outcome = 'defeat';
+  broadcastStage(st, sess, { type: 'enemy_phase', actions });
+  broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
+}
+
+// End a player's turn. On a round boundary (wrapped back to the first living
+// player), run the monster turn first when the stage has active enemies.
+function endTurn(st, sess) {
+  const before = st.activeTurnIdx;
+  advanceTurn(st);
+  if (st.cfg.enemyAI && !st.outcome && st.activeTurnIdx <= before && st.enemies.some(e => e.hp > 0)) {
+    runEnemyPhase(st, sess);
+  }
+}
+
 // Mirror a player's HP from stage state back to session so it persists across
 // stage transitions. Call this after any action that changes hp.
 function syncPlayerHpToSession(sess, st, pid) {
@@ -1013,7 +1089,7 @@ wss.on('connection', (ws) => {
             // state; turn_continue clears it). Does not heal again.
             const spent = adjacentSpentWellAt(st, dstCol, dstRow);
             if (spent) { st.pendingChallenge = { actorPid, challengeId: spent.id }; return; }
-            advanceTurn(st);
+            endTurn(st, sess);
           };
           if (me.role === 'cleric') {
             // Cleric: if both attack AND heal options exist, show a choice
@@ -1063,7 +1139,7 @@ wss.on('connection', (ws) => {
         st.pendingHeal = null;
         st.pendingChallenge = null;
         st.pendingChoice = null;
-        if (!st.outcome) advanceTurn(st);
+        if (!st.outcome) endTurn(st, sess);
         broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
         break;
       }
@@ -1081,7 +1157,7 @@ wss.on('connection', (ws) => {
         st.pendingHeal = null;
         st.pendingChallenge = null;
         st.pendingChoice = null;
-        advanceTurn(st);
+        endTurn(st, sess);
         broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
         console.log(`[dm_skip_turn] session=${code} stage=${msg.stageId}: ${skipped} → ${activeTurnPid(st)}`);
         break;
