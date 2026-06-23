@@ -407,7 +407,7 @@ function advanceTurn(stageState) {
 // ── Enemy AI (stage04+) ────────────────────────────────────────────────────
 // Active enemies: on the monster turn each living enemy steps toward the nearest
 // living player and attacks if it ends in range. Gated per-stage by cfg.enemyAI.
-const ENEMY_MOVE_RANGE = 3;
+const ENEMY_MOVE_RANGE = 2;
 const enemyAtk      = e => e.atk      ?? Math.max(2, -(e.failHp || 0) || 3);
 const enemyAtkRange = e => e.atkRange ?? 1;
 const enemyMoveRange = e => e.moveRange ?? ENEMY_MOVE_RANGE;
