@@ -380,6 +380,18 @@ function adjacentChallengeAt(stageState, col, row) {
   );
 }
 
+// A spent healing node (e.g. the Water of Life well) standing adjacent: used to
+// show a "run dry" message on a repeat visit. Only matches already-cleared
+// healing challenges so it never re-triggers an attempt.
+function adjacentSpentWellAt(stageState, col, row) {
+  if (!stageState.challenges) return null;
+  return stageState.challenges.find(c =>
+    c.cleared && c.successHp > 0 &&
+    Math.abs(c.col - col) <= 1 &&
+    Math.abs(c.row - row) <= 1
+  );
+}
+
 function advanceTurn(stageState) {
   if (stageState.turnOrder.length === 0) return;
   // Skip past dead players. Bounded by turnOrder length to avoid infinite loops
@@ -984,8 +996,13 @@ wss.on('connection', (ws) => {
           const enemyList = enemies.map(e => ({ id: e.id, name: e.name }));
           const startChallengeOrEnd = () => {
             const challenge = adjacentChallengeAt(st, dstCol, dstRow);
-            if (challenge) st.pendingChallenge = { actorPid, challengeId: challenge.id };
-            else advanceTurn(st);
+            if (challenge) { st.pendingChallenge = { actorPid, challengeId: challenge.id }; return; }
+            // Walked up to a well that's already been drained: reuse the challenge
+            // panel plumbing to show a "run dry" message (client renders the spent
+            // state; turn_continue clears it). Does not heal again.
+            const spent = adjacentSpentWellAt(st, dstCol, dstRow);
+            if (spent) { st.pendingChallenge = { actorPid, challengeId: spent.id }; return; }
+            advanceTurn(st);
           };
           if (me.role === 'cleric') {
             // Cleric: if both attack AND heal options exist, show a choice

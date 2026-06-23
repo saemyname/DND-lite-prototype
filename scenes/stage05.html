@@ -1465,6 +1465,9 @@ on('skill_check_event', (msg) => {
   diceShape.classList.add('rolling');
   panelEl('d20-label').textContent = '';
   panelEl('d20-hud').classList.remove('active');
+  const _hud = panelEl('d20-hud');
+  { const cx = window.innerWidth - 78, cy = window.innerHeight - 70;
+    _hud.style.transform = `translate(${window.innerWidth/2 - cx}px, ${window.innerHeight/2 - cy}px) scale(2.4)`; }
 
   let count = 0;
   const anim = setInterval(() => {
@@ -1483,6 +1486,7 @@ on('skill_check_event', (msg) => {
       resultEl.textContent = `${msg.roll} ${modStr} (${statLabel}) = ${msg.total} vs DC ${msg.dc} — ${msg.success ? 'SUCCESS!' : 'FAILED'}`;
       resultEl.className = msg.success ? 'success' : 'fail';
       panelEl('event-outcome').textContent = msg.outcomeText;
+      setTimeout(() => { _hud.style.transform = ''; }, 1100);
       if (isActor) {
         panelEl('event-actions').innerHTML = '';
         const btn = document.createElement('button');
