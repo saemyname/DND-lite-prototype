@@ -1323,7 +1323,7 @@ const heartbeatSweep = setInterval(() => {
 }, HEARTBEAT_MS);
 wss.on('close', () => clearInterval(heartbeatSweep));
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
   const nets = networkInterfaces();
   let localIP = 'localhost';

@@ -1,20 +1,25 @@
-# D&D Lite
+# D&D Lite — "Lyra Rescue Team"
 
-A web-based D&D-lite prototype. Slimes-as-adventurers, voxel stages, server-authoritative turn combat, and a short bookend story: an intro cutscene where the village healer Lyra is kidnapped, five stages to chase the goblins through, and an ending where the party brings her home.
+A web-based, slimes-as-adventurers take on tabletop D&D: voxel stages, server-authoritative turn combat, and real-time multiplayer over a 4-digit session code. A short story bookends the run — the village healer **Lyra** is dragged off by goblins in the intro, the party chases them through six stages, frees her from the vault, and brings her home.
+
+Built with Three.js + a Node WebSocket server. Players just open a URL in the browser — no install on their end.
 
 ## Features
 
-- **Five stages** — Eldermoor Village (narrative clues) → Luna Ruins → Whispering Forest (skill checks) → Goblin Outpost → Throne of the Goblin King + Lyra rescue.
-- **Animated cutscenes** — intro (Lyra's capture) auto-plays on first visit; ending plays after the boss falls. Both skippable.
-- **Four classes** — Warrior / Rogue / Mage / Cleric. Each is a colored slime carrying the role's weapon emoji. Rogue + Mage have attack range 2; melee Warrior + Cleric have range 1. Cleric gets a choice panel (Attack / Heal → target picker) when both options exist.
-- **Multiplayer + solo** — up to 4 players + 1 optional DM via 4-digit code. Solo mode plays as one human plus up to 3 stand-in bots controlled by the same browser. Locked stages dim on the world map; victory in stage N auto-unlocks stage N+1.
-- **Party vote on the world map** — clicking a stage proposes a vote; live "lean" animation as yes-voters tilt toward the destination, any nay snaps the party back. Solo + bots skip the vote.
-- **Server-authoritative combat** — d20 grid combat with shared turn order. HP persists across stages. Dead players become spectators (slime fades out over 2 s) but can still watch their party play; defeat only fires when the whole party is down.
-- **Background music** — looping BGM per scene with cross-page continuity (the same track keeps playing where it left off as you navigate world-map ↔ stages).
-- **Text chat** — drop-in panel on every player + DM scene.
-- **Debug** — `+3 Bots` button on the world map fills the remaining slots with same-session bots so one browser can drive a full 4-player run.
+- **Six stages** — Eldermoor Village (narrative clues) → Goblin's Trail (voxel combat) → Whispering Forest (skill checks) → Goblin Outpost → Throne of the Goblin King (boss + entry cinematic) → **The Vault** (free Lyra → ending). Win a stage to unlock the next.
+- **Up to 5 players + 1 DM** — join with a name + 4-digit code, then pick a class and slime color in a live character-select lobby. The DM starts the adventure.
+- **Four classes** — Warrior / Rogue / Mage / Cleric, each a colored slime. Rogue + Mage attack at range 2; Warrior + Cleric at range 1. Cleric heals (d20 quality roll, never whiffs, nat-20 crit) and gets an Attack/Heal choice panel.
+- **Active enemies (stage 4+)** — on the monster turn, goblins pursue the nearest party member and strike; the Goblin King and Captain hold their ground and counter. Earlier stages stay calm as a ramp.
+- **Server-authoritative combat** — d20 grid combat with shared turn order; the dice fly to center to roll. HP persists across stages; downed players spectate; defeat only when the whole party falls.
+- **Cutscenes** — intro (Lyra's capture) auto-plays once; stage 5 entry cinematic (Lyra dragged to the vault + the King's taunt); ending when she's freed. All skippable.
+- **World map + party vote** — clicking a stage proposes a vote; live "lean" animation as the party tilts toward the destination.
+- **DM dashboard** — one click from the landing page lands on the live session (auto-creates a code), with per-player/enemy state, an embedded spectator view of the active stage, manual stage unlock/redirect, and a skip-turn override.
+- **Audio** — looping BGM with cross-page continuity + retro 8-bit SFX. **Text chat** on every scene.
+- **Map editor** (`scenes/map-editor.html`) — move objects/enemies/challenges cell-by-cell and save back to the grid JSON.
 
-## Run locally
+## Run it (the host)
+
+Only the person hosting needs Node. Players never install anything.
 
 ```bash
 npm install
@@ -22,8 +27,41 @@ node server.js
 # → http://localhost:3000
 ```
 
-Open the URL, pick a class, and either click **Play Solo** (with the `+3 Bots` button to fill the party) or share the displayed code with friends.
+The console prints a **Network** URL (e.g. `http://192.168.x.x:3000/`). Anyone on the **same Wi-Fi** opens that:
+
+- **Players:** open the URL → enter a name + the session code → pick a class/color.
+- **DM:** open the URL → click **DM** → you land straight on the session dashboard with the code to share.
+
+First load plays the intro cutscene, then the world map (only stage 1 unlocked); progress unlocks the rest. The DM can also unlock/redirect manually.
+
+## Playing online (beyond your Wi-Fi)
+
+**GitHub Pages will _not_ work for multiplayer.** Pages only serves static files, but this game needs a live process running `node server.js` — the browser opens a WebSocket back to the same host (`new WebSocket(location.host)`) for all the real-time state. On Pages the page would load but never connect, so there'd be no lobby and no play.
+
+To let people play over the internet, run the Node server somewhere that supports **WebSockets**, then share that URL. Two easy paths:
+
+1. **Deploy the server** to a Node host — Render, Railway, Fly.io, a small VPS, etc.
+   - Build/start command: `npm install` then `npm start` (`node server.js`).
+   - The server already honors `process.env.PORT`, so most platforms work out of the box.
+   - Sessions live in memory, so a restart/sleep clears active games — fine for casual sessions; add persistence if you need it to survive restarts.
+2. **Quick public tunnel** for a one-off session — run locally and expose it:
+   ```bash
+   node server.js
+   # in another terminal:
+   ngrok http 3000          # or: cloudflared tunnel --url http://localhost:3000
+   ```
+   Share the temporary public URL. No deploy, but it's only up while your machine + tunnel run.
+
+In every case **players just open the URL** — the install/deploy is only ever on the host's side.
 
 ## Tech
 
-Three.js (renderer + OrbitControls), WebSocket (`ws`) + Express, HTMLAudio for BGM, procedural voxel scenes built from Kenney tile textures, no GLB except for the Luna Ruins stage and the world map model.
+Three.js (renderer + OrbitControls + GLTFLoader), `ws` WebSocket server + Express static hosting (one origin serves both), procedural voxel scenes from Kenney tile textures, HTMLAudio BGM + synthesized 8-bit SFX. The only GLB stages are The Vault (Luna Ruins) and the world map; everything else is voxel built from grid JSON.
+
+## Tests
+
+```bash
+node test/map-expansion.mjs   # grid validation (dims, walkable, reachable)
+node test/part-c.mjs          # stage progression / stage06 rescue (server must be running)
+node test/enemy-ai.mjs        # enemy movement + attack (server must be running)
+```
