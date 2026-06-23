@@ -32,16 +32,29 @@ if [ ! -d node_modules ]; then
   npm install || { echo "npm install failed."; pause_exit 1; }
 fi
 
-if ! command -v cloudflared >/dev/null 2>&1; then
-  if command -v brew >/dev/null 2>&1; then
-    echo "Installing cloudflared (one-time)…"
-    brew install cloudflared || { echo "Could not install cloudflared."; pause_exit 1; }
-  else
-    echo "cloudflared is required for the public link."
-    echo "Install it with:  brew install cloudflared"
-    echo "or download:      https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/"
-    pause_exit 1
+# cloudflared: prefer one already installed, then a local copy, then Homebrew,
+# then a direct download (so a host without Homebrew still works).
+CF="$(command -v cloudflared 2>/dev/null || true)"
+[ -z "$CF" ] && [ -x "./.bin/cloudflared" ] && CF="./.bin/cloudflared"
+if [ -z "$CF" ] && command -v brew >/dev/null 2>&1; then
+  echo "Installing cloudflared (one-time)…"
+  brew install cloudflared && CF="$(command -v cloudflared 2>/dev/null || true)"
+fi
+if [ -z "$CF" ]; then
+  echo "Downloading cloudflared (one-time)…"
+  case "$(uname -m)" in arm64) A=arm64 ;; *) A=amd64 ;; esac
+  mkdir -p .bin
+  if curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-${A}.tgz" -o .bin/cf.tgz \
+     && tar xzf .bin/cf.tgz -C .bin && chmod +x .bin/cloudflared; then
+    rm -f .bin/cf.tgz
+    xattr -d com.apple.quarantine .bin/cloudflared 2>/dev/null
+    CF="./.bin/cloudflared"
   fi
+fi
+if [ -z "$CF" ]; then
+  echo "Couldn't get cloudflared automatically."
+  echo "Install it manually: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/"
+  pause_exit 1
 fi
 
 # ── 2. Game server (reuse one already on :3000, else start it) ─
@@ -62,7 +75,7 @@ done
 # ── 3. Cloudflare quick tunnel (free, no account) ────────────
 echo "Opening a public tunnel…"
 : > "$TUNNEL_LOG"
-cloudflared tunnel --url http://localhost:3000 >"$TUNNEL_LOG" 2>&1 &
+"$CF" tunnel --url http://localhost:3000 >"$TUNNEL_LOG" 2>&1 &
 TUNNEL_PID=$!
 
 URL=""
