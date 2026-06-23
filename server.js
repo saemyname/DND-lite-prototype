@@ -908,7 +908,7 @@ wss.on('connection', (ws) => {
             } else {
               dmgToPlayer = -ch.failHp;
               me.hp = Math.max(0, me.hp - dmgToPlayer);
-              outcomeText = ch.failText + ` (-${dmgToPlayer} HP)`;
+              outcomeText = ch.failText + (dmgToPlayer ? ` (-${dmgToPlayer} HP)` : '');
             }
           }
 
