@@ -38,7 +38,18 @@ First load plays the intro cutscene, then the world map (only stage 1 unlocked);
 
 **GitHub Pages will _not_ work for multiplayer.** Pages only serves static files, but this game needs a live process running `node server.js` — the browser opens a WebSocket back to the same host (`new WebSocket(location.host)`) for all the real-time state. On Pages the page would load but never connect, so there'd be no lobby and no play.
 
-To let people play over the internet, run the Node server somewhere that supports **WebSockets**, then share that URL. Two easy paths:
+### Easiest: one-click host (macOS)
+
+Double-click **`host-online.command`** in Finder (or run `npm run host`). It starts the game server, opens a free Cloudflare tunnel, copies a public **invite link** to your clipboard, and opens it for you — no two-terminal dance.
+
+- First run installs `cloudflared` automatically (via Homebrew) and `npm install`s deps.
+- The link goes live ~20s after it appears; share it with anyone, anywhere.
+- It stays up while that window is open; **Ctrl-C** stops the game and kills the link.
+- No accounts, no deploy, free. (The link is temporary — a new one each run.)
+
+### Or do it manually / keep a permanent URL
+
+To run the Node server somewhere that supports **WebSockets** and share that URL:
 
 1. **Deploy the server** to a Node host — Render, Railway, Fly.io, a small VPS, etc.
    - Build/start command: `npm install` then `npm start` (`node server.js`).
