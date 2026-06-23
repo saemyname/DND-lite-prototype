@@ -272,25 +272,6 @@
   }
   #d20-label { font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: rgba(200,169,110,.4); height: 14px; font-family: 'Georgia', serif; }
 
-  /* Turn indicator */
-  #turn-indicator {
-    position: fixed;
-    top: 16px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 60;
-    padding: 9px 24px;
-    border-radius: 4px;
-    font-family: 'Georgia', serif;
-    font-size: 18px;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    background: rgba(0,0,0,.6);
-    border: 1px solid rgba(200,169,110,.3);
-    color: rgba(200,169,110,.85);
-  }
-  #turn-indicator.my-turn { color: #ffe9a0; border-color: rgba(255,233,160,.7); }
-
   /* Overlays */
   #victory, #game-over {
     position: fixed;
@@ -320,7 +301,6 @@
 
 <canvas id="canvas"></canvas>
 <div id="title">The Vault — Lyra's Prison</div>
-<div id="turn-indicator" style="display:none"></div>
 <div id="nav">
   <a href="world-map.html">← World</a>
 </div>
@@ -673,15 +653,6 @@ function placeEnemies() {
 async function applyState(snap) {
   serverState = snap;
 
-  const indicator = document.getElementById('turn-indicator');
-  if (indicator && snap.activeTurnPid) {
-    const active = snap.players.find(p => p.pid === snap.activeTurnPid);
-    const isMine = snap.activeTurnPid === myPid;
-    indicator.textContent = isMine ? 'Your turn' : `${active?.name || '...'}'s turn`;
-    indicator.classList.toggle('my-turn', isMine);
-    indicator.style.display = 'block';
-  }
-
   document.body.classList.toggle('not-my-turn', !!serverState && serverState.activeTurnPid !== myPid && !serverState.outcome && !debugBotsAreActive());
 
   const seenPids = new Set();
@@ -766,14 +737,18 @@ async function applyState(snap) {
     const _v = document.getElementById('victory'); if (_v) { _v.style.display = 'none'; _v.style.opacity = ''; }
     const _go = document.getElementById('game-over'); if (_go) _go.style.display = 'none';
     window._victoryFaded = false; window._defeatPlayed = false;
+    window._pendingOutcome = false; clearTimeout(window._outcomeTimer);
   }
-  if (snap.outcome === 'victory') {
-    document.getElementById('victory').style.display = 'flex';
-    if (!window._victoryPlayed) { window._victoryPlayed = true; playSFX('victory'); }
-  }
-  if (snap.outcome === 'defeat') {
-    document.getElementById('game-over').style.display = 'flex';
-    if (!window._defeatPlayed) { window._defeatPlayed = true; playSFX('defeat'); }
+  if (snap.outcome) {
+    const panelVisible = document.getElementById('event-panel').classList.contains('visible');
+    if (panelVisible) {
+      window._pendingOutcome = true;
+      // spectators have no Continue button — reveal after a short beat as a fallback
+      clearTimeout(window._outcomeTimer);
+      window._outcomeTimer = setTimeout(() => { if (window._pendingOutcome) { window._pendingOutcome = false; revealOutcome(); } }, 2600);
+    } else {
+      revealOutcome();
+    }
   }
 
   const turnPid = snap.activeTurnPid;
@@ -786,6 +761,17 @@ async function applyState(snap) {
   }
 
   updateHUD();
+}
+
+function revealOutcome() {
+  const snap = serverState; if (!snap) return;
+  if (snap.outcome === 'victory') {
+    document.getElementById('victory').style.display = 'flex';
+    if (!window._victoryPlayed) { window._victoryPlayed = true; playSFX('victory'); }
+  } else if (snap.outcome === 'defeat') {
+    document.getElementById('game-over').style.display = 'flex';
+    if (!window._defeatPlayed) { window._defeatPlayed = true; playSFX('defeat'); }
+  }
 }
 
 function reconcileEnemies(enemiesFromServer) {
@@ -815,11 +801,14 @@ function showMoveRange(col, row, role) {
         transparent: true,
         opacity: isSelf ? 0.25 : 0.35,
         side: THREE.DoubleSide,
+        depthTest: false,
+        depthWrite: false,
       })
     );
     plane.rotation.x = -Math.PI / 2;
     const pos = gridToWorld(tile.col, tile.row);
     plane.position.set(pos.x, floorY + 0.05, pos.z);
+    plane.renderOrder = 999;
     plane.userData = { kind: 'move', col: tile.col, row: tile.row };
     highlightGroup.add(plane);
     highlightMeshes.push(plane);
@@ -837,11 +826,14 @@ function showMoveRange(col, row, role) {
         transparent: true,
         opacity: 0.5,
         side: THREE.DoubleSide,
+        depthTest: false,
+        depthWrite: false,
       })
     );
     plane.rotation.x = -Math.PI / 2;
     const pos = gridToWorld(e.col, e.row);
     plane.position.set(pos.x, floorY + 0.06, pos.z);
+    plane.renderOrder = 999;
     plane.userData = { kind: 'attack', col: e.col, row: e.row };
     highlightGroup.add(plane);
     highlightMeshes.push(plane);
@@ -903,6 +895,16 @@ function clearHighlights() {
     const challengeEmoji = { agi: '🌉', lck: '😴', int: '🔓', str: '💪' };
     for (const ch of gridData.challenges) {
       const pos = gridToWorld(ch.col, ch.row);
+      { const cs = gridData.grid;
+        const tile = new THREE.Mesh(
+          new THREE.PlaneGeometry(cs.cellSizeX * 0.9, cs.cellSizeZ * 0.9),
+          new THREE.MeshBasicMaterial({ color: 0xffcc44, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthTest: false, depthWrite: false })
+        );
+        tile.rotation.x = -Math.PI / 2;
+        tile.position.set(pos.x, cs.floorY + 0.04, pos.z);
+        tile.renderOrder = 999;
+        scene.add(tile);
+      }
       if (ch.id === 'free_lyra') {
         const lyra = placeLyraSlime(scene, new THREE.Vector3(pos.x, gridData.grid.floorY, pos.z), 4);
         // Face the camera (no rotation) + crying expression like in the capture scene
@@ -1062,10 +1064,9 @@ function openCombatPanel(enemy, isAttacker) {
   panelEl('d20-hud').classList.remove('active');
 
   if (isAttacker) {
-    const statLabel = STAT_NAMES_C[enemy.stat] || enemy.stat.toUpperCase();
     const btn = document.createElement('button');
     btn.className = 'event-btn';
-    btn.textContent = `Attack (${statLabel})`;
+    btn.textContent = 'Attack';
     btn.addEventListener('click', () => {
       btn.disabled = true;
       panelEl('d20-hud').classList.add('active');
@@ -1090,6 +1091,7 @@ function openCombatPanel(enemy, isAttacker) {
 function closeCombatPanel() {
   panelEl('event-panel').classList.remove('visible');
   panelEl('d20-hud').classList.remove('active');
+  if (window._pendingOutcome) { window._pendingOutcome = false; clearTimeout(window._outcomeTimer); revealOutcome(); }
 }
 
 function animateCombatEvent(ev, isAttacker) {
@@ -1103,6 +1105,9 @@ function animateCombatEvent(ev, isAttacker) {
   diceShape.classList.add('rolling');
   panelEl('d20-label').textContent = '';
   panelEl('d20-hud').classList.remove('active');
+  const _hud = panelEl('d20-hud');
+  { const cx = window.innerWidth - 78, cy = window.innerHeight - 70;
+    _hud.style.transform = `translate(${window.innerWidth/2 - cx}px, ${window.innerHeight/2 - cy}px) scale(2.4)`; }
 
   let count = 0;
   const anim = setInterval(() => {
@@ -1122,6 +1127,7 @@ function animateCombatEvent(ev, isAttacker) {
       resultEl.textContent = `${ev.roll} ${modStr} (${statLabel}) = ${ev.total} vs DC ${ev.dc} — ${ev.success ? 'SUCCESS!' : 'FAILED'}`;
       resultEl.className = ev.success ? 'success' : 'fail';
       panelEl('event-outcome').textContent = ev.outcomeText;
+      setTimeout(() => { _hud.style.transform = ''; }, 1100);
       if (isAttacker) {
         panelEl('event-actions').innerHTML = '';
         const btn = document.createElement('button');
@@ -1312,6 +1318,9 @@ on('skill_check_event', (msg) => {
   diceShape.classList.add('rolling');
   panelEl('d20-label').textContent = '';
   panelEl('d20-hud').classList.remove('active');
+  const _hud = panelEl('d20-hud');
+  { const cx = window.innerWidth - 78, cy = window.innerHeight - 70;
+    _hud.style.transform = `translate(${window.innerWidth/2 - cx}px, ${window.innerHeight/2 - cy}px) scale(2.4)`; }
 
   let count = 0;
   const anim = setInterval(() => {
@@ -1330,6 +1339,7 @@ on('skill_check_event', (msg) => {
       resultEl.textContent = `${msg.roll} ${modStr} (${statLabel}) = ${msg.total} vs DC ${msg.dc} — ${msg.success ? 'SUCCESS!' : 'FAILED'}`;
       resultEl.className = msg.success ? 'success' : 'fail';
       panelEl('event-outcome').textContent = msg.outcomeText;
+      setTimeout(() => { _hud.style.transform = ''; }, 1100);
       if (isActor) {
         panelEl('event-actions').innerHTML = '';
         const btn = document.createElement('button');
