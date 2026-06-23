@@ -1247,21 +1247,48 @@ function openChoicePanel(pc, snap, isActor) {
 on('heal_event', (msg) => {
   playSFX('heal');
   const isHealer = isControlledBy(msg.healerPid);
-  const resultEl = panelEl('event-result');
-  resultEl.textContent = `Roll d6: ${msg.roll} ${msg.mod >= 0 ? '+' : ''}${msg.mod} → +${msg.restored} HP`;
-  resultEl.className = 'success';
-  panelEl('event-outcome').textContent = msg.outcomeText;
-  if (isHealer) {
-    panelEl('event-actions').innerHTML = '';
-    const btn = document.createElement('button');
-    btn.className = 'event-btn';
-    btn.textContent = 'Continue';
-    btn.addEventListener('click', () => {
-      send({ type: 'turn_continue', stageId: 'stage06', actAsPid: debugActAs() });
-      closeCombatPanel();
-    });
-    panelEl('event-actions').appendChild(btn);
-  }
+  const diceShape = panelEl('d20-dice-shape');
+  const diceValue = panelEl('d20-value');
+  diceShape.setAttribute('class', '');
+  void diceShape.offsetWidth;
+  diceShape.classList.add('rolling');
+  panelEl('d20-label').textContent = '';
+  panelEl('d20-hud').classList.remove('active');
+  const _hud = panelEl('d20-hud');
+  { const cx = window.innerWidth - 78, cy = window.innerHeight - 70;
+    _hud.style.transform = `translate(${window.innerWidth/2 - cx}px, ${window.innerHeight/2 - cy}px) scale(2.4)`; }
+
+  let count = 0;
+  const anim = setInterval(() => {
+    diceValue.textContent = Math.floor(Math.random() * 20) + 1;
+    count++;
+    if (count > 12) {
+      clearInterval(anim);
+      diceValue.textContent = msg.roll;
+      diceValue.style.color = msg.crit ? '#ffe97a' : '#9fe89f';
+      diceShape.classList.remove('rolling');
+      diceShape.classList.add('success');
+      if (msg.crit) playSFX('skill_success');
+      const resultEl = panelEl('event-result');
+      resultEl.textContent = msg.crit
+        ? `CRITICAL HEAL!  d20: 20 → +${msg.restored} HP`
+        : `Roll d20: ${msg.roll} ${msg.mod >= 0 ? '+' : ''}${msg.mod} → +${msg.restored} HP`;
+      resultEl.className = 'success';
+      panelEl('event-outcome').textContent = msg.outcomeText;
+      setTimeout(() => { _hud.style.transform = ''; }, 1100);
+      if (isHealer) {
+        panelEl('event-actions').innerHTML = '';
+        const btn = document.createElement('button');
+        btn.className = 'event-btn';
+        btn.textContent = 'Continue';
+        btn.addEventListener('click', () => {
+          send({ type: 'turn_continue', stageId: 'stage06', actAsPid: debugActAs() });
+          closeCombatPanel();
+        });
+        panelEl('event-actions').appendChild(btn);
+      }
+    }
+  }, 60);
 });
 
 function openChallengePanel(challenge, isActor) {
