@@ -1,0 +1,6 @@
+{
+  "warrior": { "basicDmg": 4, "ultimate": { "name": "Crushing Blow", "icon": "💥", "kind": "attack", "dmg": 8, "cooldown": 3 } },
+  "rogue":   { "basicDmg": 3, "ultimate": { "name": "Backstab",      "icon": "🗡️", "kind": "attack", "dmg": 6, "cooldown": 2 } },
+  "mage":    { "basicDmg": 3, "ultimate": { "name": "Arcane Blast",  "icon": "🔮", "kind": "attack", "dmg": 7, "cooldown": 3 } },
+  "cleric":  { "basicDmg": 2, "ultimate": { "name": "Healing Light", "icon": "✨", "kind": "heal",                 "cooldown": 3 } }
+}

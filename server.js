@@ -5,6 +5,10 @@ const { networkInterfaces } = require('os');
 const path = require('path');
 const fs = require('fs');
 
+// Per-class combat data (basic-attack damage + cooldown "ultimate"), shared
+// with the client (scenes fetch /data/skills.json). Single source of truth.
+const SKILLS = require('./data/skills.json');
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
@@ -186,7 +190,7 @@ function activeTurnPid(stageState) {
 function snapshotState(stageState) {
   return {
     stageId: stageState.stageId,
-    players: [...stageState.players.entries()].map(([pid, p]) => ({ pid, ...p })),
+    players: [...stageState.players.entries()].map(([pid, p]) => ({ pid, ...p, ultCD: p.ultCD ?? 0, poison: p.poison ?? null })),
     enemies: stageState.enemies,
     challenges: stageState.challenges,
     turnOrder: stageState.turnOrder,
@@ -459,6 +463,13 @@ function runEnemyPhase(st, sess) {
       target.hp = Math.max(0, target.hp - enemyAtk(e));
       syncPlayerHpToSession(sess, st, tpid);
       attack = { pid: tpid, dmg: before - target.hp, hpAfter: target.hp };
+      // Poison/burn enemies inflict a DoT on a hit (enemy-only). Refresh rather
+      // than stack: keep the longer remaining duration, never below the new one.
+      if (e.dot && target.hp > 0) {
+        const cur = target.poison?.turns || 0;
+        target.poison = { damage: e.dot.damage, turns: Math.max(cur, e.dot.turns) };
+        attack.poison = { damage: e.dot.damage, turns: target.poison.turns };
+      }
     }
     actions.push({ enemyId: e.id, from, path, attack });
   }
@@ -468,14 +479,49 @@ function runEnemyPhase(st, sess) {
   broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
 }
 
+// Start-of-turn effects for whoever is now active: tick down the ultimate
+// cooldown and apply any DoT (poison/burn). Poison can drop a player; if it
+// does, advance to the next player and apply their start-of-turn effects too
+// (each living player is processed exactly once). Emits a poison_tick event so
+// the client can animate the drain; HP changes ride the following state_update.
+function beginTurnEffects(st, sess) {
+  const ticks = [];
+  while (!st.outcome) {
+    const pid = activeTurnPid(st);
+    const p = pid ? st.players.get(pid) : null;
+    if (!p || p.hp <= 0) break; // no living active player (caller handles outcome)
+    if ((p.ultCD ?? 0) > 0) p.ultCD = p.ultCD - 1;
+    if (p.poison && p.poison.turns > 0) {
+      const before = p.hp;
+      p.hp = Math.max(0, p.hp - p.poison.damage);
+      p.poison.turns -= 1;
+      const dmg = before - p.hp;
+      const turnsLeft = p.poison.turns;
+      if (p.poison.turns <= 0) p.poison = null;
+      syncPlayerHpToSession(sess, st, pid);
+      ticks.push({ pid, dmg, hpAfter: p.hp, turnsLeft });
+      if (p.hp <= 0) {
+        pruneDeadFromStage(st);
+        if (allPlayersDead(st)) { st.outcome = 'defeat'; break; }
+        advanceTurn(st);
+        continue; // the next player's turn now begins — tick them too
+      }
+    }
+    break;
+  }
+  if (ticks.length) broadcastStage(st, sess, { type: 'poison_tick', ticks });
+}
+
 // End a player's turn. On a round boundary (wrapped back to the first living
-// player), run the monster turn first when the stage has active enemies.
+// player), run the monster turn first when the stage has active enemies. Then
+// apply start-of-turn effects (cooldowns, poison) for the new active player.
 function endTurn(st, sess) {
   const before = st.activeTurnIdx;
   advanceTurn(st);
   if (st.cfg.enemyAI && !st.outcome && st.activeTurnIdx <= before && st.enemies.some(e => e.hp > 0)) {
     runEnemyPhase(st, sess);
   }
+  beginTurnEffects(st, sess);
 }
 
 // Mirror a player's HP from stage state back to session so it persists across
@@ -535,7 +581,10 @@ function startTurnAutoCombat(stageState) {
   }
 }
 
-function rollD20() { return Math.floor(Math.random() * 20) + 1; }
+// DND_FORCE_ROLL pins every d20 to a fixed value — test-only, never set in
+// production — so integration tests can assert exact damage/heal amounts.
+const FORCED_ROLL = Number(process.env.DND_FORCE_ROLL) || 0;
+function rollD20() { return FORCED_ROLL || Math.floor(Math.random() * 20) + 1; }
 function statModifier(val) { return Math.floor((val - 10) / 2); }
 
 wss.on('connection', (ws) => {
@@ -737,6 +786,8 @@ wss.on('connection', (ws) => {
               int: Number(srcStats.int) || 10,
               lck: Number(srcStats.lck) || 10,
             },
+            ultCD: 0,      // turns until the class ultimate is ready (0 = ready)
+            poison: null,  // active DoT { damage, turns } or null (enemy-inflicted)
           });
           st.turnOrder.push(pid);
           // Mirror back to session in case msg.hp was used (first-ever entry)
@@ -801,6 +852,8 @@ wss.on('connection', (ws) => {
           const target = st.players.get(st.pendingHeal.targetPid);
           if (!target || target.hp <= 0) return;
           const healer = st.players.get(actorPid);
+          // Heal is the Cleric's ultimate — only when off cooldown.
+          if ((healer?.ultCD ?? 0) !== 0) return;
           const intVal = healer?.stats?.int ?? 10;
           // Heal never whiffs — the d20 rolls the QUALITY of the heal, not pass/fail.
           // Low rolls still heal a bit; a natural 20 crits for a big surge.
@@ -817,6 +870,7 @@ wss.on('connection', (ws) => {
           const before = target.hp;
           target.hp = Math.min(target.maxHp, target.hp + heal);
           const restored = target.hp - before;
+          healer.ultCD = SKILLS.cleric?.ultimate?.cooldown ?? 3; // heal goes on cooldown
           syncPlayerHpToSession(sess, st, st.pendingHeal.targetPid);
 
           broadcastStage(st, sess, {
@@ -911,21 +965,34 @@ wss.on('connection', (ws) => {
           const total = roll + mod;
           const success = total >= enemy.dc;
 
+          // Class combat data: basic damage per class; the "ultimate" is a
+          // stronger attack on a cooldown. The client requests it with
+          // `ultimate:true`; the server honours it only when ready, and spends
+          // the cooldown whether the strike lands or misses.
+          const skill = SKILLS[attacker?.role] || {};
+          const basicDmg = skill.basicDmg ?? 3;
+          const useUlt = msg.ultimate === true
+            && skill.ultimate?.kind === 'attack'
+            && (attacker?.ultCD ?? 0) === 0;
+
           let outcomeText, dmgToEnemy = 0, dmgToPlayer = 0;
           if (success) {
-            dmgToEnemy = 3;
+            dmgToEnemy = useUlt ? (skill.ultimate.dmg ?? basicDmg) : basicDmg;
             enemy.hp = Math.max(0, enemy.hp - dmgToEnemy);
-            outcomeText = enemy.successText + (enemy.hp > 0
+            outcomeText = (useUlt ? `${skill.ultimate.name}! ` : '') + enemy.successText + (enemy.hp > 0
               ? ` [Enemy HP: ${enemy.hp}/${enemy.maxHp}]`
               : ' — ENEMY DEFEATED!');
           } else {
             dmgToPlayer = -enemy.failHp;
             const me = st.players.get(actorPid);
             me.hp = Math.max(0, me.hp - dmgToPlayer);
-            outcomeText = enemy.failText + ` (-${dmgToPlayer} HP)`;
+            outcomeText = (useUlt ? `${skill.ultimate.name}! ` : '') + enemy.failText + ` (-${dmgToPlayer} HP)`;
             syncPlayerHpToSession(sess, st, actorPid);
             pruneDeadFromStage(st);
           }
+
+          // Spending the ultimate puts it on cooldown, hit or miss.
+          if (useUlt && attacker) attacker.ultCD = skill.ultimate.cooldown;
 
           broadcastStage(st, sess, {
             type: 'combat_event',
@@ -934,6 +1001,7 @@ wss.on('connection', (ws) => {
             stat: atkStat,
             dc: enemy.dc,
             roll, mod, total, success,
+            ultimate: useUlt,
             outcomeText,
           });
 
@@ -1011,6 +1079,7 @@ wss.on('connection', (ws) => {
           if (st.pendingCombat || st.pendingHeal || st.pendingChallenge || st.pendingChoice) return;
           const me = st.players.get(actorPid);
           if (!me || me.role !== 'cleric') return;
+          if ((me.ultCD ?? 0) !== 0) return; // heal is the Cleric's ultimate — on cooldown
           const target = st.players.get(msg.targetPid);
           if (!target || target.hp <= 0 || target.hp >= target.maxHp) return;
           if (chebyshev(me.col, me.row, target.col, target.row) > 1) return;
@@ -1048,8 +1117,9 @@ wss.on('connection', (ws) => {
           if (me.role === 'cleric') {
             // Cleric: if both attack AND heal options exist, show a choice
             // panel (attack vs heal). Multi-enemy attack and >1 ally both get
-            // their own target pickers.
-            const healables = healableAlliesAt(st, dstCol, dstRow);
+            // their own target pickers. Heal is the Cleric's ultimate, so it's
+            // only offered when off cooldown.
+            const healables = (me.ultCD ?? 0) === 0 ? healableAlliesAt(st, dstCol, dstRow) : [];
             if (enemies.length > 0 && healables.length > 0) {
               st.pendingChoice = { actorPid, attackEnemies: enemyList, healTargets: healables, step: 'pick_action' };
             } else if (enemies.length === 1) {
