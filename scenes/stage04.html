@@ -394,6 +394,8 @@ import { send, on } from '../scripts/game-socket.js';
 import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, fadeOutToken, triggerSlimeAttack, flashEnemyDamage, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
 import { colorForKey, cssColorForKey } from '../scripts/colors.js';
 import { initDebugBots, debugActAs, isControlledBy, debugBotsAreActive } from '../scripts/debug-bots.js';
+import { loadSkills, addUltimateButton, updatePoisonBadge } from '../scripts/combat-ui.js';
+loadSkills();
 import { playBGM, playSFX } from '../scripts/audio.js';
 document.addEventListener('click', (e) => {
   if (e.target.closest && e.target.closest('.event-btn')) playSFX('ui_click');
@@ -781,6 +783,7 @@ async function applyState(snap) {
     }
     if (entry) {
       updatePlayerLabelHp(entry.fillEl, p.hp, p.maxHp);
+      updatePoisonBadge(entry.label, p.poison);
       const pos = gridToWorld(p.col, p.row);
       const ud = entry.group.userData;
       if (!ud.targetPos) {
@@ -1103,6 +1106,7 @@ function openCombatPanel(enemy, isAttacker) {
       panelEl('d20-hud').addEventListener('click', onDiceClick);
     });
     panelEl('event-actions').appendChild(btn);
+    addUltimateButton({ panelEl, send, stageId: 'stage04', actAsPid: debugActAs(), me: serverState?.players?.find(p => p.pid === serverState?.pendingCombat?.attackerPid) });
   } else {
     const note = document.createElement('div');
     note.style.fontSize = '11px';

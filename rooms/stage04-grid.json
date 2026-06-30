@@ -299,13 +299,14 @@
       "maxHp": 6,
       "stat": "str",
       "dc": 10,
-      "description": "An archer pops up from cover and lets an arrow fly!",
+      "description": "An archer pops up from cover, arrow tips slick with green venom!",
       "successText": "You rush in and take them out!",
       "failText": "An arrow slips through — sharp sting.",
       "successHp": 0,
       "failHp": -3,
       "atk": 3,
-      "atkRange": 2
+      "atkRange": 2,
+      "dot": { "damage": 2, "turns": 2 }
     },
     {
       "id": "goblin4",

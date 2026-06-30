@@ -264,13 +264,14 @@
       "maxHp": 20,
       "stat": "agi",
       "dc": 10,
-      "description": "The Goblin King stands up, twin axes gleaming. \"Big mistake coming here, little ones.\"",
+      "description": "The Goblin King stands up, twin axes gleaming with poison. \"Big mistake coming here, little ones.\"",
       "successText": "A heavy hit rocks the King — he wobbles but stays up!",
       "failText": "The King strikes back fast — both axes land.",
       "successHp": 0,
       "failHp": -5,
       "atk": 5,
-      "moveRange": 0
+      "moveRange": 0,
+      "dot": { "damage": 2, "turns": 3 }
     },
     {
       "id": "minion1",
