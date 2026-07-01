@@ -395,6 +395,7 @@ import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, fadeO
 import { colorForKey, cssColorForKey } from '../scripts/colors.js';
 import { initDebugBots, debugActAs, isControlledBy, debugBotsAreActive } from '../scripts/debug-bots.js';
 import { loadSkills, renderCombatActions, updatePoisonBadge } from '../scripts/combat-ui.js';
+import { renderLevelUpPanel, updateLevelChip } from '../scripts/levelup-ui.js';
 loadSkills();
 import { playBGM, playSFX } from '../scripts/audio.js';
 document.addEventListener('click', (e) => {
@@ -751,6 +752,7 @@ function revealOutcome() {
   const snap = serverState; if (!snap) return;
   if (snap.outcome === 'victory') {
     document.getElementById('victory').style.display = 'flex';
+    renderLevelUpPanel({ victoryEl: document.getElementById('victory'), send, me: snap.players.find(p => p.pid === myPid) });
     if (!window._victoryPlayed) { window._victoryPlayed = true; playSFX('victory'); }
   } else if (snap.outcome === 'defeat') {
     document.getElementById('game-over').style.display = 'flex';
@@ -784,6 +786,7 @@ async function applyState(snap) {
     if (entry) {
       updatePlayerLabelHp(entry.fillEl, p.hp, p.maxHp);
       updatePoisonBadge(entry.label, p.poison);
+      if (p.pid === myPid) updateLevelChip(p);
       const pos = gridToWorld(p.col, p.row);
       const ud = entry.group.userData;
       if (!ud.targetPos) {
