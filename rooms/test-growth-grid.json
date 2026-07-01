@@ -1,0 +1,30 @@
+{
+  "id": "test-growth",
+  "name": "Growth Test Pen",
+  "grid": { "cols": 3, "rows": 3, "cellSizeX": 6, "cellSizeZ": 6, "originX": 0, "originZ": 0, "floorY": 0 },
+  "walkable": [
+    [1, 1, 1],
+    [1, 1, 1],
+    [1, 1, 1]
+  ],
+  "playerSpawn": [0, 1],
+  "enemyAI": false,
+  "enemies": [
+    {
+      "id": "slime",
+      "col": 1,
+      "row": 1,
+      "name": "Feeble Slime",
+      "hp": 4,
+      "maxHp": 4,
+      "stat": "str",
+      "dc": 1,
+      "atk": 1,
+      "description": "A wobbly slime blocks the pen.",
+      "successText": "Splat.",
+      "failText": "It bounces off you.",
+      "failHp": -1
+    }
+  ],
+  "challenges": []
+}

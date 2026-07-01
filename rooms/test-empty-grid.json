@@ -1,0 +1,28 @@
+{
+  "id": "test-empty",
+  "name": "Empty Test Shrine",
+  "grid": { "cols": 3, "rows": 3, "cellSizeX": 6, "cellSizeZ": 6, "originX": 0, "originZ": 0, "floorY": 0 },
+  "walkable": [
+    [1, 1, 1],
+    [1, 1, 1],
+    [1, 1, 1]
+  ],
+  "playerSpawn": [0, 1],
+  "enemies": [],
+  "challenges": [
+    {
+      "id": "shrine",
+      "col": 1,
+      "row": 1,
+      "name": "Quiet Shrine",
+      "stat": "lck",
+      "dc": 0,
+      "auto": true,
+      "successHp": 0,
+      "failHp": 0,
+      "description": "A quiet shrine hums softly.",
+      "successText": "You touch the shrine. Peace.",
+      "failText": ""
+    }
+  ]
+}

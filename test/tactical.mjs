@@ -67,7 +67,7 @@ async function move(p, c, r) { p._m.length = 0; p.send(J({ type: 'action_request
     const ev = await attack(p, false);
     const after = dummy((await gotStage(p)).state).hp;
     ck(ev?.success === true, 'warrior basic attack hits (forced roll 20)');
-    ck(before - after === 4, `warrior basic deals 4 (was ${before} → ${after})`);
+    ck(before - after === 5, `warrior basic deals 5 = 4 + stat bonus (was ${before} → ${after})`);
   }
   {
     const { p } = await freshPlayer('cleric');
@@ -89,7 +89,7 @@ async function move(p, c, r) { p._m.length = 0; p.send(J({ type: 'action_request
     let snap = (await gotStage(p)).state;
     let after = dummy(snap).hp;
     ck(ev?.ultimate === true, 'ultimate accepted when ready');
-    ck(before - after === 8, `ultimate deals 8 > basic 4 (was ${before} → ${after})`);
+    ck(before - after === 9, `ultimate deals 9 > basic 5 (was ${before} → ${after})`);
     ck(myPlayer(snap, pid).ultCD === 3, `ultimate put on cooldown (ultCD=${myPlayer(snap, pid).ultCD})`);
 
     // next turn: cooldown decremented to 2, ultimate must be refused → basic
@@ -99,7 +99,7 @@ async function move(p, c, r) { p._m.length = 0; p.send(J({ type: 'action_request
     ev = await attack(p, true);
     after = dummy((await gotStage(p)).state).hp;
     ck(ev?.ultimate === false, 'ultimate refused while on cooldown');
-    ck(before - after === 4, `falls back to basic 4 while cooling down (was ${before} → ${after})`);
+    ck(before - after === 5, `falls back to basic 5 while cooling down (was ${before} → ${after})`);
 
     // burn turns until the cooldown clears, then it works again
     await cont(p);        // ultCD 2 → 1
@@ -110,7 +110,7 @@ async function move(p, c, r) { p._m.length = 0; p.send(J({ type: 'action_request
     before = dummy((await gotStage(p)).state).hp;
     ev = await attack(p, true);
     after = dummy((await gotStage(p)).state).hp;
-    ck(ev?.ultimate === true && before - after === 8, 'ultimate ready again once cooldown elapsed');
+    ck(ev?.ultimate === true && before - after === 9, 'ultimate ready again once cooldown elapsed');
   }
 
   // ── T3: enemy poison applies on a hit, ticks, and expires ─────────────────

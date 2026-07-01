@@ -108,14 +108,24 @@ function broadcastVoteState(sess) {
   broadcastPlayers(sess, voteStateMsg(sess.activeVote));
 }
 
-function makeStageState(stageId) {
+function makeStageState(stageId, lvl = 1) {
   const cfg = loadStageConfig(stageId);
+  // Enemies scale with party level at build time (identity at level 1) so the
+  // difficulty curve survives stat growth. dc stays static — accuracy growth
+  // stays rewarding.
+  const hpMul = 1 + ENEMY_HP_SCALE_PER_LEVEL * (lvl - 1);
+  const atkBonus = Math.floor((lvl - 1) / 2);
   return {
     stageId,
     cfg,
     players: new Map(),
     deadSpectatorPids: new Set(), // pids of players who died this stage; receive broadcasts but don't render/act
-    enemies: (cfg.enemies || []).map(e => ({...e})),
+    enemies: (cfg.enemies || []).map(e => ({
+      ...e,
+      hp: Math.round(e.hp * hpMul),
+      maxHp: Math.round((e.maxHp ?? e.hp) * hpMul),
+      ...(e.atk != null ? { atk: e.atk + atkBonus } : {}),
+    })),
     challenges: (cfg.challenges || []).map(c => ({...c, cleared: false})),
     turnOrder: [],
     activeTurnIdx: 0,
@@ -190,7 +200,7 @@ function activeTurnPid(stageState) {
 function snapshotState(stageState) {
   return {
     stageId: stageState.stageId,
-    players: [...stageState.players.entries()].map(([pid, p]) => ({ pid, ...p, ultCD: p.ultCD ?? 0, poison: p.poison ?? null })),
+    players: [...stageState.players.entries()].map(([pid, p]) => ({ pid, ...p, ultCD: p.ultCD ?? 0, poison: p.poison ?? null, level: p.level ?? 1, unspentPoints: p.unspentPoints ?? 0 })),
     enemies: stageState.enemies,
     challenges: stageState.challenges,
     turnOrder: stageState.turnOrder,
@@ -250,6 +260,8 @@ function firstFreeColor(sess) {
 }
 
 // Set a player entry's role and derive stats + HP from ROLE_STATS.
+// Growth fields (level / unspent stat points) are initialized here but never
+// reset — a lobby class change keeps them (they're 0/1 in the lobby anyway).
 function applyRoleToPlayer(p, roleName) {
   const r = ROLE_STATS[roleName] ? roleName : 'warrior';
   const st = ROLE_STATS[r];
@@ -257,6 +269,30 @@ function applyRoleToPlayer(p, roleName) {
   p.stats = { str: st.str, agi: st.agi, int: st.int, lck: st.lck };
   p.hp = st.hp;
   p.maxHp = st.hp;
+  p.level = p.level ?? 1;
+  p.unspentPoints = p.unspentPoints ?? 0;
+}
+
+// ── Character growth (Phase 2) ─────────────────────────────────────────────
+const POINTS_PER_LEVEL = 3;
+const HP_PER_POINT = 2;
+// Enemy scaling per party level so growth doesn't invert the difficulty curve:
+// identity at level 1, then +15% hp and +1 atk per 2 levels.
+const ENEMY_HP_SCALE_PER_LEVEL = 0.15;
+const partyLevel = (sess) =>
+  Math.max(1, ...[...sess.players.values()].map(p => p.level || 1));
+
+// Clearing a combat stage levels the WHOLE party (kill-agnostic — the Cleric
+// grows as fast as the Warrior) and banks stat points for each player to spend
+// individually. Enemy-less stages (the stage06 finale) grant nothing.
+function grantLevelUp(sess, st) {
+  if (!st.enemies.length) return;
+  for (const [pid, p] of sess.players) {
+    p.level = (p.level || 1) + 1;
+    p.unspentPoints = (p.unspentPoints || 0) + POINTS_PER_LEVEL;
+    const stp = st.players.get(pid);
+    if (stp) { stp.level = p.level; stp.unspentPoints = p.unspentPoints; }
+  }
 }
 
 function buildLobbyState(sess) {
@@ -734,7 +770,7 @@ wss.on('connection', (ws) => {
         // re-entry so it can be replayed, instead of re-showing the old overlay.
         if (st && st.outcome) { sess.stages.delete(stageId); st = undefined; }
         if (!st) {
-          try { st = makeStageState(stageId); }
+          try { st = makeStageState(stageId, partyLevel(sess)); }
           catch (e) { console.error('[enter_stage] config load fail:', stageId, e.message); return; }
           sess.stages.set(stageId, st);
         }
@@ -788,6 +824,8 @@ wss.on('connection', (ws) => {
             },
             ultCD: 0,      // turns until the class ultimate is ready (0 = ready)
             poison: null,  // active DoT { damage, turns } or null (enemy-inflicted)
+            level: player?.level ?? 1,
+            unspentPoints: player?.unspentPoints ?? 0,
           });
           st.turnOrder.push(pid);
           // Mirror back to session in case msg.hp was used (first-ever entry)
@@ -822,7 +860,7 @@ wss.on('connection', (ws) => {
         if (!msg.stageId || typeof msg.stageId !== 'string') return;
         let st = observeSess.stages.get(msg.stageId);
         if (!st) {
-          try { st = makeStageState(msg.stageId); }
+          try { st = makeStageState(msg.stageId, partyLevel(observeSess)); }
           catch (e) { console.error('[dm_observe] config load fail:', msg.stageId, e.message); return; }
           observeSess.stages.set(msg.stageId, st);
         }
@@ -946,6 +984,7 @@ wss.on('connection', (ws) => {
           } else if (st.enemies.every(e => e.hp <= 0) && st.challenges.every(c => c.cleared || c.optional)) {
             st.outcome = 'victory';
             unlockNextStage(sess, st.stageId);
+            grantLevelUp(sess, st);
           }
 
           broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
@@ -970,14 +1009,16 @@ wss.on('connection', (ws) => {
           // `ultimate:true`; the server honours it only when ready, and spends
           // the cooldown whether the strike lands or misses.
           const skill = SKILLS[attacker?.role] || {};
-          const basicDmg = skill.basicDmg ?? 3;
+          // Growth: damage rises with the attack stat, not just accuracy.
+          const dmgBonus = Math.max(0, Math.floor(mod / 2));
+          const basicDmg = (skill.basicDmg ?? 3) + dmgBonus;
           const useUlt = msg.ultimate === true
             && skill.ultimate?.kind === 'attack'
             && (attacker?.ultCD ?? 0) === 0;
 
           let outcomeText, dmgToEnemy = 0, dmgToPlayer = 0;
           if (success) {
-            dmgToEnemy = useUlt ? (skill.ultimate.dmg ?? basicDmg) : basicDmg;
+            dmgToEnemy = useUlt ? ((skill.ultimate.dmg ?? skill.basicDmg ?? 3) + dmgBonus) : basicDmg;
             enemy.hp = Math.max(0, enemy.hp - dmgToEnemy);
             outcomeText = (useUlt ? `${skill.ultimate.name}! ` : '') + enemy.successText + (enemy.hp > 0
               ? ` [Enemy HP: ${enemy.hp}/${enemy.maxHp}]`
@@ -1011,6 +1052,7 @@ wss.on('connection', (ws) => {
           } else if (st.enemies.every(e => e.hp <= 0) && st.challenges.every(c => c.cleared || c.optional)) {
             st.outcome = 'victory';
             unlockNextStage(sess, st.stageId);
+            grantLevelUp(sess, st);
           }
 
           broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
@@ -1205,6 +1247,40 @@ wss.on('connection', (ws) => {
           p.color = msg.color; // duplicates allowed — players may share a color
         }
         broadcastLobbyState(sess);
+        break;
+      }
+
+      case 'allocate_stats': {
+        // Level-up: spend banked stat points. Each player allocates their own;
+        // partial spends allowed (leftovers stay banked). Server-authoritative:
+        // reject over-spends, negatives, and non-integers outright.
+        if (role !== 'player' || !sess || !pid) return;
+        const p = sess.players.get(pid);
+        if (!p) return;
+        const alloc = msg.alloc || {};
+        const keys = ['str', 'agi', 'int', 'lck', 'hp'];
+        const vals = keys.map(k => alloc[k] ?? 0);
+        if (vals.some(v => !Number.isInteger(v) || v < 0)) return;
+        const total = vals.reduce((a, b) => a + b, 0);
+        if (total < 1 || total > (p.unspentPoints || 0)) return;
+        for (const k of ['str', 'agi', 'int', 'lck']) p.stats[k] += alloc[k] ?? 0;
+        const hpPts = alloc.hp ?? 0;
+        p.maxHp += hpPts * HP_PER_POINT;
+        p.hp = Math.min(p.maxHp, p.hp + hpPts * HP_PER_POINT);
+        p.unspentPoints -= total;
+        // Mirror into any live stage entry and let everyone see the new sheet.
+        for (const st of sess.stages.values()) {
+          const stp = st.players.get(pid);
+          if (!stp) continue;
+          stp.stats = { ...p.stats };
+          stp.maxHp = p.maxHp;
+          stp.hp = Math.min(stp.maxHp, stp.hp + hpPts * HP_PER_POINT);
+          stp.unspentPoints = p.unspentPoints;
+          stp.level = p.level;
+          broadcastStage(st, sess, { type: 'state_update', state: snapshotState(st) });
+        }
+        send(ws, { type: 'stats_allocated', stats: { ...p.stats }, hp: p.hp, maxHp: p.maxHp, unspentPoints: p.unspentPoints, level: p.level });
+        console.log(`[allocate_stats] session=${code} pid=${pid} alloc=${JSON.stringify(alloc)} → remaining=${p.unspentPoints}`);
         break;
       }
 
