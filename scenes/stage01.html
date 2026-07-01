@@ -394,7 +394,7 @@ import { send, on } from '../scripts/game-socket.js';
 import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, fadeOutToken, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
 import { colorForKey, cssColorForKey } from '../scripts/colors.js';
 import { initDebugBots, debugActAs, isControlledBy, debugBotsAreActive } from '../scripts/debug-bots.js';
-import { loadSkills, addUltimateButton, updatePoisonBadge } from '../scripts/combat-ui.js';
+import { loadSkills, renderCombatActions, updatePoisonBadge } from '../scripts/combat-ui.js';
 loadSkills();
 import { playBGM, playSFX } from '../scripts/audio.js';
 document.addEventListener('click', (e) => {
@@ -1023,29 +1023,8 @@ function openCombatPanel(enemy, isAttacker) {
   panelEl('d20-dice-shape').setAttribute('class', '');
   panelEl('d20-hud').classList.remove('active');
 
-  if (isAttacker) {
-    const btn = document.createElement('button');
-    btn.className = 'event-btn';
-    btn.textContent = 'Attack';
-    btn.addEventListener('click', () => {
-      btn.disabled = true;
-      panelEl('d20-hud').classList.add('active');
-      panelEl('d20-label').textContent = 'Roll d20';
-      const onDiceClick = () => {
-        panelEl('d20-hud').removeEventListener('click', onDiceClick);
-        send({ type: 'action_request', stageId: 'stage01', kind: 'attack', actAsPid: debugActAs() });
-      };
-      panelEl('d20-hud').addEventListener('click', onDiceClick);
-    });
-    panelEl('event-actions').appendChild(btn);
-    addUltimateButton({ panelEl, send, stageId: 'stage01', actAsPid: debugActAs(), me: serverState?.players?.find(p => p.pid === serverState?.pendingCombat?.attackerPid) });
-  } else {
-    const note = document.createElement('div');
-    note.style.fontSize = '11px';
-    note.style.opacity = '0.5';
-    note.textContent = 'Watching...';
-    panelEl('event-actions').appendChild(note);
-  }
+  renderCombatActions({ panelEl, send, stageId: 'stage01', actAsPid: debugActAs(), isAttacker,
+    me: serverState?.players?.find(p => p.pid === serverState?.pendingCombat?.attackerPid) });
   panelEl('event-panel').classList.add('visible');
 }
 
