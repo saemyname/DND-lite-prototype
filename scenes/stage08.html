@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>D&D Lite — Stage 06</title>
+<title>D&D Lite — Stage 08</title>
 
 <script type="importmap">
 {
@@ -300,7 +300,7 @@
 <body>
 
 <canvas id="canvas"></canvas>
-<div id="title">The Vault — Lyra's Prison</div>
+<div id="title">Sunken Ruins</div>
 <div id="nav">
   <a href="world-map.html">← World</a>
 </div>
@@ -373,9 +373,9 @@
 
 <!-- Victory -->
 <div id="victory">
-  <div class="overlay-title">LYRA RESCUED</div>
-  <div class="overlay-sub">Lyra is free — but she trembles: "The King served something darker… and it knows me now."</div>
-  <button class="event-btn" onclick="window.location.href='world-map.html'">Continue →</button>
+  <div class="overlay-title">VICTORY</div>
+  <div class="overlay-sub">The ruins fall silent. Only the Keep remains.</div>
+  <button class="event-btn" onclick="window.location.href='world-map.html'">Return to World Map</button>
 </div>
 
 <!-- Game Over -->
@@ -393,13 +393,15 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { send, on } from '../scripts/game-socket.js';
 import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, fadeOutToken, triggerSlimeAttack, flashEnemyDamage, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
 import { colorForKey, cssColorForKey } from '../scripts/colors.js';
-import { placeLyraSlime, placeWell } from '../scripts/voxel-village.js';
 import { initDebugBots, debugActAs, isControlledBy, debugBotsAreActive } from '../scripts/debug-bots.js';
+import { loadSkills, renderCombatActions, updatePoisonBadge } from '../scripts/combat-ui.js';
+import { renderLevelUpPanel, updateLevelChip } from '../scripts/levelup-ui.js';
+loadSkills();
 import { playBGM, playSFX } from '../scripts/audio.js';
 document.addEventListener('click', (e) => {
   if (e.target.closest && e.target.closest('.event-btn')) playSFX('ui_click');
 }, true);
-playBGM('boss');
+playBGM('adventure');
 import { loadBlockMaterials } from '../scripts/voxel-textures.js';
 
 // ── Grid / combat state (module scope) ──
@@ -464,11 +466,12 @@ renderer.toneMapping = THREE.NoToneMapping;
 const scene = new THREE.Scene();
 scene.add(highlightGroup);
 scene.background = new THREE.Color(0x050210);
+scene.fog = new THREE.Fog(0x0a0518, 70, 280);
 
 // ── Camera ──
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 500);
-const BASE_CAM_POS = new THREE.Vector3(0, 34, 34);
-const LOOK_TARGET  = new THREE.Vector3(0, 0, -24);
+const BASE_CAM_POS = new THREE.Vector3(0, 30, 30);
+const LOOK_TARGET  = new THREE.Vector3(0, 0, -21);
 
 // ── Lighting ──
 scene.add(new THREE.AmbientLight(0xfff0d0, 0.5));
@@ -649,6 +652,114 @@ function placeEnemies() {
   });
 }
 
+function buildOutpostScene() {
+  const { cols, rows, cellSizeX, cellSizeZ, originX, originZ, floorY } = gridData.grid;
+  const walkable = gridData.walkable;
+
+  const block = (w, h, d, blockName) => new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    blockMats[`${blockName}_side`] || blockMats[`${blockName}_top`]
+  );
+
+  // Floor tiles
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = originX + c * cellSizeX + cellSizeX / 2;
+      const z = originZ + r * cellSizeZ + cellSizeZ / 2;
+      const blockName = (r + c) % 2 === 0 ? 'stone_floor' : 'gravel_stone';
+      const tile = new THREE.Mesh(
+        new THREE.BoxGeometry(cellSizeX, 0.4, cellSizeZ),
+        blockMats[`${blockName}_top`]
+      );
+      tile.position.set(x, floorY - 0.2, z);
+      tile.receiveShadow = true;
+      scene.add(tile);
+
+      const isFrontCorner = r === rows - 1 && (c === 0 || c === cols - 1);
+      if (walkable[r][c] === 0 && !isFrontCorner) {
+        const pillar = block(cellSizeX * 0.7, 4.5, cellSizeZ * 0.7, 'stone_wall');
+        pillar.position.set(x, floorY + 2.25, z);
+        pillar.castShadow = true;
+        scene.add(pillar);
+      }
+    }
+  }
+
+  // Perimeter walls
+  const wallH = 5;
+  const wallT = 1.2;
+  const totalX = cols * cellSizeX;
+  const totalZ = rows * cellSizeZ;
+  const back = block(totalX + wallT * 2, wallH, wallT, 'wood');
+  back.position.set(originX + totalX / 2, floorY + wallH / 2, originZ - wallT / 2);
+  back.castShadow = true;
+  scene.add(back);
+  const left = block(wallT, wallH, totalZ, 'wood');
+  left.position.set(originX - wallT / 2, floorY + wallH / 2, originZ + totalZ / 2);
+  left.castShadow = true;
+  scene.add(left);
+  const right = block(wallT, wallH, totalZ, 'wood');
+  right.position.set(originX + totalX + wallT / 2, floorY + wallH / 2, originZ + totalZ / 2);
+  right.castShadow = true;
+  scene.add(right);
+  const gateW = cellSizeX * 4;
+  const sideW = (totalX - gateW) / 2;
+  const frontL = block(sideW, wallH, wallT, 'wood');
+  frontL.position.set(originX + sideW / 2, floorY + wallH / 2, originZ + totalZ + wallT / 2);
+  frontL.castShadow = true;
+  scene.add(frontL);
+  const frontR = block(sideW, wallH, wallT, 'wood');
+  frontR.position.set(originX + totalX - sideW / 2, floorY + wallH / 2, originZ + totalZ + wallT / 2);
+  frontR.castShadow = true;
+  scene.add(frontR);
+
+  // Watchtowers at front corners (cells [0,6] and [5,6])
+  const towerH = 9;
+  const towerS = cellSizeX * 0.9;
+  const towerL = block(towerS, towerH, towerS, 'dark');
+  towerL.position.set(originX + cellSizeX / 2, floorY + towerH / 2, originZ + totalZ - cellSizeZ / 2);
+  towerL.castShadow = true;
+  scene.add(towerL);
+  const towerR = block(towerS, towerH, towerS, 'dark');
+  towerR.position.set(originX + totalX - cellSizeX / 2, floorY + towerH / 2, originZ + totalZ - cellSizeZ / 2);
+  towerR.castShadow = true;
+  scene.add(towerR);
+
+  // Throne block behind captain
+  const throne = block(cellSizeX * 1.5, 3, cellSizeZ * 0.6, 'dark');
+  throne.position.set(originX + totalX / 2, floorY + 1.5, originZ + cellSizeZ * 0.3);
+  throne.castShadow = true;
+  scene.add(throne);
+
+  // Goblin banners flanking throne
+  for (const dx of [-cellSizeX * 1.5, cellSizeX * 1.5]) {
+    const banner = block(2, 3.5, 0.3, 'cotton_red');
+    banner.position.set(originX + totalX / 2 + dx, floorY + 4, originZ + 0.4);
+    scene.add(banner);
+  }
+
+  // Torch flames + lights atop watchtowers
+  for (const t of [towerL, towerR]) {
+    const flame = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), blockMats['lava_top']);
+    flame.position.set(t.position.x, floorY + towerH + 0.4, t.position.z);
+    scene.add(flame);
+    const torch = new THREE.PointLight(0xff8844, 2.5, 30, 1.5);
+    torch.position.set(flame.position.x, flame.position.y + 0.4, flame.position.z);
+    scene.add(torch);
+  }
+}
+
+function revealOutcome() {
+  const snap = serverState; if (!snap) return;
+  if (snap.outcome === 'victory') {
+    document.getElementById('victory').style.display = 'flex';
+    renderLevelUpPanel({ victoryEl: document.getElementById('victory'), send, me: snap.players.find(p => p.pid === myPid) });
+    if (!window._victoryPlayed) { window._victoryPlayed = true; playSFX('victory'); }
+  } else if (snap.outcome === 'defeat') {
+    document.getElementById('game-over').style.display = 'flex';
+    if (!window._defeatPlayed) { window._defeatPlayed = true; playSFX('defeat'); }
+  }
+}
 
 async function applyState(snap) {
   serverState = snap;
@@ -675,6 +786,8 @@ async function applyState(snap) {
     }
     if (entry) {
       updatePlayerLabelHp(entry.fillEl, p.hp, p.maxHp);
+      updatePoisonBadge(entry.label, p.poison);
+      if (p.pid === myPid) updateLevelChip(p);
       const pos = gridToWorld(p.col, p.row);
       const ud = entry.group.userData;
       if (!ud.targetPos) {
@@ -703,12 +816,9 @@ async function applyState(snap) {
 
   reconcileEnemies(snap.enemies);
 
-  // Action panel sync — pendingKey lets us re-render across kind transitions
-  // (e.g. pendingChoice → pendingHeal); without it the stale panel stuck.
-  const pendingKey = snap.pendingCombat    ? `combat:${snap.pendingCombat.enemyId}` :
-                     snap.pendingHeal      ? `heal:${snap.pendingHeal.healerPid}>${snap.pendingHeal.targetPid}` :
-                     snap.pendingChallenge ? `chal:${snap.pendingChallenge.challengeId}` :
-                     snap.pendingChoice    ? `choice:${snap.pendingChoice.step}:${snap.pendingChoice.actorPid}` :
+  const pendingKey = snap.pendingCombat ? `combat:${snap.pendingCombat.enemyId}` :
+                     snap.pendingHeal   ? `heal:${snap.pendingHeal.healerPid}>${snap.pendingHeal.targetPid}` :
+                     snap.pendingChoice ? `choice:${snap.pendingChoice.step}:${snap.pendingChoice.actorPid}` :
                      null;
   const panelOpen = document.getElementById('event-panel').classList.contains('visible');
   const needsReopen = pendingKey && pendingKey !== lastPendingKey;
@@ -720,10 +830,6 @@ async function applyState(snap) {
     const target = snap.players.find(p => p.pid === snap.pendingHeal.targetPid);
     const isHealer = isControlledBy(snap.pendingHeal.healerPid);
     if (target && (!panelOpen || needsReopen)) openHealPanel(target, isHealer);
-  } else if (snap.pendingChallenge && snap.challenges) {
-    const challenge = snap.challenges.find(c => c.id === snap.pendingChallenge.challengeId);
-    const isActor = isControlledBy(snap.pendingChallenge.actorPid);
-    if (challenge && (!panelOpen || needsReopen)) openChallengePanel(challenge, isActor);
   } else if (snap.pendingChoice) {
     const isActor = isControlledBy(snap.pendingChoice.actorPid);
     openChoicePanel(snap.pendingChoice, snap, isActor);
@@ -754,24 +860,13 @@ async function applyState(snap) {
   const turnPid = snap.activeTurnPid;
   const turnPlayer = snap.players.find(p => p.pid === turnPid);
   const canDriveTurn = turnPid === myPid || debugBotsAreActive();
-  if (turnPlayer && canDriveTurn && !snap.pendingCombat && !snap.pendingHeal && !snap.pendingChallenge && !snap.outcome) {
+  if (turnPlayer && canDriveTurn && !snap.pendingCombat && !snap.pendingHeal && !snap.outcome) {
     showMoveRange(turnPlayer.col, turnPlayer.row, turnPlayer.role);
   } else {
     clearHighlights();
   }
 
   updateHUD();
-}
-
-function revealOutcome() {
-  const snap = serverState; if (!snap) return;
-  if (snap.outcome === 'victory') {
-    document.getElementById('victory').style.display = 'flex';
-    if (!window._victoryPlayed) { window._victoryPlayed = true; playSFX('victory'); }
-  } else if (snap.outcome === 'defeat') {
-    document.getElementById('game-over').style.display = 'flex';
-    if (!window._defeatPlayed) { window._defeatPlayed = true; playSFX('defeat'); }
-  }
 }
 
 function reconcileEnemies(enemiesFromServer) {
@@ -801,14 +896,11 @@ function showMoveRange(col, row, role) {
         transparent: true,
         opacity: isSelf ? 0.25 : 0.35,
         side: THREE.DoubleSide,
-        depthTest: false,
-        depthWrite: false,
       })
     );
     plane.rotation.x = -Math.PI / 2;
     const pos = gridToWorld(tile.col, tile.row);
     plane.position.set(pos.x, floorY + 0.05, pos.z);
-    plane.renderOrder = 999;
     plane.userData = { kind: 'move', col: tile.col, row: tile.row };
     highlightGroup.add(plane);
     highlightMeshes.push(plane);
@@ -826,14 +918,11 @@ function showMoveRange(col, row, role) {
         transparent: true,
         opacity: 0.5,
         side: THREE.DoubleSide,
-        depthTest: false,
-        depthWrite: false,
       })
     );
     plane.rotation.x = -Math.PI / 2;
     const pos = gridToWorld(e.col, e.row);
     plane.position.set(pos.x, floorY + 0.06, pos.z);
-    plane.renderOrder = 999;
     plane.userData = { kind: 'attack', col: e.col, row: e.row };
     highlightGroup.add(plane);
     highlightMeshes.push(plane);
@@ -847,13 +936,11 @@ function clearHighlights() {
 
 // Async grid + state setup
 (async () => {
-  const resp = await fetch('../rooms/stage06-grid.json');
+  const resp = await fetch('../rooms/stage08-grid.json');
   gridData = await resp.json();
 
-  // Load the Luna Ruins GLB environment (reused from stage02)
-  await new Promise((resolve, reject) =>
-    gltfLoader.load('../Assets/dnd_luna_ruins_02a.glb', (gltf) => { placeModel(gltf.scene, 'luna_ruins'); resolve(); }, undefined, reject)
-  );
+  // Build the voxel outpost scene procedurally — depends on gridData
+  buildOutpostScene();
 
   // Larger map: keep the camera's angle/distance (characters stay the same size),
   // frame the party spawn at start, and let players pan within the map bounds.
@@ -889,61 +976,6 @@ function clearHighlights() {
   floorPlane.position.y = gridData.grid.floorY;
   scene.add(floorPlane);
 
-  // Render visible challenge markers — free_lyra uses the actual Lyra slime
-  // (same look as the intro cutscene); other challenges fall back to emoji sprites.
-  if (gridData.challenges) {
-    const challengeEmoji = { agi: '🌉', lck: '😴', int: '🔓', str: '💪' };
-    for (const ch of gridData.challenges) {
-      const pos = gridToWorld(ch.col, ch.row);
-      { const cs = gridData.grid;
-        const tile = new THREE.Mesh(
-          new THREE.PlaneGeometry(cs.cellSizeX * 0.9, cs.cellSizeZ * 0.9),
-          new THREE.MeshBasicMaterial({ color: 0xffcc44, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthTest: false, depthWrite: false })
-        );
-        tile.rotation.x = -Math.PI / 2;
-        tile.position.set(pos.x, cs.floorY + 0.04, pos.z);
-        tile.renderOrder = 999;
-        scene.add(tile);
-      }
-      if (ch.id === 'free_lyra') {
-        const lyra = placeLyraSlime(scene, new THREE.Vector3(pos.x, gridData.grid.floorY, pos.z), 4);
-        // Face the camera (no rotation) + crying expression like in the capture scene
-        lyra.userData.crying = true;
-        (lyra.userData.normalEyes || []).forEach(e => e.visible = false);
-        (lyra.userData.cryEyes    || []).forEach(e => e.visible = true);
-        // Make the teardrops permanently visible (no animation loop here — stage scene
-        // doesn't tick Lyra). Set them to a static drip pose.
-        (lyra.userData.tears || []).forEach(tear => {
-          tear.material.opacity = 0.9;
-          tear.position.y = 0.27;
-        });
-        continue;
-      }
-      if (ch.successHp > 0) { // healing node → a real well (like the intro village), not an emoji
-        placeWell(scene, blockMats, pos.x, pos.z, gridData.grid.floorY);
-        continue;
-      }
-      const emoji = challengeEmoji[ch.stat] || '❓';
-      const canvas = document.createElement('canvas');
-      canvas.width = 256; canvas.height = 256;
-      const ctx = canvas.getContext('2d');
-      ctx.font = '180px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(emoji, 128, 140);
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.minFilter = THREE.LinearFilter;
-      texture.magFilter = THREE.LinearFilter;
-      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true }));
-      const height = 2.5;
-      sprite.scale.set(height, height, 1);
-      sprite.position.y = height / 2;
-      const group = new THREE.Group();
-      group.add(sprite);
-      group.position.set(pos.x, gridData.grid.floorY + 1.0, pos.z);
-      scene.add(group);
-    }
-  }
-
   placeEnemies();
 
   on('state_update', (msg) => {
@@ -956,12 +988,12 @@ function clearHighlights() {
   if (isSpectator) {
     document.body.classList.add('spectator');
     const sessionCode = urlParams.get('code');
-    if (sessionCode) send({ type: 'dm_observe', code: sessionCode, stageId: 'stage06' });
+    if (sessionCode) send({ type: 'dm_observe', code: sessionCode, stageId: 'stage08' });
   } else if (hasSession) {
     const localChar = JSON.parse(localStorage.getItem('dndlite-character') || '{"hp":10,"maxHp":10}');
     send({
       type: 'enter_stage',
-      stageId: 'stage06',
+      stageId: 'stage08',
       hp: localChar.hp ?? 10,
       maxHp: localChar.maxHp ?? localChar.hp ?? 10,
       stats: { str: localChar.str, agi: localChar.agi, int: localChar.int, lck: localChar.lck },
@@ -1031,9 +1063,9 @@ canvas.addEventListener('click', (e) => {
       if (!me) return;
       const atkRange = ATTACK_RANGE_BY_ROLE[me.role] || 1;
       if (!inAtkRange(me.col, me.row, col, row, atkRange)) return;
-      send({ type: 'action_request', stageId: 'stage06', kind: 'move', col: me.col, row: me.row, actAsPid: debugActAs() });
+      send({ type: 'action_request', stageId: 'stage08', kind: 'move', col: me.col, row: me.row, actAsPid: debugActAs() });
     } else {
-      send({ type: 'action_request', stageId: 'stage06', kind: 'move', col, row, actAsPid: debugActAs() });
+      send({ type: 'action_request', stageId: 'stage08', kind: 'move', col, row, actAsPid: debugActAs() });
     }
   }
 });
@@ -1063,28 +1095,8 @@ function openCombatPanel(enemy, isAttacker) {
   panelEl('d20-dice-shape').setAttribute('class', '');
   panelEl('d20-hud').classList.remove('active');
 
-  if (isAttacker) {
-    const btn = document.createElement('button');
-    btn.className = 'event-btn';
-    btn.textContent = 'Attack';
-    btn.addEventListener('click', () => {
-      btn.disabled = true;
-      panelEl('d20-hud').classList.add('active');
-      panelEl('d20-label').textContent = 'Roll d20';
-      const onDiceClick = () => {
-        panelEl('d20-hud').removeEventListener('click', onDiceClick);
-        send({ type: 'action_request', stageId: 'stage06', kind: 'attack', actAsPid: debugActAs() });
-      };
-      panelEl('d20-hud').addEventListener('click', onDiceClick);
-    });
-    panelEl('event-actions').appendChild(btn);
-  } else {
-    const note = document.createElement('div');
-    note.style.fontSize = '11px';
-    note.style.opacity = '0.5';
-    note.textContent = 'Watching...';
-    panelEl('event-actions').appendChild(note);
-  }
+  renderCombatActions({ panelEl, send, stageId: 'stage08', actAsPid: debugActAs(), isAttacker,
+    me: serverState?.players?.find(p => p.pid === serverState?.pendingCombat?.attackerPid) });
   panelEl('event-panel').classList.add('visible');
 }
 
@@ -1134,7 +1146,7 @@ function animateCombatEvent(ev, isAttacker) {
         btn.className = 'event-btn';
         btn.textContent = 'Continue';
         btn.addEventListener('click', () => {
-          send({ type: 'turn_continue', stageId: 'stage06', actAsPid: debugActAs() });
+          send({ type: 'turn_continue', stageId: 'stage08', actAsPid: debugActAs() });
           closeCombatPanel();
         });
         panelEl('event-actions').appendChild(btn);
@@ -1153,6 +1165,64 @@ on('combat_event', (msg) => {
   const attackerEntry = playerTokens.get(msg.attackerPid);
   if (attackerEntry) triggerSlimeAttack(attackerEntry.group);
   if (msg.success && enemy) flashEnemyDamage(enemy.mesh);
+});
+
+// Monster turn (stage08+): enemies slide toward the party and strike. The
+// server has already resolved positions/HP; this just animates the result.
+function showShadowBanner(text) {
+  const b = document.createElement('div');
+  b.style.cssText = 'position:fixed;top:18%;left:50%;transform:translateX(-50%);z-index:80;padding:10px 22px;background:rgba(24,8,34,.88);border:1px solid #a06be0;border-radius:10px;color:#e2c8ff;font-size:15px;letter-spacing:.5px;transition:opacity .5s;pointer-events:none';
+  b.textContent = text;
+  document.body.appendChild(b);
+  setTimeout(() => { b.style.opacity = '0'; setTimeout(() => b.remove(), 600); }, 2600);
+}
+
+on('enemy_phase', async (msg) => {
+  const slide = (mesh, to, ms) => new Promise(res => {
+    const from = mesh.position.clone(); to.y = mesh.position.y;
+    const t0 = performance.now();
+    (function step(now){ const t = Math.min(1, (now - t0) / ms); mesh.position.lerpVectors(from, to, t); if (t < 1) requestAnimationFrame(step); else res(); })(performance.now());
+  });
+  const pop = (obj, k = 1.18, ms = 130) => { if (!obj) return; const s = obj.scale.x; obj.scale.setScalar(s * k); setTimeout(() => obj.scale.setScalar(s), ms); };
+  const nap = ms => new Promise(r => setTimeout(r, ms));
+  for (const act of (msg.actions || [])) {
+    const ent = enemyTokens.find(e => e.id === act.enemyId);
+    if (!ent || !ent.mesh) continue;
+    if (act.enrage) {
+      pop(ent.mesh, 1.5, 450);
+      showShadowBanner('The Shadow Lord howls — the darkness surges!');
+      await nap(700);
+      continue;
+    }
+    if (act.heal) {
+      const healed = enemyTokens.find(e => e.id === act.heal.targetId);
+      if (healed && healed.mesh) {
+        pop(healed.mesh, 1.3, 260);
+        if (healed.fillEl) updatePlayerLabelHp(healed.fillEl, act.heal.hpAfter, healed.maxHp);
+        showShadowBanner(`${ent.name || 'The shaman'} weaves shadow — ${healed.name || 'an ally'} mends!`);
+      }
+      await nap(420);
+      continue;
+    }
+    const path = act.path || [];
+    if (path.length) {
+      const [fc, fr] = path[path.length - 1];
+      ent.col = fc; ent.row = fr;
+      await slide(ent.mesh, gridToWorld(fc, fr), Math.min(1000, 360 * path.length));
+    }
+    if (act.attack) {
+      pop(ent.mesh, 1.22, 150);            // enemy lunges
+      const tgt = playerTokens.get(act.attack.pid);
+      if (tgt) {
+        pop(tgt.group, 1.18, 140);         // victim recoils
+        const mp = serverState?.players?.find(p => p.pid === act.attack.pid)?.maxHp || act.attack.hpAfter;
+        if (tgt.fillEl) updatePlayerLabelHp(tgt.fillEl, act.attack.hpAfter, mp);
+      }
+      playSFX('attack_melee');
+      await nap(520);
+    }
+    await nap(180);
+  }
 });
 
 function openHealPanel(target, isHealer) {
@@ -1174,7 +1244,7 @@ function openHealPanel(target, isHealer) {
     healBtn.textContent = `Heal ${target.name}`;
     healBtn.addEventListener('click', () => {
       healBtn.disabled = true;
-      send({ type: 'action_request', stageId: 'stage06', kind: 'heal', actAsPid: debugActAs() });
+      send({ type: 'action_request', stageId: 'stage08', kind: 'heal', actAsPid: debugActAs() });
     });
     panelEl('event-actions').appendChild(healBtn);
 
@@ -1182,7 +1252,7 @@ function openHealPanel(target, isHealer) {
     skipBtn.className = 'event-btn';
     skipBtn.textContent = 'Skip';
     skipBtn.addEventListener('click', () => {
-      send({ type: 'turn_continue', stageId: 'stage06', actAsPid: debugActAs() });
+      send({ type: 'turn_continue', stageId: 'stage08', actAsPid: debugActAs() });
       closeCombatPanel();
     });
     panelEl('event-actions').appendChild(skipBtn);
@@ -1214,7 +1284,7 @@ function openChoicePanel(pc, snap, isActor) {
   panelEl('d20-dice-shape').setAttribute('class', '');
   panelEl('d20-hud').classList.remove('active');
 
-  const pick = (payload) => send({ type: 'action_request', stageId: 'stage06', kind: 'choice_pick', actAsPid: debugActAs(), ...payload });
+  const pick = (payload) => send({ type: 'action_request', stageId: 'stage08', kind: 'choice_pick', actAsPid: debugActAs(), ...payload });
   const addBtn = (label, onClick) => {
     const b = document.createElement('button');
     b.className = 'event-btn';
@@ -1282,98 +1352,7 @@ on('heal_event', (msg) => {
         btn.className = 'event-btn';
         btn.textContent = 'Continue';
         btn.addEventListener('click', () => {
-          send({ type: 'turn_continue', stageId: 'stage06', actAsPid: debugActAs() });
-          closeCombatPanel();
-        });
-        panelEl('event-actions').appendChild(btn);
-      }
-    }
-  }, 60);
-});
-
-function openChallengePanel(challenge, isActor) {
-  panelEl('event-desc').textContent = challenge.description;
-  panelEl('event-actions').innerHTML = '';
-  panelEl('event-result').textContent = '';
-  panelEl('event-result').className = '';
-  panelEl('event-outcome').textContent = '';
-  panelEl('d20-label').textContent = '';
-  panelEl('d20-value').textContent = '—';
-  panelEl('d20-dice-shape').setAttribute('class', '');
-  panelEl('d20-hud').classList.remove('active');
-
-  if (isActor) {
-    const statLabel = STAT_NAMES_C[challenge.stat] || challenge.stat.toUpperCase();
-    const btn = document.createElement('button');
-    btn.className = 'event-btn';
-    btn.textContent = `Attempt (${statLabel})`;
-    btn.addEventListener('click', () => {
-      btn.disabled = true;
-      panelEl('d20-hud').classList.add('active');
-      panelEl('d20-label').textContent = 'Roll d20';
-      const onDiceClick = () => {
-        panelEl('d20-hud').removeEventListener('click', onDiceClick);
-        send({ type: 'action_request', stageId: 'stage06', kind: 'attempt', actAsPid: debugActAs() });
-      };
-      panelEl('d20-hud').addEventListener('click', onDiceClick);
-    });
-    panelEl('event-actions').appendChild(btn);
-
-    const skipBtn = document.createElement('button');
-    skipBtn.className = 'event-btn';
-    skipBtn.textContent = 'Skip';
-    skipBtn.addEventListener('click', () => {
-      send({ type: 'turn_continue', stageId: 'stage06', actAsPid: debugActAs() });
-      closeCombatPanel();
-    });
-    panelEl('event-actions').appendChild(skipBtn);
-  } else {
-    const note = document.createElement('div');
-    note.style.cssText = 'font-size:11px;opacity:0.5';
-    note.textContent = 'Watching...';
-    panelEl('event-actions').appendChild(note);
-  }
-  panelEl('event-panel').classList.add('visible');
-}
-
-on('skill_check_event', (msg) => {
-  const isActor = isControlledBy(msg.actorPid);
-  const diceShape = panelEl('d20-dice-shape');
-  const diceValue = panelEl('d20-value');
-  diceShape.setAttribute('class', '');
-  void diceShape.offsetWidth;
-  diceShape.classList.add('rolling');
-  panelEl('d20-label').textContent = '';
-  panelEl('d20-hud').classList.remove('active');
-  const _hud = panelEl('d20-hud');
-  { const cx = window.innerWidth - 78, cy = window.innerHeight - 70;
-    _hud.style.transform = `translate(${window.innerWidth/2 - cx}px, ${window.innerHeight/2 - cy}px) scale(2.4)`; }
-
-  let count = 0;
-  const anim = setInterval(() => {
-    diceValue.textContent = Math.floor(Math.random() * 20) + 1;
-    count++;
-    if (count > 12) {
-      clearInterval(anim);
-      diceValue.textContent = msg.roll;
-      diceValue.style.color = msg.roll === 20 ? '#ffe97a' : msg.roll === 1 ? '#ff6b6b' : '#ffe9a0';
-      diceShape.classList.remove('rolling');
-      diceShape.classList.add(msg.success ? 'success' : 'fail');
-      playSFX(msg.success ? 'skill_success' : 'fail');
-      const modStr = msg.mod >= 0 ? `+${msg.mod}` : `${msg.mod}`;
-      const statLabel = STAT_NAMES_C[msg.stat] || msg.stat.toUpperCase();
-      const resultEl = panelEl('event-result');
-      resultEl.textContent = `${msg.roll} ${modStr} (${statLabel}) = ${msg.total} vs DC ${msg.dc} — ${msg.success ? 'SUCCESS!' : 'FAILED'}`;
-      resultEl.className = msg.success ? 'success' : 'fail';
-      panelEl('event-outcome').textContent = msg.outcomeText;
-      setTimeout(() => { _hud.style.transform = ''; }, 1100);
-      if (isActor) {
-        panelEl('event-actions').innerHTML = '';
-        const btn = document.createElement('button');
-        btn.className = 'event-btn';
-        btn.textContent = 'Continue';
-        btn.addEventListener('click', () => {
-          send({ type: 'turn_continue', stageId: 'stage06', actAsPid: debugActAs() });
+          send({ type: 'turn_continue', stageId: 'stage08', actAsPid: debugActAs() });
           closeCombatPanel();
         });
         panelEl('event-actions').appendChild(btn);

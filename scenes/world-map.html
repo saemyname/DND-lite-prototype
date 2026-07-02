@@ -177,6 +177,9 @@ const STAGE_NAMES = {
   stage_04: 'Goblin Outpost',
   stage_05: 'Throne of the Goblin King',
   stage_06: 'The Vault',
+  stage_07: 'Darkwood',
+  stage_08: 'Sunken Ruins',
+  stage_09: 'Shadow Keep',
 };
 const votePanel    = document.getElementById('vote-panel');
 const voteMessage  = document.getElementById('vote-message');
@@ -392,7 +395,7 @@ gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
     const baseObj = stages['stage_02'].object;
     const worldDelta = stages['stage_02'].worldPos.clone().sub(stages['stage_01'].worldPos);
     const localDelta = worldDelta.clone().divideScalar(mapScale || 1);
-    for (let i = 3; i <= 6; i++) {
+    for (let i = 3; i <= 9; i++) {
       const stageKey = `stage_0${i}`;
       if (stages[stageKey]) continue;
       const clone = baseObj.clone(true);
@@ -403,6 +406,9 @@ gltfLoader.load('../Assets/dnd_map_06a.glb', (gltf) => {
         'stage_04': { x:  0.5, z:  1.0 },
         'stage_05': { x: -2.6, z:  3.3 },
         'stage_06': { x: -1.5, z:  5.0 },
+        'stage_07': { x:  1.2, z:  7.0 },
+        'stage_08': { x: -0.8, z:  9.2 },
+        'stage_09': { x: -2.2, z: 11.6 },
       };
       const tw = tweaks[stageKey];
       if (tw?.x) clone.position.x += tw.x / (mapScale || 1);
