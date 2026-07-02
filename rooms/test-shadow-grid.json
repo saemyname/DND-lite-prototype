@@ -1,0 +1,68 @@
+{
+  "id": "test-shadow",
+  "name": "Shadow Test Court",
+  "grid": { "cols": 7, "rows": 3, "cellSizeX": 6, "cellSizeZ": 6, "originX": 0, "originZ": 0, "floorY": 0 },
+  "walkable": [
+    [1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1]
+  ],
+  "playerSpawn": [3, 1],
+  "enemyAI": true,
+  "enemies": [
+    {
+      "id": "boss",
+      "col": 1,
+      "row": 1,
+      "name": "Test Shadow Lord",
+      "hp": 24,
+      "maxHp": 24,
+      "stat": "agi",
+      "dc": 1,
+      "atk": 2,
+      "atkRange": 1,
+      "moveRange": 0,
+      "enrage": { "below": 0.5, "atkBonus": 3, "moveRange": 2 },
+      "description": "A test lord of shadow.",
+      "successText": "It screams.",
+      "failText": "It cuts back.",
+      "failHp": -1
+    },
+    {
+      "id": "brute",
+      "col": 5,
+      "row": 1,
+      "name": "Test Brute",
+      "hp": 10,
+      "maxHp": 10,
+      "stat": "str",
+      "dc": 1,
+      "atk": 1,
+      "atkRange": 1,
+      "moveRange": 0,
+      "description": "A test brute.",
+      "successText": "It cracks.",
+      "failText": "It swats you.",
+      "failHp": -1
+    },
+    {
+      "id": "shaman",
+      "col": 6,
+      "row": 2,
+      "name": "Test Shaman",
+      "hp": 6,
+      "maxHp": 6,
+      "stat": "int",
+      "dc": 1,
+      "atk": 1,
+      "atkRange": 1,
+      "moveRange": 0,
+      "heals": { "amount": 4, "range": 3 },
+      "description": "A test shaman.",
+      "successText": "The chant dies.",
+      "failText": "Its staff cracks you.",
+      "failHp": -1
+    }
+  ],
+  "challenges": []
+}

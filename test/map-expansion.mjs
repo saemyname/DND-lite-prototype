@@ -7,6 +7,9 @@ const TARGETS = {
   'rooms/stage04-grid.json': { cols: 14, rows: 14 },
   'rooms/stage05-grid.json': { cols: 15, rows: 14 },
   'rooms/stage06-grid.json': { cols: 5, rows: 6 },
+  'rooms/stage07-grid.json': { cols: 14, rows: 14 },
+  'rooms/stage08-grid.json': { cols: 14, rows: 14 },
+  'rooms/stage09-grid.json': { cols: 15, rows: 14 },
 };
 
 let pass = 0, fail = 0;

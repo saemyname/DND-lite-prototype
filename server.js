@@ -481,6 +481,30 @@ function runEnemyPhase(st, sess) {
     if (e.hp <= 0) continue;
     const players = [...st.players.entries()].filter(([, p]) => p.hp > 0);
     if (!players.length) break;
+    // Boss enrage (chapter 2): once below the threshold, hit harder and start
+    // chasing. Fires at most once; the client shows a flash + banner.
+    if (e.enrage && !e.enraged && e.hp <= e.maxHp * e.enrage.below) {
+      e.enraged = true;
+      e.atk = enemyAtk(e) + e.enrage.atkBonus;
+      e.moveRange = e.enrage.moveRange;
+      actions.push({ enemyId: e.id, enrage: true });
+    }
+    // Healer (chapter 2): mend the most wounded living ally in range instead of
+    // moving/attacking. Falls through to normal behavior when no one needs it.
+    if (e.heals) {
+      let ally = null;
+      for (const o of st.enemies) {
+        if (o === e || o.hp <= 0 || o.hp >= o.maxHp) continue;
+        if (chebyshev(e.col, e.row, o.col, o.row) > e.heals.range) continue;
+        if (!ally || o.hp / o.maxHp < ally.hp / ally.maxHp) ally = o;
+      }
+      if (ally) {
+        const before = ally.hp;
+        ally.hp = Math.min(ally.maxHp, ally.hp + e.heals.amount);
+        actions.push({ enemyId: e.id, heal: { targetId: ally.id, amount: ally.hp - before, hpAfter: ally.hp } });
+        continue;
+      }
+    }
     // Nearest living player (Chebyshev), tie-broken toward the most wounded.
     let target = players[0][1];
     for (const [, p] of players) {
@@ -578,6 +602,9 @@ const NEXT_STAGE = {
   stage03: 'stage_04',
   stage04: 'stage_05',
   stage05: 'stage_06',
+  stage06: 'stage_07', // chapter 2 — The Shadow's Land
+  stage07: 'stage_08',
+  stage08: 'stage_09',
 };
 
 function unlockNextStage(sess, stageId) {
