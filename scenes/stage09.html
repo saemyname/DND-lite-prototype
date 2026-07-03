@@ -886,12 +886,26 @@ async function applyState(snap) {
   updateHUD();
 }
 
+let _enemyPhaseAnimating = false;
 function reconcileEnemies(enemiesFromServer) {
   for (const srvE of enemiesFromServer) {
     const local = enemyTokens.find(e => e.id === srvE.id);
     if (!local) continue;
     local.hp = srvE.hp;
     if (local.fillEl) updatePlayerLabelHp(local.fillEl, srvE.hp, srvE.maxHp);
+    // Positions are server-authoritative. Without this, a page reload (or a
+    // missed enemy_phase) leaves enemies rendered at their authored spawns
+    // while the server has them advanced — the client then blocks/permits the
+    // wrong movement tiles. Skipped mid-animation; the enemy-phase handler
+    // trues positions up when it finishes.
+    if (!_enemyPhaseAnimating && (local.col !== srvE.col || local.row !== srvE.row)) {
+      local.col = srvE.col;
+      local.row = srvE.row;
+      if (local.mesh) {
+        const pos = gridToWorld(srvE.col, srvE.row);
+        local.mesh.position.set(pos.x, gridData.grid.floorY, pos.z);
+      }
+    }
     if (srvE.hp <= 0 && local.mesh.parent) {
       scene.remove(local.mesh);
       if (local.label) { local.label.remove(); local.label = null; }
@@ -1247,6 +1261,7 @@ function showShadowBanner(text) {
 }
 
 on('enemy_phase', async (msg) => {
+  _enemyPhaseAnimating = true;
   const slide = (mesh, to, ms) => new Promise(res => {
     const from = mesh.position.clone(); to.y = mesh.position.y;
     const t0 = performance.now();
@@ -1292,6 +1307,8 @@ on('enemy_phase', async (msg) => {
     }
     await nap(180);
   }
+  _enemyPhaseAnimating = false;
+  if (serverState?.enemies) reconcileEnemies(serverState.enemies);
 });
 
 function openHealPanel(target, isHealer) {
