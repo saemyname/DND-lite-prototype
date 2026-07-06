@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>D&D Lite — Slime Preview (dev)</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+    "three/": "https://cdn.jsdelivr.net/npm/three@0.176.0/"
+  }
+}
+</script>
+<style>body{margin:0;background:#0b0714}#labels{position:fixed;bottom:16px;width:100%;display:flex;justify-content:center;gap:96px;color:#e8d9b5;font-family:Georgia,serif;font-size:15px;letter-spacing:1px}</style>
+</head>
+<body>
+<div id="labels"><span>red</span><span>green</span><span>blue</span><span>purple</span><span>gold</span></div>
+<script type="module">
+import * as THREE from 'three';
+import { createSlimeMiniature, updateSlimeAnimation } from '../scripts/miniature.js';
+import { COLOR_KEYS, colorForKey } from '../scripts/colors.js';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0714);
+const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(0, 4.5, 11);
+camera.lookAt(0, 1.2, 0);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+sun.position.set(4, 8, 6);
+scene.add(sun);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 10), new THREE.MeshStandardMaterial({ color: 0x241d2e }));
+floor.rotation.x = -Math.PI / 2;
+scene.add(floor);
+
+const roles = ['warrior', 'rogue', 'mage', 'cleric', 'warrior'];
+const slimes = COLOR_KEYS.map((key, i) => {
+  const s = createSlimeMiniature(roles[i], 2.4, colorForKey(key));
+  s.position.set((i - 2) * 3.4, 0, 0);
+  scene.add(s);
+  return s;
+});
+(function loop(now) {
+  slimes.forEach(s => updateSlimeAnimation(s, now, 0));
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+})(performance.now());
+</script>
+</body>
+</html>

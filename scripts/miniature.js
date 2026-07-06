@@ -1,4 +1,22 @@
 import * as THREE from 'three';
+import { COLOR_PALETTE } from './colors.js';
+
+// Ear personality per player color — five distinct cat-slime silhouettes.
+// sx/sy/sz scale the hemisphere dome, px/py place it, rz tilts it outward.
+const EAR_VARIANTS = {
+  red:    { sx: 1.0,  sy: 1.5, sz: 0.8,  px: 0.27, py: 0.62, rz: 0.5 },   // classic rounded
+  green:  { sx: 0.8,  sy: 2.3, sz: 0.7,  px: 0.24, py: 0.64, rz: 0.25 },  // tall perky ears
+  blue:   { sx: 1.05, sy: 1.6, sz: 0.75, px: 0.33, py: 0.56, rz: 1.25 },  // folded flop-ears
+  purple: { sx: 0.7,  sy: 3.1, sz: 0.6,  px: 0.20, py: 0.64, rz: 0.12 },  // long bunny ears
+  gold:   { sx: 0.75, sy: 1.0, sz: 0.7,  px: 0.30, py: 0.66, rz: 0.7 },   // tiny teddy ears
+};
+
+function earKeyForColor(hex) {
+  for (const [key, val] of Object.entries(COLOR_PALETTE)) {
+    if (val === hex) return key;
+  }
+  return 'red';
+}
 
 const ROLE_EMOJI = {
   warrior: '🗡️',
@@ -60,15 +78,17 @@ export function createSlimeMiniature(role, height = 3, colorHex) {
 
   // Cat ears — rounded jelly domes (hemispheres, not cones — cones read as
   // horns) sharing the body material so they squash and bounce with the slime.
+  // Each player color gets its own ear personality (EAR_VARIANTS above).
   const earMat = new THREE.MeshStandardMaterial({
     color, roughness: 0.25, metalness: 0.0, transparent: true, opacity: 0.88,
   });
   const earGeo = new THREE.SphereGeometry(0.16, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+  const ears = EAR_VARIANTS[earKeyForColor(color)] || EAR_VARIANTS.red;
   [-1, 1].forEach(side => {
     const ear = new THREE.Mesh(earGeo, earMat);
-    ear.scale.set(1, 1.5, 0.8);        // a touch taller than wide, slightly flat
-    ear.position.set(side * 0.27, 0.62, 0);
-    ear.rotation.z = side * -0.5;      // tilt outward like perked cat ears
+    ear.scale.set(ears.sx, ears.sy, ears.sz);
+    ear.position.set(side * ears.px, ears.py, 0);
+    ear.rotation.z = side * -ears.rz;
     ear.castShadow = true;
     anim.add(ear);
   });
