@@ -219,6 +219,25 @@ export function placeLyraSlime(scene, worldPos, height = 4) {
   anim.add(body);
   group.userData.body = body;
 
+  // Cat ears, matching the party slimes (see createSlimeMiniature) — Lyra's
+  // glow with a pink inner-ear.
+  const earMat = new THREE.MeshStandardMaterial({
+    color: 0x7ec7e8, roughness: 0.25, emissive: 0x336688, emissiveIntensity: 0.35,
+    transparent: true, opacity: 0.92,
+  });
+  const innerEarMat = new THREE.MeshBasicMaterial({ color: 0xffb0c8 });
+  [-1, 1].forEach(side => {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.42, 20), earMat);
+    ear.position.set(side * 0.28, 0.72, 0);
+    ear.rotation.z = side * -0.55;
+    anim.add(ear);
+    const inner = new THREE.Mesh(new THREE.CircleGeometry(1, 3), innerEarMat); // flat pink triangle
+    inner.scale.set(0.07, 0.13, 1);
+    inner.position.set(side * 0.285, 0.70, 0.115);
+    inner.rotation.z = side * -0.55;
+    anim.add(inner);
+  });
+
   const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
   const eyeGeo = new THREE.SphereGeometry(0.09, 12, 12);
   const tears = [];

@@ -58,6 +58,25 @@ export function createSlimeMiniature(role, height = 3, colorHex) {
   anim.add(body);
   group.userData.body = body;
 
+  // Cat ears — jelly cones sharing the body material so they squash and
+  // bounce with the slime. Tilted outward, with a pink inner-ear on the front.
+  const earMat = new THREE.MeshStandardMaterial({
+    color, roughness: 0.25, metalness: 0.0, transparent: true, opacity: 0.88,
+  });
+  const innerMat = new THREE.MeshBasicMaterial({ color: 0xffb0c8 });
+  [-1, 1].forEach(side => {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.42, 20), earMat);
+    ear.position.set(side * 0.28, 0.72, 0);
+    ear.rotation.z = side * -0.55;      // tilt outward like perked cat ears
+    ear.castShadow = true;
+    anim.add(ear);
+    const inner = new THREE.Mesh(new THREE.CircleGeometry(1, 3), innerMat); // flat pink triangle
+    inner.scale.set(0.07, 0.13, 1);
+    inner.position.set(side * 0.285, 0.70, 0.115);
+    inner.rotation.z = side * -0.55;
+    anim.add(inner);
+  });
+
   // Eyes + eye-dots — flat 2D ellipses on the front (+z). CircleGeometry is a
   // unit disc in the XY plane (faces +z); scale (rx, ry) makes the ellipse.
   const eyeGeo = new THREE.CircleGeometry(1, 24);
