@@ -219,23 +219,19 @@ export function placeLyraSlime(scene, worldPos, height = 4) {
   anim.add(body);
   group.userData.body = body;
 
-  // Cat ears, matching the party slimes (see createSlimeMiniature) — Lyra's
-  // glow with a pink inner-ear.
+  // Cat ears, matching the party slimes (see createSlimeMiniature) — rounded
+  // jelly domes in Lyra's glow.
   const earMat = new THREE.MeshStandardMaterial({
     color: 0x7ec7e8, roughness: 0.25, emissive: 0x336688, emissiveIntensity: 0.35,
     transparent: true, opacity: 0.92,
   });
-  const innerEarMat = new THREE.MeshBasicMaterial({ color: 0xffb0c8 });
+  const earGeo = new THREE.SphereGeometry(0.16, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2);
   [-1, 1].forEach(side => {
-    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.42, 20), earMat);
-    ear.position.set(side * 0.28, 0.72, 0);
-    ear.rotation.z = side * -0.55;
+    const ear = new THREE.Mesh(earGeo, earMat);
+    ear.scale.set(1, 1.5, 0.8);
+    ear.position.set(side * 0.27, 0.62, 0);
+    ear.rotation.z = side * -0.5;
     anim.add(ear);
-    const inner = new THREE.Mesh(new THREE.CircleGeometry(1, 3), innerEarMat); // flat pink triangle
-    inner.scale.set(0.07, 0.13, 1);
-    inner.position.set(side * 0.285, 0.70, 0.115);
-    inner.rotation.z = side * -0.55;
-    anim.add(inner);
   });
 
   const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
