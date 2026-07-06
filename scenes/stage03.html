@@ -831,7 +831,7 @@ async function applyState(snap) {
   const turnPid = snap.activeTurnPid;
   const turnPlayer = snap.players.find(p => p.pid === turnPid);
   const canDriveTurn = turnPid === myPid || debugBotsAreActive();
-  if (turnPlayer && canDriveTurn && !snap.pendingCombat && !snap.pendingHeal && !snap.pendingChallenge && !snap.outcome) {
+  if (turnPlayer && canDriveTurn && !snap.pendingCombat && !snap.pendingHeal && !snap.pendingChallenge && !snap.outcome && !_enemyPhaseAnimating) {
     showMoveRange(turnPlayer.col, turnPlayer.row, turnPlayer.role);
   } else {
     clearHighlights();
@@ -1161,13 +1161,26 @@ on('combat_event', (msg) => {
 // server has already resolved positions/HP; this just animates the result.
 on('enemy_phase', async (msg) => {
   _enemyPhaseAnimating = true;
+  // Movement input is gated while the monsters act (tiles would be computed
+  // against mid-animation positions) — say so, or a long phase reads as a freeze.
+  let _epBanner = document.getElementById('enemy-turn-banner');
+  if (!_epBanner) {
+    _epBanner = document.createElement('div');
+    _epBanner.id = 'enemy-turn-banner';
+    _epBanner.style.cssText = 'position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:70;padding:6px 18px;background:rgba(40,10,10,.85);border:1px solid rgba(220,120,90,.5);border-radius:9px;color:#f0b8a0;font-size:13px;letter-spacing:1.5px;pointer-events:none;transition:opacity .3s';
+    document.body.appendChild(_epBanner);
+  }
+  _epBanner.textContent = '⚔ ENEMY TURN…';
+  _epBanner.style.opacity = '1';
   const slide = (mesh, to, ms) => new Promise(res => {
     const from = mesh.position.clone(); to.y = mesh.position.y;
     const t0 = performance.now();
     (function step(now){ const t = Math.min(1, (now - t0) / ms); mesh.position.lerpVectors(from, to, t); if (t < 1) requestAnimationFrame(step); else res(); })(performance.now());
+    setTimeout(res, ms + 400); // backstop: rAF stalls in hidden/throttled tabs — a slide must never hang the phase
   });
   const pop = (obj, k = 1.18, ms = 130) => { if (!obj) return; const s = obj.scale.x; obj.scale.setScalar(s * k); setTimeout(() => obj.scale.setScalar(s), ms); };
   const nap = ms => new Promise(r => setTimeout(r, ms));
+  try {
   for (const act of (msg.actions || [])) {
     const ent = enemyTokens.find(e => e.id === act.enemyId);
     if (!ent || !ent.mesh) continue;
@@ -1190,8 +1203,18 @@ on('enemy_phase', async (msg) => {
     }
     await nap(180);
   }
-  _enemyPhaseAnimating = false;
-  if (serverState?.enemies) reconcileEnemies(serverState.enemies);
+  } finally {
+    // Always release the input gate — an exception or a stalled animation must
+    // never leave the player unable to act.
+    _enemyPhaseAnimating = false;
+    const _epb = document.getElementById('enemy-turn-banner');
+    if (_epb) _epb.style.opacity = '0';
+    if (serverState?.enemies) reconcileEnemies(serverState.enemies);
+    // Re-render movement tiles now that enemy positions are final — the tiles
+    // drawn when state_update arrived were computed against mid-animation
+    // (stale) enemy cells and can block or expose the wrong squares.
+    if (serverState) applyState(serverState);
+  }
 });
 
 function openHealPanel(target, isHealer) {

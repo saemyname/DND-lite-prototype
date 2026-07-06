@@ -1176,11 +1176,9 @@ wss.on('connection', (ws) => {
           const startChallengeOrEnd = () => {
             const challenge = adjacentChallengeAt(st, dstCol, dstRow);
             if (challenge) { st.pendingChallenge = { actorPid, challengeId: challenge.id }; return; }
-            // Walked up to a well that's already been drained: reuse the challenge
-            // panel plumbing to show a "run dry" message (client renders the spent
-            // state; turn_continue clears it). Does not heal again.
-            const spent = adjacentSpentWellAt(st, dstCol, dstRow);
-            if (spent) { st.pendingChallenge = { actorPid, challengeId: spent.id }; return; }
+            // NOTE: spent wells no longer re-open the "run dry" panel — it cost the
+            // player their whole action every time they walked past one, and with
+            // chapter-2 blessings sitting on main paths that read as a stuck turn.
             endTurn(st, sess);
           };
           if (me.role === 'cleric') {

@@ -779,7 +779,7 @@ async function applyState(snap) {
   const turnPid = snap.activeTurnPid;
   const turnPlayer = snap.players.find(p => p.pid === turnPid);
   const canDriveTurn = turnPid === myPid || debugBotsAreActive();
-  if (turnPlayer && canDriveTurn && !snap.pendingCombat && !snap.pendingHeal && !snap.pendingChallenge && !snap.outcome) {
+  if (turnPlayer && canDriveTurn && !snap.pendingCombat && !snap.pendingHeal && !snap.pendingChallenge && !snap.outcome && !_enemyPhaseAnimating) {
     showMoveRange(turnPlayer.col, turnPlayer.row, turnPlayer.role);
   } else {
     clearHighlights();
