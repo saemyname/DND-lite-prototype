@@ -4,11 +4,11 @@ import { COLOR_PALETTE } from './colors.js';
 // Ear personality per player color — five distinct cat-slime silhouettes.
 // sx/sy/sz scale the hemisphere dome, px/py place it, rz tilts it outward.
 const EAR_VARIANTS = {
-  red:    { sx: 1.0,  sy: 1.5, sz: 0.8,  px: 0.27, py: 0.62, rz: 0.5 },   // classic rounded
-  green:  { sx: 0.8,  sy: 2.3, sz: 0.7,  px: 0.24, py: 0.64, rz: 0.25 },  // tall perky ears
-  blue:   { sx: 1.05, sy: 1.6, sz: 0.75, px: 0.33, py: 0.56, rz: 1.25 },  // folded flop-ears
+  red:    { sx: 1.0,  sy: 1.5, sz: 0.8,  px: 0.27, py: 0.55, rz: 0.5 },   // classic rounded
+  green:  { sx: 0.8,  sy: 2.3, sz: 0.7,  px: 0.24, py: 0.57, rz: 0.25 },  // tall perky ears
+  blue:   { sx: 1.05, sy: 1.6, sz: 0.75, px: 0.40, py: 0.48, rz: 1.25 },  // folded flop-ears
   purple: { sx: 0.7,  sy: 3.1, sz: 0.6,  px: 0.20, py: 0.64, rz: 0.12 },  // long bunny ears
-  gold:   { sx: 0.75, sy: 1.0, sz: 0.7,  px: 0.30, py: 0.66, rz: 0.7 },   // tiny teddy ears
+  gold:   { sx: 0.75, sy: 1.0, sz: 0.7,  px: 0.30, py: 0.59, rz: 0.7 },   // tiny teddy ears
 };
 
 function earKeyForColor(hex) {
