@@ -735,7 +735,7 @@ setTimeout(() => {
 
 // ── Miniature (emoji sprite) ──
 function loadMiniature() {
-  miniature = createSlimeMiniature(charRole, 1.5, colorForKey(charData?.color));
+  miniature = createSlimeMiniature(charRole, 2.8, colorForKey(charData?.color));
   miniBottomOffset = 0; // group origin is at the bottom (sprite centered at y=height/2)
   if (currentStage) {
     const p = currentStage.worldPos;
@@ -950,7 +950,7 @@ function syncPartyMiniatures(players) {
     let entry = partyMiniatures.get(p.pid);
     const isNew = !entry;
     if (isNew) {
-      const group = createSlimeMiniature(p.role, 1, colorForKey(p.color));
+      const group = createSlimeMiniature(p.role, 2.4, colorForKey(p.color));
       scene.add(group);
       entry = { group, stageId: null, targetPos: null };
       partyMiniatures.set(p.pid, entry);
