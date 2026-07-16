@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>D&D Lite — Stage 09</title>
+<title>D&D Lite — Stage 12</title>
 
 <script type="importmap">
 {
@@ -301,7 +301,7 @@
 <body>
 
 <canvas id="canvas"></canvas>
-<div id="title">Shadow Keep</div>
+<div id="title">The Caldera</div>
 <div id="nav">
   <a href="world-map.html">← World</a>
 </div>
@@ -374,9 +374,9 @@
 
 <!-- Victory -->
 <div id="victory">
-  <div class="overlay-title">THE SHADOW FALLS</div>
-  <div class="overlay-sub">The Shadow Lord is undone — but on the horizon, the great peak glows red. Lyra: "That fire… it is answering the dark."</div>
-  <button class="event-btn" onclick="window.location.href='world-map.html'">Continue →</button>
+  <div class="overlay-title">THE MOUNTAIN SLEEPS</div>
+  <div class="overlay-sub">The Magma Drake is still. The fire sinks back into the deep.</div>
+  <button class="event-btn" onclick="window.location.href='ending.html'">Continue →</button>
 </div>
 
 <!-- Game Over -->
@@ -467,8 +467,8 @@ renderer.toneMapping = THREE.NoToneMapping;
 
 const scene = new THREE.Scene();
 scene.add(highlightGroup);
-scene.background = new THREE.Color(0x050210);
-scene.fog = new THREE.Fog(0x0a0518, 70, 280);
+scene.background = new THREE.Color(0x140503);
+scene.fog = new THREE.Fog(0x1a0805, 70, 280);
 
 // ── Camera ──
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 500);
@@ -655,6 +655,8 @@ function placeEnemies() {
 }
 
 function buildThroneScene() {
+  const _hazardSet = new Set((gridData.hazards || []).map(([c, r]) => c + ',' + r));
+
   const { cols, rows, cellSizeX, cellSizeZ, originX, originZ, floorY } = gridData.grid;
   const walkable = gridData.walkable;
 
@@ -668,7 +670,7 @@ function buildThroneScene() {
     for (let c = 0; c < cols; c++) {
       const x = originX + c * cellSizeX + cellSizeX / 2;
       const z = originZ + r * cellSizeZ + cellSizeZ / 2;
-      const blockName = (r + c) % 2 === 0 ? 'dark' : 'gold';
+      const blockName = _hazardSet.has(c + ',' + r) ? 'lava' : ((r + c) % 2 === 0 ? 'dark' : 'redstone');
       const tile = new THREE.Mesh(
         new THREE.BoxGeometry(cellSizeX, 0.4, cellSizeZ),
         blockMats[`${blockName}_top`]
@@ -680,7 +682,7 @@ function buildThroneScene() {
       const isFrontCorner = r === rows - 1 && (c === 0 || c === cols - 1);
       const isChallengeCell = (gridData.challenges || []).some(ch => ch.col === c && ch.row === r);
       if (walkable[r][c] === 0 && !isFrontCorner && !isChallengeCell) {
-        const pillar = block(cellSizeX * 0.7, 5, cellSizeZ * 0.7, 'stone_wall');
+        const pillar = block(cellSizeX * 0.7, 5, cellSizeZ * 0.7, 'rock');
         pillar.position.set(x, floorY + 2.5, z);
         pillar.castShadow = true;
         scene.add(pillar);
@@ -967,18 +969,18 @@ function clearHighlights() {
 
 // Async grid + state setup
 (async () => {
-  const resp = await fetch('../rooms/stage09-grid.json');
+  const resp = await fetch('../rooms/stage12-grid.json');
   gridData = await resp.json();
 
   // Build the voxel throne scene procedurally — depends on gridData
   buildThroneScene();
 
-  // ── Entry beat: the Shadow Lord speaks. Plays once, dismissible by click. ──
-  if (!sessionStorage.getItem('s09-intro-' + (localStorage.getItem('session-code') || ''))) {
-    sessionStorage.setItem('s09-intro-' + (localStorage.getItem('session-code') || ''), '1');
+  // ── Entry beat: the Magma Drake wakes. Plays once, dismissible by click. ──
+  if (!sessionStorage.getItem('s12-intro-' + (localStorage.getItem('session-code') || ''))) {
+    sessionStorage.setItem('s12-intro-' + (localStorage.getItem('session-code') || ''), '1');
     const banner = document.createElement('div');
-    banner.style.cssText = 'position:fixed;top:18%;left:50%;transform:translateX(-50%);z-index:120;max-width:80%;text-align:center;font-family:Georgia,serif;font-size:26px;letter-spacing:1px;color:#d8b8ff;text-shadow:0 0 18px rgba(80,0,120,.9);padding:10px 20px;cursor:pointer';
-    banner.textContent = 'Shadow Lord: "You carried the light all this way… just to feed it to me."';
+    banner.style.cssText = 'position:fixed;top:18%;left:50%;transform:translateX(-50%);z-index:120;max-width:80%;text-align:center;font-family:Georgia,serif;font-size:26px;letter-spacing:1px;color:#ffb87a;text-shadow:0 0 18px rgba(120,30,0,.9);padding:10px 20px;cursor:pointer';
+    banner.textContent = 'Magma Drake: "Little sparks… you climbed all this way just to feed the mountain."';
     document.body.appendChild(banner);
     const off = () => banner.remove();
     banner.addEventListener('click', off);
@@ -1071,12 +1073,12 @@ function clearHighlights() {
   if (isSpectator) {
     document.body.classList.add('spectator');
     const sessionCode = urlParams.get('code');
-    if (sessionCode) send({ type: 'dm_observe', code: sessionCode, stageId: 'stage09' });
+    if (sessionCode) send({ type: 'dm_observe', code: sessionCode, stageId: 'stage12' });
   } else if (hasSession) {
     const localChar = JSON.parse(localStorage.getItem('dndlite-character') || '{"hp":10,"maxHp":10}');
     send({
       type: 'enter_stage',
-      stageId: 'stage09',
+      stageId: 'stage12',
       hp: localChar.hp ?? 10,
       maxHp: localChar.maxHp ?? localChar.hp ?? 10,
       stats: { str: localChar.str, agi: localChar.agi, int: localChar.int, lck: localChar.lck },
@@ -1146,9 +1148,9 @@ canvas.addEventListener('click', (e) => {
       if (!me) return;
       const atkRange = ATTACK_RANGE_BY_ROLE[me.role] || 1;
       if (!inAtkRange(me.col, me.row, col, row, atkRange)) return;
-      send({ type: 'action_request', stageId: 'stage09', kind: 'move', col: me.col, row: me.row, actAsPid: debugActAs() });
+      send({ type: 'action_request', stageId: 'stage12', kind: 'move', col: me.col, row: me.row, actAsPid: debugActAs() });
     } else {
-      send({ type: 'action_request', stageId: 'stage09', kind: 'move', col, row, actAsPid: debugActAs() });
+      send({ type: 'action_request', stageId: 'stage12', kind: 'move', col, row, actAsPid: debugActAs() });
     }
   }
 });
@@ -1178,7 +1180,7 @@ function openCombatPanel(enemy, isAttacker) {
   panelEl('d20-dice-shape').setAttribute('class', '');
   panelEl('d20-hud').classList.remove('active');
 
-  renderCombatActions({ panelEl, send, stageId: 'stage09', actAsPid: debugActAs(), isAttacker,
+  renderCombatActions({ panelEl, send, stageId: 'stage12', actAsPid: debugActAs(), isAttacker,
     me: serverState?.players?.find(p => p.pid === serverState?.pendingCombat?.attackerPid) });
   panelEl('event-panel').classList.add('visible');
 }
@@ -1229,7 +1231,7 @@ function animateCombatEvent(ev, isAttacker) {
         btn.className = 'event-btn';
         btn.textContent = 'Continue';
         btn.addEventListener('click', () => {
-          send({ type: 'turn_continue', stageId: 'stage09', actAsPid: debugActAs() });
+          send({ type: 'turn_continue', stageId: 'stage12', actAsPid: debugActAs() });
           closeCombatPanel();
         });
         panelEl('event-actions').appendChild(btn);
@@ -1254,7 +1256,7 @@ on('combat_event', (msg) => {
 // server has already resolved positions/HP; this just animates the result.
 function showShadowBanner(text) {
   const b = document.createElement('div');
-  b.style.cssText = 'position:fixed;top:18%;left:50%;transform:translateX(-50%);z-index:80;padding:10px 22px;background:rgba(24,8,34,.88);border:1px solid #a06be0;border-radius:10px;color:#e2c8ff;font-size:15px;letter-spacing:.5px;transition:opacity .5s;pointer-events:none';
+  b.style.cssText = 'position:fixed;top:18%;left:50%;transform:translateX(-50%);z-index:80;padding:10px 22px;background:rgba(34,10,4,.88);border:1px solid #e0906b;border-radius:10px;color:#ffd9c8;font-size:15px;letter-spacing:.5px;transition:opacity .5s;pointer-events:none';
   b.textContent = text;
   document.body.appendChild(b);
   setTimeout(() => { b.style.opacity = '0'; setTimeout(() => b.remove(), 600); }, 2600);
@@ -1285,20 +1287,19 @@ on('enemy_phase', async (msg) => {
   for (const act of (msg.actions || [])) {
     const ent = enemyTokens.find(e => e.id === act.enemyId);
     if (!ent || !ent.mesh) continue;
-    if (act.enrage) {
-      pop(ent.mesh, 1.5, 450);
-      showShadowBanner('The Shadow Lord howls — the darkness surges!');
-      await nap(700);
+    if (act.eruption) {
+      showShadowBanner(`The mountain ERUPTS! Everyone takes ${act.dmg} damage!`);
+      const flash = document.createElement('div');
+      flash.style.cssText = 'position:fixed;inset:0;background:rgba(255,80,20,.28);z-index:60;pointer-events:none;transition:opacity .6s';
+      document.body.appendChild(flash);
+      setTimeout(() => { flash.style.opacity = '0'; setTimeout(() => flash.remove(), 650); }, 250);
+      await nap(800);
       continue;
     }
-    if (act.heal) {
-      const healed = enemyTokens.find(e => e.id === act.heal.targetId);
-      if (healed && healed.mesh) {
-        pop(healed.mesh, 1.3, 260);
-        if (healed.fillEl) updatePlayerLabelHp(healed.fillEl, act.heal.hpAfter, healed.maxHp);
-        showShadowBanner(`${ent.name || 'The shaman'} weaves shadow — ${healed.name || 'an ally'} mends!`);
-      }
-      await nap(420);
+    if (act.enrage) {
+      pop(ent.mesh, 1.5, 450);
+      showShadowBanner(`${ent.name || 'The boss'} roars — the fire surges!`);
+      await nap(700);
       continue;
     }
     const path = act.path || [];
@@ -1353,7 +1354,7 @@ function openHealPanel(target, isHealer) {
     healBtn.textContent = `Heal ${target.name}`;
     healBtn.addEventListener('click', () => {
       healBtn.disabled = true;
-      send({ type: 'action_request', stageId: 'stage09', kind: 'heal', actAsPid: debugActAs() });
+      send({ type: 'action_request', stageId: 'stage12', kind: 'heal', actAsPid: debugActAs() });
     });
     panelEl('event-actions').appendChild(healBtn);
 
@@ -1361,7 +1362,7 @@ function openHealPanel(target, isHealer) {
     skipBtn.className = 'event-btn';
     skipBtn.textContent = 'Skip';
     skipBtn.addEventListener('click', () => {
-      send({ type: 'turn_continue', stageId: 'stage09', actAsPid: debugActAs() });
+      send({ type: 'turn_continue', stageId: 'stage12', actAsPid: debugActAs() });
       closeCombatPanel();
     });
     panelEl('event-actions').appendChild(skipBtn);
@@ -1393,7 +1394,7 @@ function openChoicePanel(pc, snap, isActor) {
   panelEl('d20-dice-shape').setAttribute('class', '');
   panelEl('d20-hud').classList.remove('active');
 
-  const pick = (payload) => send({ type: 'action_request', stageId: 'stage09', kind: 'choice_pick', actAsPid: debugActAs(), ...payload });
+  const pick = (payload) => send({ type: 'action_request', stageId: 'stage12', kind: 'choice_pick', actAsPid: debugActAs(), ...payload });
   const addBtn = (label, onClick) => {
     const b = document.createElement('button');
     b.className = 'event-btn';
@@ -1461,7 +1462,7 @@ on('heal_event', (msg) => {
         btn.className = 'event-btn';
         btn.textContent = 'Continue';
         btn.addEventListener('click', () => {
-          send({ type: 'turn_continue', stageId: 'stage09', actAsPid: debugActAs() });
+          send({ type: 'turn_continue', stageId: 'stage12', actAsPid: debugActAs() });
           closeCombatPanel();
         });
         panelEl('event-actions').appendChild(btn);
@@ -1487,7 +1488,7 @@ function openChallengePanel(challenge, isActor) {
       btn.className = 'event-btn';
       btn.textContent = 'Continue';
       btn.addEventListener('click', () => {
-        send({ type: 'turn_continue', stageId: 'stage09', actAsPid: debugActAs() });
+        send({ type: 'turn_continue', stageId: 'stage12', actAsPid: debugActAs() });
         closeCombatPanel();
       });
       panelEl('event-actions').appendChild(btn);
@@ -1522,7 +1523,7 @@ function openChallengePanel(challenge, isActor) {
       panelEl('d20-label').textContent = 'Roll d20';
       const onDiceClick = () => {
         panelEl('d20-hud').removeEventListener('click', onDiceClick);
-        send({ type: 'action_request', stageId: 'stage09', kind: 'attempt', actAsPid: debugActAs() });
+        send({ type: 'action_request', stageId: 'stage12', kind: 'attempt', actAsPid: debugActAs() });
       };
       panelEl('d20-hud').addEventListener('click', onDiceClick);
     });
@@ -1532,7 +1533,7 @@ function openChallengePanel(challenge, isActor) {
     skipBtn.className = 'event-btn';
     skipBtn.textContent = 'Skip';
     skipBtn.addEventListener('click', () => {
-      send({ type: 'turn_continue', stageId: 'stage09', actAsPid: debugActAs() });
+      send({ type: 'turn_continue', stageId: 'stage12', actAsPid: debugActAs() });
       closeCombatPanel();
     });
     panelEl('event-actions').appendChild(skipBtn);
@@ -1582,7 +1583,7 @@ on('skill_check_event', (msg) => {
         btn.className = 'event-btn';
         btn.textContent = 'Continue';
         btn.addEventListener('click', () => {
-          send({ type: 'turn_continue', stageId: 'stage09', actAsPid: debugActAs() });
+          send({ type: 'turn_continue', stageId: 'stage12', actAsPid: debugActAs() });
           closeCombatPanel();
         });
         panelEl('event-actions').appendChild(btn);

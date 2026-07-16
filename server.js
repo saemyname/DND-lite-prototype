@@ -275,6 +275,7 @@ function applyRoleToPlayer(p, roleName) {
 
 // ── Character growth (Phase 2) ─────────────────────────────────────────────
 const POINTS_PER_LEVEL = 3;
+const HAZARD_DMG = 3; // lava tiles (chapter 3): damage for starting a turn on one
 const HP_PER_POINT = 2;
 // Enemy scaling per party level so growth doesn't invert the difficulty curve:
 // identity at level 1, then +15% hp and +1 atk per 2 levels.
@@ -481,6 +482,19 @@ function runEnemyPhase(st, sess) {
     if (e.hp <= 0) continue;
     const players = [...st.players.entries()].filter(([, p]) => p.hp > 0);
     if (!players.length) break;
+    // Eruption (chapter 3): every Nth enemy phase this enemy floods the whole
+    // field — every living player takes the damage, no cover.
+    if (e.eruption) {
+      e._erupt = (e._erupt || 0) + 1;
+      if (e._erupt % e.eruption.every === 0) {
+        actions.push({ enemyId: e.id, eruption: true, dmg: e.eruption.dmg });
+        for (const [pid, p] of st.players) {
+          if (p.hp <= 0) continue;
+          p.hp = Math.max(0, p.hp - e.eruption.dmg);
+          syncPlayerHpToSession(sess, st, pid);
+        }
+      }
+    }
     // Boss enrage (chapter 2): once below the threshold, hit harder and start
     // chasing. Fires at most once; the client shows a flash + banner.
     if (e.enrage && !e.enraged && e.hp <= e.maxHp * e.enrage.below) {
@@ -567,6 +581,20 @@ function beginTurnEffects(st, sess) {
         continue; // the next player's turn now begins — tick them too
       }
     }
+    // Lava hazard (chapter 3): starting your turn on a hazard cell burns.
+    // Enemies never tick — they're fire creatures, immune by design.
+    if (p.hp > 0 && (st.cfg.hazards || []).some(([c, r]) => c === p.col && r === p.row)) {
+      const before = p.hp;
+      p.hp = Math.max(0, p.hp - HAZARD_DMG);
+      syncPlayerHpToSession(sess, st, pid);
+      ticks.push({ pid, dmg: before - p.hp, hpAfter: p.hp, hazard: true });
+      if (p.hp <= 0) {
+        pruneDeadFromStage(st);
+        if (allPlayersDead(st)) { st.outcome = 'defeat'; break; }
+        advanceTurn(st);
+        continue;
+      }
+    }
     break;
   }
   if (ticks.length) broadcastStage(st, sess, { type: 'poison_tick', ticks });
@@ -605,6 +633,9 @@ const NEXT_STAGE = {
   stage06: 'stage_07', // chapter 2 — The Shadow's Land
   stage07: 'stage_08',
   stage08: 'stage_09',
+  stage09: 'stage_10', // chapter 3 — The Burning Peak
+  stage10: 'stage_11',
+  stage11: 'stage_12',
 };
 
 function unlockNextStage(sess, stageId) {

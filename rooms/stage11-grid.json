@@ -1,0 +1,419 @@
+{
+  "id": "stage11",
+  "name": "Molten Path",
+  "grid": {
+    "cols": 14,
+    "rows": 14,
+    "cellSizeX": 6,
+    "cellSizeZ": 6,
+    "originX": -42,
+    "originZ": -63,
+    "floorY": 0
+  },
+  "walkable": [
+    [
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0
+    ],
+    [
+      1,
+      1,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0
+    ],
+    [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      1,
+      1,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      1,
+      1,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0
+    ],
+    [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0
+    ],
+    [
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0
+    ]
+  ],
+  "playerSpawn": [
+    7,
+    13
+  ],
+  "enemies": [
+    {
+      "id": "golem1",
+      "col": 7,
+      "row": 0,
+      "name": "Magma Golem",
+      "hp": 14,
+      "maxHp": 14,
+      "stat": "str",
+      "dc": 10,
+      "atk": 5,
+      "atkRange": 1,
+      "moveRange": 1,
+      "description": "A magma golem grinds forward, dripping molten rock.",
+      "successText": "Cracks spread — the golem crumbles!",
+      "failText": "A molten fist crushes down on you.",
+      "successHp": 0,
+      "failHp": -4
+    },
+    {
+      "id": "imp1",
+      "col": 3,
+      "row": 3,
+      "name": "Ember Imp",
+      "hp": 5,
+      "maxHp": 5,
+      "stat": "agi",
+      "dc": 10,
+      "atk": 3,
+      "atkRange": 1,
+      "moveRange": 3,
+      "dot": {
+        "damage": 2,
+        "turns": 2
+      },
+      "description": "An ember imp skitters over the ash, trailing sparks!",
+      "successText": "The imp bursts in a puff of cinders!",
+      "failText": "It rakes you with white-hot claws.",
+      "successHp": 0,
+      "failHp": -3
+    },
+    {
+      "id": "imp2",
+      "col": 11,
+      "row": 4,
+      "name": "Ember Imp",
+      "hp": 5,
+      "maxHp": 5,
+      "stat": "agi",
+      "dc": 10,
+      "atk": 3,
+      "atkRange": 1,
+      "moveRange": 3,
+      "dot": {
+        "damage": 2,
+        "turns": 2
+      },
+      "description": "An ember imp skitters over the ash, trailing sparks!",
+      "successText": "The imp bursts in a puff of cinders!",
+      "failText": "It rakes you with white-hot claws.",
+      "successHp": 0,
+      "failHp": -3
+    },
+    {
+      "id": "spirit1",
+      "col": 7,
+      "row": 7,
+      "name": "Flame Spirit",
+      "hp": 6,
+      "maxHp": 6,
+      "stat": "int",
+      "dc": 10,
+      "atk": 3,
+      "atkRange": 3,
+      "moveRange": 2,
+      "description": "A flame spirit hurls fire from afar!",
+      "successText": "The spirit gutters out in smoke!",
+      "failText": "A firebolt sears you from across the field.",
+      "successHp": 0,
+      "failHp": -3
+    },
+    {
+      "id": "spirit2",
+      "col": 4,
+      "row": 10,
+      "name": "Flame Spirit",
+      "hp": 6,
+      "maxHp": 6,
+      "stat": "int",
+      "dc": 10,
+      "atk": 3,
+      "atkRange": 3,
+      "moveRange": 2,
+      "description": "A flame spirit hurls fire from afar!",
+      "successText": "The spirit gutters out in smoke!",
+      "failText": "A firebolt sears you from across the field.",
+      "successHp": 0,
+      "failHp": -3
+    }
+  ],
+  "challenges": [],
+  "enemyAI": true,
+  "hazards": [
+    [
+      2,
+      6
+    ],
+    [
+      3,
+      6
+    ],
+    [
+      4,
+      6
+    ],
+    [
+      5,
+      6
+    ],
+    [
+      6,
+      6
+    ],
+    [
+      8,
+      6
+    ],
+    [
+      9,
+      6
+    ],
+    [
+      10,
+      6
+    ],
+    [
+      11,
+      6
+    ],
+    [
+      2,
+      7
+    ],
+    [
+      3,
+      7
+    ],
+    [
+      4,
+      7
+    ],
+    [
+      5,
+      7
+    ],
+    [
+      6,
+      7
+    ],
+    [
+      7,
+      7
+    ],
+    [
+      8,
+      7
+    ],
+    [
+      9,
+      7
+    ],
+    [
+      11,
+      7
+    ]
+  ]
+}

@@ -1,10 +1,10 @@
 # D&D Lite — "Lyra Rescue Team"
 
-A browser multiplayer mini-RPG: a party of slimes rescues the healer Lyra from the Goblin King across six voxel stages. Three.js front-end, Node WebSocket server, join by a 4-digit code.
+A browser multiplayer mini-RPG: a party of slimes rescues the healer Lyra from the Goblin King across twelve voxel stages. Three.js front-end, Node WebSocket server, join by a 4-digit code.
 
 ## Features
 
-- Six stages of turn-based d20 grid combat, a boss fight, and a finale rescue
+- Twelve stages of turn-based d20 grid combat across three chapters, with boss fights and a finale rescue
 - Up to 5 players + an optional DM, in real time over one session code
 - Four classes — Warrior / Rogue / Mage / Cleric — with their own stats, range, and a Cleric heal
 - Enemies that hunt the party in the later stages

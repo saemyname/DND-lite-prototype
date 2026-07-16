@@ -34,6 +34,11 @@ export const BLOCK_TYPES = {
   gravel_stone:{ textures: 'gravel_stone.png' },
   table:       { textures: 'table.png' },
   trunk_white: { textures: { top: 'trunk_white_top.png', side: 'trunk_white_side.png', bottom: 'trunk_white_top.png' } },
+  // ── Volcano (chapter 3) ──
+  redsand:     { textures: 'redsand.png' },
+  redstone:    { textures: 'redstone.png' },
+  rock:        { textures: 'rock.png' },
+  greysand:    { textures: 'greysand.png' },
 };
 
 export const BLOCK_NAMES = Object.keys(BLOCK_TYPES);

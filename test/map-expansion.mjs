@@ -10,6 +10,9 @@ const TARGETS = {
   'rooms/stage07-grid.json': { cols: 14, rows: 14 },
   'rooms/stage08-grid.json': { cols: 14, rows: 14 },
   'rooms/stage09-grid.json': { cols: 15, rows: 14 },
+  'rooms/stage10-grid.json': { cols: 14, rows: 14 },
+  'rooms/stage11-grid.json': { cols: 14, rows: 14 },
+  'rooms/stage12-grid.json': { cols: 15, rows: 14 },
 };
 
 let pass = 0, fail = 0;
