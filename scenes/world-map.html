@@ -377,40 +377,126 @@ function mulberry32(seed) {
 }
 
 const CHAPTER_OF = key => { const n = Number(key.replace(/\D/g, '')); return n <= 6 ? 1 : n <= 9 ? 2 : 3; };
-const WAX_COLOR = { 1: 0xc84f42, 2: 0x7a5fd0, 3: 0xe07830 };
+const WAX_COLOR = { 1: 0xa63a2a, 2: 0x5f4a8a, 3: 0xb85c22 };
 
 function drawMapTexture() {
   const ctx = mapCtx;
   const rnd = mulberry32(1042);
-  // parchment base + mottling
-  ctx.fillStyle = '#e6d3a7';
+  const INK = '#4a3421';
+  const inkA = a => `rgba(74, 52, 33, ${a})`;
+  const WAX = '#a63a2a';
+
+  // ── vellum: golden base, fiber streaks, mottling, water stains, folds ──
+  ctx.fillStyle = '#dcc389';
   ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-  for (let i = 0; i < 90; i++) {
-    const x = rnd() * CANVAS_W, y = rnd() * CANVAS_H, r = 20 + rnd() * 70;
-    ctx.fillStyle = `rgba(${150 + rnd() * 40 | 0}, ${115 + rnd() * 30 | 0}, 60, ${0.03 + rnd() * 0.05})`;
+  for (let i = 0; i < 260; i++) {
+    const x = rnd() * CANVAS_W;
+    ctx.strokeStyle = `rgba(${170 + rnd() * 40 | 0}, ${140 + rnd() * 30 | 0}, 80, ${0.04 + rnd() * 0.05})`;
+    ctx.lineWidth = 1 + rnd() * 2;
+    ctx.beginPath();
+    const y0 = rnd() * CANVAS_H;
+    ctx.moveTo(x, y0);
+    ctx.lineTo(x + (rnd() - 0.5) * 8, y0 + 40 + rnd() * 160);
+    ctx.stroke();
+  }
+  for (let i = 0; i < 70; i++) {
+    const x = rnd() * CANVAS_W, y = rnd() * CANVAS_H, r = 30 + rnd() * 90;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(160, 122, 60, ${0.02 + rnd() * 0.05})`);
+    g.addColorStop(1, 'rgba(160, 122, 60, 0)');
+    ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
   }
-  // burnt edge vignette
-  for (let e = 0; e < 5; e++) {
-    ctx.strokeStyle = `rgba(70, 42, 18, ${0.05 + e * 0.055})`;
-    ctx.lineWidth = 26 - e * 4;
-    ctx.strokeRect(ctx.lineWidth / 2 + e * 6, ctx.lineWidth / 2 + e * 6,
-      CANVAS_W - ctx.lineWidth - e * 12, CANVAS_H - ctx.lineWidth - e * 12);
+  for (let i = 0; i < 4; i++) {
+    const x = rnd() * CANVAS_W, y = rnd() * CANVAS_H, r = 40 + rnd() * 60;
+    ctx.strokeStyle = `rgba(140, 100, 45, ${0.10 + rnd() * 0.06})`;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(x, y, r, rnd() * 6, rnd() * 3 + 3.5); ctx.stroke();
   }
-  // region tints: shadow lands (ch2) and burning peak (ch3)
-  const tint = (zTop, zBot, color) => {
-    const [, yTop] = worldToCanvas(0, zTop);
-    const [, yBot] = worldToCanvas(0, zBot);
-    ctx.fillStyle = color;
-    ctx.fillRect(0, yTop, CANVAS_W, yBot - yTop);
+  const crease = (x1, y1, x2, y2) => {
+    ctx.strokeStyle = 'rgba(120, 88, 40, 0.16)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255, 240, 200, 0.22)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x1 + 2, y1 + 2); ctx.lineTo(x2 + 2, y2 + 2); ctx.stroke();
   };
-  tint(-17, -1.5, 'rgba(70, 55, 110, 0.10)');
-  tint(-40, -17,  'rgba(190, 70, 25, 0.10)');
-  // dashed trail through the nodes
+  crease(0, CANVAS_H * 0.335, CANVAS_W, CANVAS_H * 0.345);
+  crease(0, CANVAS_H * 0.67, CANVAS_W, CANVAS_H * 0.66);
+  crease(CANVAS_W * 0.485, 0, CANVAS_W * 0.5, CANVAS_H);
+  for (let e = 0; e < 5; e++) {
+    ctx.strokeStyle = `rgba(70, 45, 18, ${0.05 + e * 0.05})`;
+    ctx.lineWidth = 24 - e * 4;
+    ctx.strokeRect(ctx.lineWidth / 2 + e * 5, ctx.lineWidth / 2 + e * 5,
+      CANVAS_W - ctx.lineWidth - e * 10, CANVAS_H - ctx.lineWidth - e * 10);
+  }
+
+  // ── double-ruled frame with latitude tick band ──
+  const M = 34;
+  ctx.strokeStyle = INK; ctx.lineWidth = 5;
+  ctx.strokeRect(M, M, CANVAS_W - 2 * M, CANVAS_H - 2 * M);
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(M + 14, M + 14, CANVAS_W - 2 * (M + 14), CANVAS_H - 2 * (M + 14));
+  ctx.fillStyle = INK;
+  const seg = 44;
+  for (let x = M; x < CANVAS_W - M - seg; x += seg * 2) {
+    ctx.fillRect(x, M + 3, seg, 8);
+    ctx.fillRect(x + seg, CANVAS_H - M - 11, seg, 8);
+  }
+  for (let y = M; y < CANVAS_H - M - seg; y += seg * 2) {
+    ctx.fillRect(M + 3, y + seg, 8, seg);
+    ctx.fillRect(CANVAS_W - M - 11, y, 8, seg);
+  }
+  for (const [cx, cy] of [[M + 14, M + 14], [CANVAS_W - M - 14, M + 14], [M + 14, CANVAS_H - M - 14], [CANVAS_W - M - 14, CANVAS_H - M - 14]]) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 10); ctx.lineTo(cx + 10, cy); ctx.lineTo(cx, cy + 10); ctx.lineTo(cx - 10, cy);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // ── region ghost capitals ──
+  const ghost = (text, z, size, angle) => {
+    const [, py] = worldToCanvas(0, z);
+    ctx.save();
+    ctx.translate(CANVAS_W / 2, py);
+    ctx.rotate(angle);
+    ctx.font = `${size}px Georgia, serif`;
+    ctx.fillStyle = inkA(0.13);
+    ctx.textAlign = 'center';
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
+  };
+  ghost('E L D E R M O O R', 15, 64, -0.02);
+  ghost("T H E   S H A D O W ' S   L A N D", -9, 50, 0.015);
+  ghost('T H E   B U R N I N G   P E A K', -26.5, 50, -0.015);
+
+  // ── hachure mountain ranges on the chapter borders ──
+  const peak = (x, y, s) => {
+    ctx.strokeStyle = inkA(0.75); ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(x - s, y); ctx.lineTo(x, y - s * 1.15); ctx.lineTo(x + s, y);
+    ctx.stroke();
+    ctx.strokeStyle = inkA(0.35); ctx.lineWidth = 1.4;
+    for (let k = 1; k <= 3; k++) {
+      const u = k / 4;
+      ctx.beginPath();
+      ctx.moveTo(x + u * s * 0.5, y - (1 - u) * s * 1.05);
+      ctx.lineTo(x + u * s * 1.0, y - (1 - u) * s * 0.35);
+      ctx.stroke();
+    }
+  };
+  const range = (z, wobble) => {
+    for (let x = -24; x <= 24; x += 3.4 + rnd() * 1.6) {
+      if (MAP_NODES.some(n => Math.hypot(n.x - x, n.z - z) < 4.2)) continue;
+      const [px, py] = worldToCanvas(x, z + (rnd() - 0.5) * wobble);
+      peak(px, py, 16 + rnd() * 12);
+    }
+  };
+  range(3.6, 1.6);
+  range(-16.3, 1.8);
+
+  // ── the trail ──
   const pts = MAP_NODES.map(n => worldToCanvas(n.x, n.z));
-  ctx.strokeStyle = '#8a5a33';
-  ctx.lineWidth = 5;
-  ctx.setLineDash([16, 12]);
+  ctx.strokeStyle = inkA(0.8);
+  ctx.lineWidth = 4.5;
+  ctx.setLineDash([15, 11]);
   ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(pts[0][0], pts[0][1]);
@@ -420,76 +506,151 @@ function drawMapTexture() {
   }
   ctx.stroke();
   ctx.setLineDash([]);
-  // doodles: trees (ch1), gloomy scribbles (ch2), the volcano (ch3)
+
+  // ── flora ──
   const tree = (x, y, s) => {
-    ctx.fillStyle = '#7d6547';
-    ctx.fillRect(x - s * 0.08, y, s * 0.16, s * 0.5);
-    ctx.fillStyle = '#6a8f5a';
-    ctx.beginPath(); ctx.moveTo(x, y - s); ctx.lineTo(x - s * 0.55, y + s * 0.1); ctx.lineTo(x + s * 0.55, y + s * 0.1); ctx.fill();
+    ctx.strokeStyle = inkA(0.6); ctx.lineWidth = 1.6;
+    ctx.fillStyle = 'rgba(95, 122, 79, 0.5)';
+    ctx.beginPath(); ctx.arc(x, y, s, 0.9 * Math.PI, 2.6 * Math.PI); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y + s); ctx.lineTo(x, y + s * 1.8); ctx.stroke();
+    ctx.strokeStyle = inkA(0.3);
+    ctx.beginPath(); ctx.arc(x + s * 0.25, y + s * 0.15, s * 0.55, 0.2, 1.3); ctx.stroke();
   };
-  for (let i = 0; i < 26; i++) {
-    const z = 2 + rnd() * 28, x = (rnd() - 0.5) * 56;
-    if (MAP_NODES.some(n => Math.hypot(n.x - x, n.z - z) < 5)) continue;
+  for (let i = 0; i < 22; i++) {
+    const z = 6 + rnd() * 24, x = (rnd() - 0.5) * 52;
+    if (MAP_NODES.some(n => Math.hypot(n.x - x, n.z - z) < 5.5)) continue;
     const [px, py] = worldToCanvas(x, z);
-    tree(px, py, 18 + rnd() * 14);
+    tree(px, py, 12 + rnd() * 8);
+    if (rnd() > 0.5) tree(px + 20 + rnd() * 10, py + 6, 9 + rnd() * 6);
   }
-  ctx.strokeStyle = 'rgba(60, 45, 95, 0.35)';
-  ctx.lineWidth = 2;
-  for (let i = 0; i < 16; i++) {
-    const z = -16 + rnd() * 12, x = (rnd() - 0.5) * 56;
-    if (MAP_NODES.some(n => Math.hypot(n.x - x, n.z - z) < 5)) continue;
+  for (let i = 0; i < 12; i++) {
+    const z = -14.5 + rnd() * 9, x = (rnd() - 0.5) * 52;
+    if (MAP_NODES.some(n => Math.hypot(n.x - x, n.z - z) < 5.5)) continue;
     const [px, py] = worldToCanvas(x, z);
-    ctx.beginPath();
-    for (let k = 0; k < 5; k++) ctx.lineTo(px + (rnd() - 0.5) * 30, py + (rnd() - 0.5) * 14);
+    ctx.strokeStyle = 'rgba(60, 45, 80, 0.55)'; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(px, py + 14); ctx.lineTo(px, py);
+    ctx.moveTo(px, py + 4); ctx.lineTo(px - 8, py - 6);
+    ctx.moveTo(px, py + 1); ctx.lineTo(px + 7, py - 9);
+    ctx.moveTo(px, py + 8); ctx.lineTo(px + 6, py + 2);
     ctx.stroke();
   }
-  { // the volcano crowning the map
-    const [vx, vy] = worldToCanvas(10, -33);
-    ctx.fillStyle = '#7a4a3a';
-    ctx.beginPath(); ctx.moveTo(vx, vy - 90); ctx.lineTo(vx - 85, vy + 30); ctx.lineTo(vx + 85, vy + 30); ctx.fill();
-    ctx.fillStyle = '#c04020';
-    ctx.beginPath(); ctx.moveTo(vx, vy - 90); ctx.lineTo(vx - 18, vy - 58); ctx.lineTo(vx + 14, vy - 62); ctx.fill();
-    ctx.strokeStyle = 'rgba(192, 64, 32, 0.7)';
-    ctx.lineWidth = 4;
-    for (const dx of [-30, 8, 38]) {
-      ctx.beginPath(); ctx.moveTo(vx, vy - 84);
-      ctx.quadraticCurveTo(vx + dx * 0.6, vy - 30, vx + dx, vy + 26); ctx.stroke();
-    }
+  ctx.fillStyle = 'rgba(166, 58, 42, 0.35)';
+  for (let i = 0; i < 40; i++) {
+    const z = -32 + rnd() * 13, x = (rnd() - 0.5) * 54;
+    if (MAP_NODES.some(n => Math.hypot(n.x - x, n.z - z) < 5)) continue;
+    const [px, py] = worldToCanvas(x, z);
+    ctx.beginPath(); ctx.arc(px, py, 1.5 + rnd() * 2.5, 0, Math.PI * 2); ctx.fill();
   }
-  // title + compass
-  ctx.fillStyle = 'rgba(58, 38, 18, 0.9)';
-  ctx.font = 'bold 44px Georgia, serif';
+
+  // ── the volcano ──
+  { const [vx, vy] = worldToCanvas(11, -33.5);
+    ctx.strokeStyle = inkA(0.85); ctx.lineWidth = 3;
+    ctx.fillStyle = 'rgba(140, 90, 55, 0.25)';
+    ctx.beginPath();
+    ctx.moveTo(vx - 90, vy + 34); ctx.lineTo(vx - 16, vy - 78); ctx.lineTo(vx + 10, vy - 78); ctx.lineTo(vx + 88, vy + 34);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = inkA(0.4); ctx.lineWidth = 1.6;
+    for (let k = 0; k < 7; k++) {
+      const u = k / 7;
+      ctx.beginPath();
+      ctx.moveTo(vx + 12 + u * 66, vy + 30 - u * 2);
+      ctx.lineTo(vx + 4 + u * 52, vy - 66 * (1 - u) + 22 * u);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = WAX; ctx.lineWidth = 3.4;
+    for (const dx of [-24, 2, 30]) {
+      ctx.beginPath(); ctx.moveTo(vx - 3, vy - 74);
+      ctx.quadraticCurveTo(vx + dx * 0.5, vy - 24, vx + dx, vy + 30);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = inkA(0.5); ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.arc(vx + 6, vy - 96, 12, 0.4, 4.6); ctx.stroke();
+    ctx.beginPath(); ctx.arc(vx + 22, vy - 116, 8, 2.2, 6.6); ctx.stroke();
+  }
+
+  // ── marginalia ──
+  ctx.font = 'italic 22px Georgia, serif';
+  ctx.fillStyle = inkA(0.5);
   ctx.textAlign = 'center';
-  ctx.fillText('The Lands of Eldermoor', CANVAS_W / 2, 74);
-  { const cx = CANVAS_W - 90, cy = CANVAS_H - 100;
-    ctx.strokeStyle = 'rgba(58, 38, 18, 0.7)'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(cx, cy, 34, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx, cy - 30); ctx.lineTo(cx - 8, cy + 8); ctx.lineTo(cx, cy - 2); ctx.lineTo(cx + 8, cy + 8); ctx.closePath();
-    ctx.fillStyle = 'rgba(160, 60, 40, 0.85)'; ctx.fill();
-    ctx.fillStyle = 'rgba(58, 38, 18, 0.9)'; ctx.font = 'bold 20px Georgia, serif';
-    ctx.fillText('N', cx, cy - 40); }
-  // stage nodes (locked = hollow + faded)
-  ctx.font = 'bold 22px Georgia, serif';
+  ctx.fillText('here be goblins', CANVAS_W * 0.79, CANVAS_H * 0.86);
+
+  // ── compass rose ──
+  { const cx = CANVAS_W - 128, cy = CANVAS_H - 148, R = 44;
+    ctx.strokeStyle = inkA(0.8); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, R * 0.62, 0, Math.PI * 2); ctx.stroke();
+    for (let k = 0; k < 8; k++) {
+      const a = k * Math.PI / 4 - Math.PI / 2;
+      const big = k % 2 === 0;
+      const len = big ? R : R * 0.6;
+      const w = big ? 8 : 5;
+      const tipX = cx + Math.cos(a) * len, tipY = cy + Math.sin(a) * len;
+      const lx = cx + Math.cos(a + Math.PI / 2) * w, ly = cy + Math.sin(a + Math.PI / 2) * w;
+      const rx = cx + Math.cos(a - Math.PI / 2) * w, ry = cy + Math.sin(a - Math.PI / 2) * w;
+      ctx.fillStyle = k === 0 ? WAX : (big ? INK : inkA(0.45));
+      ctx.beginPath(); ctx.moveTo(tipX, tipY); ctx.lineTo(lx, ly); ctx.lineTo(rx, ry); ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = INK;
+    ctx.font = 'bold 24px Georgia, serif';
+    ctx.fillText('N', cx, cy - R - 12); }
+
+  // ── cartouche title ──
+  { const cw = 560, chh = 96, cx = CANVAS_W / 2, cy = 96;
+    ctx.fillStyle = 'rgba(228, 203, 138, 0.9)';
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 4;
+    const x0 = cx - cw / 2, y0 = cy - chh / 2;
+    ctx.beginPath();
+    ctx.moveTo(x0 + 18, y0); ctx.lineTo(x0 + cw - 18, y0); ctx.lineTo(x0 + cw, y0 + 18);
+    ctx.lineTo(x0 + cw, y0 + chh - 18); ctx.lineTo(x0 + cw - 18, y0 + chh); ctx.lineTo(x0 + 18, y0 + chh);
+    ctx.lineTo(x0, y0 + chh - 18); ctx.lineTo(x0, y0 + 18); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.lineWidth = 1.4;
+    ctx.strokeRect(x0 + 10, y0 + 10, cw - 20, chh - 20);
+    ctx.strokeStyle = inkA(0.7); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x0 - 16, cy, 14, 1.1, 5.4); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x0 + cw + 16, cy, 14, 4.0, 8.4); ctx.stroke();
+    ctx.fillStyle = INK;
+    ctx.textAlign = 'center';
+    ctx.font = '600 34px Georgia, serif';
+    ctx.fillText('THE LANDS OF ELDERMOOR', cx, cy + 2);
+    ctx.font = 'italic 16px Georgia, serif';
+    ctx.fillStyle = inkA(0.6);
+    ctx.fillText('being a true chart of the campaign, as surveyed by the slime expedition', cx, cy + 28); }
+
+  // ── stage marks ──
   for (const n of MAP_NODES) {
     const [px, py] = worldToCanvas(n.x, n.z);
     const num = n.key.replace(/\D/g, '');
     const unlocked = (typeof isStageUnlocked === 'function') ? isStageUnlocked(n.key) : n.key === 'stage_01';
-    ctx.beginPath(); ctx.arc(px, py, 19, 0, Math.PI * 2);
     if (unlocked) {
-      ctx.fillStyle = '#b5432e'; ctx.fill();
-      ctx.lineWidth = 3; ctx.strokeStyle = '#5a2a1a'; ctx.stroke();
-      ctx.fillStyle = '#f5e8cc';
+      ctx.beginPath(); ctx.arc(px, py, 19, 0, Math.PI * 2);
+      ctx.fillStyle = WAX; ctx.fill();
+      ctx.lineWidth = 2.5; ctx.strokeStyle = INK; ctx.stroke();
+      ctx.beginPath(); ctx.arc(px, py, 24, 0, Math.PI * 2);
+      ctx.lineWidth = 1.3; ctx.stroke();
+      ctx.fillStyle = '#efdcb0';
     } else {
-      ctx.fillStyle = 'rgba(90, 75, 50, 0.10)'; ctx.fill();
-      ctx.lineWidth = 2.5; ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(90, 75, 50, 0.55)'; ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle = 'rgba(90, 75, 50, 0.6)';
+      ctx.beginPath(); ctx.arc(px, py, 19, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(74, 52, 33, 0.06)'; ctx.fill();
+      ctx.lineWidth = 2; ctx.setLineDash([5, 5]); ctx.strokeStyle = inkA(0.5); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = inkA(0.55);
     }
+    ctx.font = 'bold 21px Georgia, serif';
+    ctx.textAlign = 'center';
     ctx.fillText(num, px, py + 8);
-    ctx.font = '17px Georgia, serif';
-    ctx.fillStyle = unlocked ? 'rgba(58, 38, 18, 0.85)' : 'rgba(90, 75, 50, 0.45)';
-    ctx.fillText(STAGE_NAMES[n.key] || '', px, py + 44);
-    ctx.font = 'bold 22px Georgia, serif';
+    ctx.font = 'italic 19px Georgia, serif';
+    const label = STAGE_NAMES[n.key] || '';
+    if (unlocked) {
+      ctx.fillStyle = 'rgba(255, 240, 205, 0.55)';
+      ctx.fillText(label, px + 1, py + 47);
+      ctx.fillStyle = inkA(0.9);
+    } else {
+      ctx.fillStyle = inkA(0.35);
+    }
+    ctx.fillText(label, px, py + 46);
   }
+
   mapTexture.needsUpdate = true;
 }
 
@@ -542,6 +703,7 @@ for (const n of MAP_NODES) {
   flag.position.set(0.55, 2.2, 0);
   flag.userData._baseColor = wax;
   group.add(seal, pole, flag);
+  group.name = STAGE_NAMES[n.key] || n.key;
   group.position.set(n.x, 0, n.z);
   group.traverse(c => {
     if (c.isMesh) {
@@ -951,7 +1113,7 @@ canvas.addEventListener('pointermove', e => {
 
   if (stageKey) {
     const unlocked = isStageUnlocked(stageKey);
-    const name = stages[stageKey].object.name;
+    const name = STAGE_NAMES[stageKey] || stageKey;
     tooltipEl.textContent = unlocked ? name : `🔒 ${name} — Locked`;
     tooltipEl.style.left = (e.clientX + 16) + 'px';
     tooltipEl.style.top = (e.clientY - 10) + 'px';
