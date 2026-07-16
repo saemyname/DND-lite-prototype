@@ -489,8 +489,7 @@ function drawMapTexture() {
       peak(px, py, 16 + rnd() * 12);
     }
   };
-  range(3.6, 1.6);
-  range(-16.3, 1.8);
+  range(3.6, 1.6);   // Eldermoor / Shadow's Land divide (the north range made way for the volcano)
 
   // ── the trail ──
   const pts = MAP_NODES.map(n => worldToCanvas(n.x, n.z));
@@ -543,7 +542,7 @@ function drawMapTexture() {
   }
 
   // ── the volcano ──
-  { const [vx, vy] = worldToCanvas(11, -33.5);
+  { const [vx, vy] = worldToCanvas(20, -16.5);
     ctx.strokeStyle = inkA(0.85); ctx.lineWidth = 3;
     ctx.fillStyle = 'rgba(140, 90, 55, 0.25)';
     ctx.beginPath();
