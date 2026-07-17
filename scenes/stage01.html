@@ -404,6 +404,7 @@ document.addEventListener('click', (e) => {
 playBGM('adventure');
 import { loadBlockMaterials } from '../scripts/voxel-textures.js';
 import { buildVillage } from '../scripts/voxel-village.js';
+import { placeProp, KIT } from '../scripts/kit-props.js';
 
 // ── Grid / combat state (module scope) ──
 let gridData = null;
@@ -658,9 +659,59 @@ function revealOutcome() {
   }
 }
 
+// Dress Eldermoor with Kenney kit props: hero buildings on the old house
+// cells, a fountain square, oak woods on the blocked cells, lanterns along the
+// road. All placements are fire-and-forget async (models pop in as they load).
+function decorateVillageKit() {
+  const g = gridData.grid;
+  const seedRnd = (c, r) => {
+    let s = (c * 73856093) ^ (r * 19349663);
+    return () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
+  };
+  const world = (c, r) => gridToWorld(c, r);
+  const P = (url, c, r, opts = {}) => {
+    const pos = world(c, r);
+    placeProp(scene, url, { x: pos.x + (opts.dx || 0), z: pos.z + (opts.dz || 0), y: g.floorY, ...opts });
+  };
+
+  // Hero buildings on the four old house cells (they face the central road)
+  P(KIT.town('windmill'),              1, 2, { fitHeight: 9.5, rotY:  Math.PI / 2 });
+  P(KIT.town('watermill-wide'),        8, 2, { fitHeight: 6.5, rotY: -Math.PI / 2 });
+  P(KIT.town('stall-green'),           1, 5, { fitHeight: 4.2, rotY:  Math.PI / 2 });
+  P(KIT.town('stall-bench'),           1, 5, { fitHeight: 1.1, rotY:  Math.PI / 2, dx: 2.4, dz: 1.6 });
+  P(KIT.town('stall-red'),             8, 5, { fitHeight: 4.2, rotY: -Math.PI / 2 });
+  P(KIT.town('cart-high'),             8, 5, { fitHeight: 2.6, rotY: -Math.PI / 5, dx: -2.6, dz: 1.8 });
+
+  // Woods on the remaining blocked cells; the most central one becomes the well square
+  const houseSet = new Set((gridData.village?.houses || []).map(([c, r]) => c + ',' + r));
+  const blocked = [];
+  for (let r = 0; r < g.rows; r++) {
+    for (let c = 0; c < g.cols; c++) {
+      if (gridData.walkable[r][c] === 0 && !houseSet.has(c + ',' + r)) blocked.push([c, r]);
+    }
+  }
+  blocked.sort((a2, b2) => Math.hypot(a2[0] - 4.5, a2[1] - 4.5) - Math.hypot(b2[0] - 4.5, b2[1] - 4.5));
+  const fountainCell = blocked.shift();
+  if (fountainCell) P(KIT.town('fountain-round-detail'), fountainCell[0], fountainCell[1], { fitHeight: 2.6 });
+  const TREES = ['tree_oak', 'tree_default', 'tree_detailed', 'tree_fat', 'tree_pineSmallA'];
+  for (const [c, r] of blocked) {
+    const rnd = seedRnd(c, r);
+    const kind = TREES[Math.floor(rnd() * TREES.length)];
+    P(KIT.nature(kind), c, r, { fitHeight: 5.5 + rnd() * 2.5, rotY: rnd() * Math.PI * 2, dx: (rnd() - 0.5) * 2, dz: (rnd() - 0.5) * 2 });
+    if (rnd() > 0.55) P(KIT.nature(rnd() > 0.5 ? 'flower_redA' : 'flower_yellowA'), c, r, { fitHeight: 0.9, dx: (rnd() - 0.5) * 4, dz: 2.4 });
+    if (rnd() > 0.75) P(KIT.nature('mushroom_redGroup'), c, r, { fitHeight: 0.8, dx: 2.2, dz: (rnd() - 0.5) * 3 });
+  }
+
+  // Lanterns lighting the road (path runs down column 4)
+  for (const r of [1, 4, 6]) {
+    P(KIT.town('lantern'), 4, r, { fitHeight: 3.0, dx: 2.6, dz: 0 });
+  }
+}
+
 function buildVillageScene() {
   // Build the village environment from the grid config loaded from JSON
   buildVillage(scene, blockMats, {
+    floorOnly: true, // props below come from the Kenney kits
     cols: gridData.grid.cols,
     rows: gridData.grid.rows,
     cellSizeX: gridData.grid.cellSizeX,
@@ -851,6 +902,7 @@ function clearHighlights() {
 
   // Build voxel village (depends on gridData)
   buildVillageScene();
+  decorateVillageKit();
 
   // Larger map: keep the camera's angle/distance (characters stay the same size),
   // frame the party spawn at start, and let players pan within the map bounds.
@@ -886,28 +938,17 @@ function clearHighlights() {
   floorPlane.position.y = gridData.grid.floorY;
   scene.add(floorPlane);
 
-  // Render visible challenge markers (floating emoji over each challenge tile).
+  // Render challenge markers as real kit props (a slept-in bed, an abandoned
+  // cart by the tracks, the trail signpost) instead of floating emoji.
   // Stored by id so applyState can hide them when the clue is investigated.
   if (gridData.challenges) {
-    const statEmoji = { agi: '🌉', lck: '😴', int: '📜', str: '💪' };
-    const idEmoji   = { clue_bed: '🛏️', clue_tracks: '👣', clue_exit: '🌲' };
+    const idProp = {
+      clue_bed:    { url: KIT.nature('bed'),  fitHeight: 2.4, rotY: 0.5 },
+      clue_tracks: { url: KIT.town('cart'),   fitHeight: 2.6, rotY: -0.6 },
+      clue_exit:   { url: KIT.nature('sign'), fitHeight: 3.2, rotY: Math.PI * 0.95 },
+    };
     for (const ch of gridData.challenges) {
-      const emoji = idEmoji[ch.id] || statEmoji[ch.stat] || '❓';
-      const canvas = document.createElement('canvas');
-      canvas.width = 256; canvas.height = 256;
-      const ctx = canvas.getContext('2d');
-      ctx.font = '180px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(emoji, 128, 140);
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.minFilter = THREE.LinearFilter;
-      texture.magFilter = THREE.LinearFilter;
-      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true }));
-      const height = 2.5;
-      sprite.scale.set(height, height, 1);
-      sprite.position.y = height / 2;
       const group = new THREE.Group();
-      group.add(sprite);
       const pos = gridToWorld(ch.col, ch.row);
       { const cs = gridData.grid;
         const tile = new THREE.Mesh(
@@ -919,7 +960,9 @@ function clearHighlights() {
         tile.renderOrder = 2;
         scene.add(tile);
       }
-      group.position.set(pos.x, gridData.grid.floorY + 1.0, pos.z);
+      group.position.set(pos.x, gridData.grid.floorY, pos.z);
+      const prop = idProp[ch.id];
+      if (prop) placeProp(group, prop.url, { fitHeight: prop.fitHeight, rotY: prop.rotY });
       scene.add(group);
       challengeMarkers.set(ch.id, group);
     }

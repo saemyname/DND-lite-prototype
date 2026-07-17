@@ -15,6 +15,7 @@ const _v = (a, b) => a !== undefined ? a : b;
 //   paths?:   [[col,row], ...]   // walkable cells with stone floor (else grass)
 // }
 export function buildVillage(scene, blockMats, cfg) {
+  const floorOnly = !!cfg.floorOnly; // kit-dressed scenes draw their own props
   const { cols, rows, cellSizeX, cellSizeZ, originX, originZ, floorY, walkable } = cfg;
   const houses = new Set((cfg.houses || []).map(([c, r]) => `${c},${r}`));
   const wells  = new Set((cfg.wells  || []).map(([c, r]) => `${c},${r}`));
@@ -41,6 +42,8 @@ export function buildVillage(scene, blockMats, cfg) {
       scene.add(tile);
     }
   }
+
+  if (floorOnly) return;
 
   // ── Houses (blocked cells that are tagged) ──
   for (const key of houses) {
