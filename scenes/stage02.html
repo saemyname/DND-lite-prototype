@@ -392,6 +392,7 @@ import { send, on } from '../scripts/game-socket.js';
 import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, fadeOutToken, triggerSlimeAttack, flashEnemyDamage, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
 import { colorForKey, cssColorForKey } from '../scripts/colors.js';
 import { initDebugBots, debugActAs, isControlledBy, debugBotsAreActive } from '../scripts/debug-bots.js';
+import { placeProp, KIT } from '../scripts/kit-props.js';
 import { loadSkills, renderCombatActions, updatePoisonBadge } from '../scripts/combat-ui.js';
 import { renderLevelUpPanel, updateLevelChip } from '../scripts/levelup-ui.js';
 loadSkills();
@@ -590,6 +591,42 @@ function placeEnemies() {
   });
 }
 
+// Kenney-kit decoration helpers (shared shape with stage01).
+const _seedRnd = (c, r) => {
+  let s = (c * 73856093) ^ (r * 19349663);
+  return () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
+};
+function _kitCellProp(url, c, r, opts = {}) {
+  const pos = gridToWorld(c, r);
+  placeProp(scene, url, { x: pos.x + (opts.dx || 0), z: pos.z + (opts.dz || 0), y: gridData.grid.floorY, ...opts });
+}
+// Goblin's Trail: pine-and-oak wood with a raided ambush camp by the path.
+function decorateTrailKit() {
+  const g = gridData.grid;
+  const TREES = ['tree_pineDefaultA', 'tree_pineRoundC', 'tree_oak', 'tree_default', 'tree_pineTallA'];
+  const cells = [];
+  for (let r = 0; r < g.rows; r++)
+    for (let c = 0; c < g.cols; c++)
+      if (gridData.walkable[r][c] === 0) cells.push([c, r]);
+  cells.forEach(([c, r], i) => {
+    const rnd = _seedRnd(c, r);
+    if (i % 7 === 3) {           // clearings with camp litter instead of a tree
+      _kitCellProp(KIT.nature(rnd() > 0.5 ? 'log_stack' : 'stump_round'), c, r, { fitHeight: 1.6, rotY: rnd() * 6.3 });
+      _kitCellProp(KIT.nature('rock_smallC'), c, r, { fitHeight: 0.9, dx: 2, dz: 1.4 });
+    } else {
+      _kitCellProp(KIT.nature(TREES[Math.floor(rnd() * TREES.length)]), c, r,
+        { fitHeight: 6 + rnd() * 3, rotY: rnd() * 6.3, dx: (rnd() - 0.5) * 2, dz: (rnd() - 0.5) * 2 });
+      if (rnd() > 0.6) _kitCellProp(KIT.nature('plant_bushSmall'), c, r, { fitHeight: 1.0, dx: 2.3, dz: (rnd() - 0.5) * 3 });
+    }
+  });
+  // the goblins' ambush camp, just off the trail near the top
+  const camp = cells.length ? cells[1] : null;
+  if (camp) {
+    _kitCellProp(KIT.nature('tent_smallOpen'), camp[0], camp[1], { fitHeight: 3.2, rotY: 2.4, dx: -1 });
+    _kitCellProp(KIT.nature('campfire_logs'), camp[0], camp[1], { fitHeight: 1.1, dx: 2.6, dz: 2 });
+  }
+}
+
 function buildForestScene() {
   const { cols, rows, cellSizeX, cellSizeZ, originX, originZ, floorY } = gridData.grid;
   const walkable = gridData.walkable;
@@ -613,27 +650,7 @@ function buildForestScene() {
       tile.receiveShadow = true;
       scene.add(tile);
 
-      // Plant a tree on every off-path cell
-      if (!isPath) {
-        const trunkH = 4 + Math.random() * 2;
-        const trunk = block(1.4, trunkH, 1.4, 'wood');
-        trunk.position.set(
-          x + (Math.random() - 0.5) * 1.5,
-          floorY + trunkH / 2,
-          z + (Math.random() - 0.5) * 1.5,
-        );
-        trunk.castShadow = true;
-        scene.add(trunk);
-
-        const foliageSize = 3.5;
-        const foliage = new THREE.Mesh(
-          new THREE.BoxGeometry(foliageSize, foliageSize, foliageSize),
-          blockMats['grass_top'],
-        );
-        foliage.position.set(trunk.position.x, floorY + trunkH + foliageSize / 2 - 0.3, trunk.position.z);
-        foliage.castShadow = true;
-        scene.add(foliage);
-      }
+      // (kit forest replaces the voxel trees — see decorateTrailKit)
     }
   }
 
@@ -858,6 +875,7 @@ function clearHighlights() {
 
   // Build the voxel forest scene procedurally — depends on gridData
   buildForestScene();
+  decorateTrailKit();
 
   // Larger map: keep the camera's angle/distance (characters stay the same size),
   // frame the party spawn at start, and let players pan within the map bounds.
