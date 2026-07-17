@@ -394,6 +394,7 @@ import { send, on } from '../scripts/game-socket.js';
 import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, fadeOutToken, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
 import { colorForKey, cssColorForKey } from '../scripts/colors.js';
 import { initDebugBots, debugActAs, isControlledBy, debugBotsAreActive } from '../scripts/debug-bots.js';
+import { placeProp, KIT } from '../scripts/kit-props.js';
 import { loadSkills, renderCombatActions, updatePoisonBadge } from '../scripts/combat-ui.js';
 import { renderLevelUpPanel, updateLevelChip } from '../scripts/levelup-ui.js';
 loadSkills();
@@ -659,6 +660,31 @@ function revealOutcome() {
   }
 }
 
+// Kenney-kit decoration helpers (shared shape with stage01).
+const _seedRnd = (c, r) => {
+  let s = (c * 73856093) ^ (r * 19349663);
+  return () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
+};
+function _kitCellProp(url, c, r, opts = {}) {
+  const pos = gridToWorld(c, r);
+  placeProp(scene, url, { x: pos.x + (opts.dx || 0), z: pos.z + (opts.dz || 0), y: gridData.grid.floorY, ...opts });
+}
+// Ash Plain: a burnt wood — old stumps, fallen logs, ember-orange survivors.
+function decorateStageKit() {
+  const g = gridData.grid;
+  const TREES = ['stump_old', 'stump_oldTall', 'stump_round', 'log', 'tree_blocks_fall'];
+  for (let r = 0; r < g.rows; r++) {
+    for (let c = 0; c < g.cols; c++) {
+      if (gridData.walkable[r][c] !== 0) continue;
+      const rnd = _seedRnd(c, r);
+      const kind = TREES[Math.floor(rnd() * TREES.length)];
+      _kitCellProp(KIT.nature(kind), c, r,
+        { fitHeight: kind.startsWith('tree') ? 5.5 + rnd() * 2 : 1.6 + rnd() * 0.8, rotY: rnd() * 6.3, dx: (rnd() - 0.5) * 2, dz: (rnd() - 0.5) * 2 });
+      if (rnd() > 0.5) _kitCellProp(KIT.nature('rock_smallF'), c, r, { fitHeight: 0.9, dx: 2.2, dz: (rnd() - 0.5) * 3 });
+    }
+  }
+}
+
 function buildForestScene() {
   const _hazardSet = new Set((gridData.hazards || []).map(([c, r]) => c + ',' + r));
 
@@ -684,27 +710,7 @@ function buildForestScene() {
       tile.receiveShadow = true;
       scene.add(tile);
 
-      // Plant a tree on every off-path cell
-      if (!isPath) {
-        const trunkH = 4 + Math.random() * 2;
-        const trunk = block(1.4, trunkH, 1.4, 'wood');
-        trunk.position.set(
-          x + (Math.random() - 0.5) * 1.5,
-          floorY + trunkH / 2,
-          z + (Math.random() - 0.5) * 1.5,
-        );
-        trunk.castShadow = true;
-        scene.add(trunk);
-
-        const foliageSize = 3.5;
-        const foliage = new THREE.Mesh(
-          new THREE.BoxGeometry(foliageSize, foliageSize, foliageSize),
-          blockMats['dark_top'],
-        );
-        foliage.position.set(trunk.position.x, floorY + trunkH + foliageSize / 2 - 0.3, trunk.position.z);
-        foliage.castShadow = true;
-        scene.add(foliage);
-      }
+      // (kit burnt-forest props replace the voxel trees — see decorateStageKit)
     }
   }
 
@@ -906,6 +912,7 @@ function clearHighlights() {
 
   // Build the voxel forest scene procedurally (no GLB) — depends on gridData
   buildForestScene();
+  decorateStageKit();
 
   // Larger map: keep the camera's angle/distance (characters stay the same size),
   // frame the party spawn at start, and let players pan within the map bounds.
@@ -955,6 +962,14 @@ function clearHighlights() {
         tile.position.set(pos.x, cs.floorY + 0.04, pos.z);
         tile.renderOrder = 2;
         scene.add(tile);
+      }
+      if (ch.stat === 'lck') { // Lyra's blessing → a softly-lit stone ring shrine
+        const shrine = new THREE.Group();
+        shrine.position.set(pos.x, gridData.grid.floorY, pos.z);
+        placeProp(shrine, KIT.nature('statue_ring'), { fitHeight: 3.0 });
+        scene.add(shrine);
+        challengeMarkers.set(ch.id, shrine);
+        continue;
       }
       const emoji = challengeEmoji[ch.stat] || '❓';
       // Build a one-off emoji sprite — borrows from createEmojiMiniature's pattern

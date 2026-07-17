@@ -394,6 +394,7 @@ import { send, on } from '../scripts/game-socket.js';
 import { createEmojiMiniature, createSlimeMiniature, updateSlimeAnimation, fadeOutToken, triggerSlimeAttack, flashEnemyDamage, buildPlayerLabel, buildEnemyLabel, updatePlayerLabelHp } from '../scripts/miniature.js';
 import { colorForKey, cssColorForKey } from '../scripts/colors.js';
 import { initDebugBots, debugActAs, isControlledBy, debugBotsAreActive } from '../scripts/debug-bots.js';
+import { placeProp, KIT } from '../scripts/kit-props.js';
 import { loadSkills, renderCombatActions, updatePoisonBadge } from '../scripts/combat-ui.js';
 import { renderLevelUpPanel, updateLevelChip } from '../scripts/levelup-ui.js';
 loadSkills();
@@ -652,6 +653,34 @@ function placeEnemies() {
   });
 }
 
+// Kenney-kit decoration helpers (shared shape with stage01).
+const _seedRnd = (c, r) => {
+  let s = (c * 73856093) ^ (r * 19349663);
+  return () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
+};
+function _kitCellProp(url, c, r, opts = {}) {
+  const pos = gridToWorld(c, r);
+  placeProp(scene, url, { x: pos.x + (opts.dx || 0), z: pos.z + (opts.dz || 0), y: gridData.grid.floorY, ...opts });
+}
+// Sunken Ruins: drowned statuary — damaged columns, a fallen colossus head, overgrowth.
+function decorateStageKit() {
+  const g = gridData.grid;
+  let i = 0;
+  for (let r = 0; r < g.rows; r++) {
+    for (let c = 0; c < g.cols; c++) {
+      if (gridData.walkable[r][c] !== 0) continue;
+      if (r === g.rows - 1 && (c === 0 || c === g.cols - 1)) continue;
+      if ((gridData.challenges || []).some(ch => ch.col === c && ch.row === r)) continue;
+      const rnd = _seedRnd(c, r);
+      const RUINS = ['statue_columnDamaged', 'statue_block', 'rock_largeB', 'statue_column'];
+      _kitCellProp(KIT.nature(i % 9 === 4 ? 'statue_head' : RUINS[Math.floor(rnd() * RUINS.length)]), c, r,
+        { fitHeight: i % 9 === 4 ? 3.2 : 4.0, rotY: rnd() * 6.3 });
+      if (rnd() > 0.55) _kitCellProp(KIT.nature('grass_leafsLarge'), c, r, { fitHeight: 1.0, dx: 2.3, dz: (rnd() - 0.5) * 3 });
+      i++;
+    }
+  }
+}
+
 function buildOutpostScene() {
   const { cols, rows, cellSizeX, cellSizeZ, originX, originZ, floorY } = gridData.grid;
   const walkable = gridData.walkable;
@@ -676,12 +705,7 @@ function buildOutpostScene() {
       scene.add(tile);
 
       const isFrontCorner = r === rows - 1 && (c === 0 || c === cols - 1);
-      if (walkable[r][c] === 0 && !isFrontCorner) {
-        const pillar = block(cellSizeX * 0.7, 4.5, cellSizeZ * 0.7, 'stone_wall');
-        pillar.position.set(x, floorY + 2.25, z);
-        pillar.castShadow = true;
-        scene.add(pillar);
-      }
+      // (kit props replace the voxel pillars — see decorateStageKit)
     }
   }
 
@@ -955,6 +979,7 @@ function clearHighlights() {
 
   // Build the voxel outpost scene procedurally — depends on gridData
   buildOutpostScene();
+  decorateStageKit();
 
   // Larger map: keep the camera's angle/distance (characters stay the same size),
   // frame the party spawn at start, and let players pan within the map bounds.
